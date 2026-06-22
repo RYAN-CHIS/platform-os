@@ -1,0 +1,8 @@
+{
+  "buildCommand": "npx prisma generate && next build",
+  "devCommand": "next dev",
+  "installCommand": "npm install",
+  "framework": "nextjs",
+  "outputDirectory": ".next",
+  "regions": ["hkg1"]
+}

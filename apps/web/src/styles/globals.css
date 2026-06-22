@@ -1,0 +1,101 @@
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&family=Noto+Serif+SC:wght@300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── 品牌基础样式（与 ERP 小程序色系保持一致） ── */
+:root {
+  /* 页面背景 — ERP: --color-bg */
+  --yun-bg:       #F6F2ED;
+  /* 卡片/侧边栏背景 — ERP: --color-bg-card */
+  --yun-white:    #FFFBEB;
+  /* 边框色 — ERP: --color-border */
+  --yun-line:     #E8D9B5;
+  /* 主文字（墨色）— ERP: --color-text / --color-accent */
+  --yun-text:     #3A2A1A;
+  /* 次要文字 — ERP: --color-text-secondary */
+  --yun-subtext:  #8C7660;
+  /* 弱化文字 — ERP: --color-text-muted */
+  --yun-muted:    #B8A898;
+  /* 强调色（暖金）— ERP: --color-gold / --color-accent-light */
+  --yun-accent:   #C8A972;
+  /* 深色（active 文字/深色背景） */
+  --yun-dark:     #3A2A1A;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Noto Serif SC', 'Source Han Serif SC', 'STSong', 'SimSun', serif;
+  color: var(--yun-text);
+  background-color: var(--yun-bg);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  line-height: 1.8;
+  letter-spacing: 0.02em;
+}
+
+/* ── 品牌色工具类 ── */
+.bg-yun-white   { background-color: var(--yun-white); }
+.bg-yun-bg      { background-color: var(--yun-bg); }
+.bg-yun-dark    { background-color: var(--yun-dark); }
+.bg-yun-accent  { background-color: var(--yun-accent); }
+
+.text-yun-text    { color: var(--yun-text); }
+.text-yun-accent  { color: var(--yun-accent); }
+.text-yun-subtext { color: var(--yun-subtext); }
+.text-yun-muted  { color: var(--yun-muted); }
+
+.border-yun       { border-color: var(--yun-line); }
+.border-yun-line  { border-color: var(--yun-line); }
+
+/* ── 按钮 ── */
+.btn-primary {
+  background-color: var(--yun-dark);
+  color: var(--yun-white);
+  border: none;
+  padding: 0.5rem 1.25rem;
+  border-radius: 0.25rem;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+.btn-primary:hover { opacity: 0.85; }
+
+.btn-outline {
+  background-color: transparent;
+  color: var(--yun-text);
+  border: 1px solid var(--yun-line);
+  padding: 0.5rem 1.25rem;
+  border-radius: 0.25rem;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+.btn-outline:hover { border-color: var(--yun-accent); }
+
+/* ── 表单 ── */
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="number"],
+textarea,
+select {
+  font-family: inherit;
+  font-size: 0.875rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--yun-line);
+  border-radius: 0.25rem;
+  color: var(--yun-text);
+  background: var(--yun-white);
+  outline: none;
+  transition: border-color 0.2s;
+}
+input:focus, textarea:focus, select:focus {
+  border-color: var(--yun-accent);
+}

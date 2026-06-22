@@ -1,0 +1,496 @@
+/// ═══════════════════════════════════════════════════════════
+/// ⚠️  FROZEN — 历史参考，禁止修改，禁止 migrate
+/// ═══════════════════════════════════════════════════════════
+/// 权威 Schema: packages/db/schema.prisma (37 models)
+/// Migration 控制: packages/db (pnpm --filter @yunwu/db db:push)
+/// 此文件仅用于 prisma generate (生成客户端类型)
+/// Phase 3: 迁移完成后删除此文件
+/// ═══════════════════════════════════════════════════════════
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ═══════════════════════════════════════════
+// 一、用户 & 权限系统 V3
+// ═══════════════════════════════════════════
+
+model User {
+  id               Int              @id @default(autoincrement())
+  email            String           @unique
+  password         String
+  role             String           @default("admin")
+  name             String?
+  avatar           String?
+  permissions      String?
+  resetToken       String?          @map("reset_token")
+  resetTokenExpiry DateTime?        @map("reset_token_expiry")
+  createdAt        DateTime         @default(now()) @map("created_at")
+  updatedAt        DateTime         @updatedAt @map("updated_at")
+
+  userPermissions      UserPermission[]
+  temporaryPermissions  TemporaryPermission[]
+  auditLogsActedBy     PermissionAuditLog[]   @relation("AuditActor")
+
+  @@map("users")
+}
+
+model PermissionGroup {
+  id          Int      @id @default(autoincrement())
+  code        String   @unique
+  name        String
+  permissions Permission[]
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@map("permission_groups")
+}
+
+model Permission {
+  id        Int              @id @default(autoincrement())
+  code      String           @unique
+  name      String
+  groupId   Int?             @map("group_id")
+  group     PermissionGroup? @relation(fields: [groupId], references: [id])
+  createdAt DateTime         @default(now()) @map("created_at")
+
+  users             UserPermission[]
+  templateItems     PermissionTemplateItem[]
+  temporaryGrants   TemporaryPermission[]
+
+  @@map("permissions")
+}
+
+model UserPermission {
+  id           Int        @id @default(autoincrement())
+  userId       Int        @map("user_id")
+  permissionId Int        @map("permission_id")
+  type         String     @default("GRANT") // GRANT | REVOKE
+  user         User       @relation(fields: [userId], references: [id])
+  permission   Permission @relation(fields: [permissionId], references: [id])
+
+  @@unique([userId, permissionId])
+  @@map("user_permissions")
+}
+
+model PermissionTemplate {
+  id          Int      @id @default(autoincrement())
+  name        String   // 运营模板 / 仓库模板 / 财务模板
+  role        String   // admin / operator / viewer
+  description String?  // 模板说明
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  items PermissionTemplateItem[]
+
+  @@map("permission_templates")
+}
+
+model PermissionTemplateItem {
+  id           Int              @id @default(autoincrement())
+  templateId   Int              @map("template_id")
+  permissionId Int              @map("permission_id")
+  template     PermissionTemplate @relation(fields: [templateId], references: [id])
+  permission   Permission       @relation(fields: [permissionId], references: [id])
+
+  @@unique([templateId, permissionId])
+  @@map("permission_template_items")
+}
+
+model TemporaryPermission {
+  id            Int        @id @default(autoincrement())
+  userId        Int        @map("user_id")
+  permissionId  Int        @map("permission_id")
+  grantedAt     DateTime   @default(now()) @map("granted_at")
+  expiresAt     DateTime   @map("expires_at")
+  grantedBy     Int?       @map("granted_by")
+  reason        String?
+  user          User       @relation(fields: [userId], references: [id])
+  permission    Permission @relation(fields: [permissionId], references: [id])
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("temporary_permissions")
+}
+
+model PermissionAuditLog {
+  id            Int      @id @default(autoincrement())
+  userId        Int      @map("user_id")        // 谁操作的
+  targetUserId  Int      @map("target_user_id") // 被修改的人
+  action        String   // GRANT / REVOKE / TEMP_GRANT / TEMP_EXPIRE / TEMPLATE_APPLY / ROLE_CHANGE
+  permission    String   // 权限代码
+  reason        String?
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  actor  User @relation("AuditActor", fields: [userId], references: [id])
+
+  @@map("permission_audit_logs")
+}
+
+// ═══════════════════════════════════════════
+// 二、业务模型
+// ═══════════════════════════════════════════
+
+model Series {
+  id        Int      @id @default(autoincrement())
+  code      String   @unique
+  name      String
+  sortOrder Int      @default(0) @map("sort_order")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  works     Works[]
+
+  @@map("series")
+}
+
+model Works {
+  id        Int             @id @default(autoincrement())
+  code      String          @unique
+  name      String
+  seriesId  Int             @map("series_id")
+  status    LifecycleStatus @default(DESIGNING)
+  createdAt DateTime        @default(now()) @map("created_at")
+  updatedAt DateTime        @updatedAt @map("updated_at")
+  products  Products[]
+  series    Series          @relation(fields: [seriesId], references: [id])
+  assets    WorksAssets?
+
+  @@map("works")
+}
+
+model WorksAssets {
+  id            Int       @id @default(autoincrement())
+  workId        Int       @unique @map("work_id")
+  story         String?
+  designConcept String?   @map("design_concept")
+  thumbnail     String?
+  gallery       String?
+  videoUrl      String?   @map("video_url")
+  quote         String?
+  launchDate    DateTime? @map("launch_date")
+  work          Works     @relation(fields: [workId], references: [id])
+
+  @@map("works_assets")
+}
+
+model Products {
+  id          Int             @id @default(autoincrement())
+  code        String          @unique
+  name        String
+  workId      Int             @map("work_id")
+  status      LifecycleStatus @default(DESIGNING)
+  description String?
+  createdAt   DateTime        @default(now()) @map("created_at")
+  updatedAt   DateTime        @updatedAt @map("updated_at")
+  skus        ProductSku[]
+  work        Works           @relation(fields: [workId], references: [id])
+
+  @@map("products")
+}
+
+model ProductSku {
+  id            Int                @id @default(autoincrement())
+  code          String             @unique
+  name          String
+  productId     Int                @map("product_id")
+  status        LifecycleStatus    @default(DESIGNING)
+  specification String?            @default("") @map("specification")
+  size          String?            @default("")
+  price         Float              @default(0)
+  finishedStock Int                @default(0) @map("finished_stock")
+  markupRatio   Float?             @default(1.0) @map("markup_ratio")
+  rarityLevel   Int?               @default(1) @map("rarity_level")
+  storyFactor   Float?             @default(1.0) @map("story_factor")
+  createdAt     DateTime           @default(now()) @map("created_at")
+  updatedAt     DateTime           @updatedAt @map("updated_at")
+  boms          Bom[]
+  cost          ProductCost?
+  product       Products           @relation(fields: [productId], references: [id])
+  productions   ProductionRecord[]
+
+  @@map("product_skus")
+}
+
+model ProductCost {
+  id            Int        @id @default(autoincrement())
+  skuId         Int        @unique @map("sku_id")
+  materialCost  Float      @default(0) @map("material_cost")
+  laborCost     Float      @default(0) @map("labor_cost")
+  totalCost     Float      @default(0) @map("total_cost")
+  updatedAt     DateTime   @updatedAt @map("updated_at")
+  packagingCost Float      @default(0) @map("packaging_cost")
+  sku           ProductSku @relation(fields: [skuId], references: [id])
+
+  @@map("product_costs")
+}
+
+model ProductionRecord {
+  id            Int        @id @default(autoincrement())
+  skuId         Int        @map("sku_id")
+  quantity      Int        @default(0)
+  materialCost  Float      @default(0) @map("material_cost")
+  laborCost     Float      @default(0) @map("labor_cost")
+  packagingCost Float      @default(0) @map("packaging_cost")
+  totalCost     Float      @default(0) @map("total_cost")
+  unitCost      Float      @default(0) @map("unit_cost")
+  remark        String?
+  createdAt     DateTime   @default(now()) @map("created_at")
+  sku           ProductSku @relation(fields: [skuId], references: [id])
+
+  @@map("production_records")
+}
+
+model RawMaterial {
+  id                    Int                    @id @default(autoincrement())
+  code                  String                 @unique
+  name                  String
+  category              String                 @default("")
+  materialType          MaterialType           @default(OTHER)
+  specification         String?                @default("") @map("specification")
+  inventoryUnit         String                 @default("颗")
+  remaining             Float                  @default(0)
+  unitCost              Float?
+  status                LifecycleStatus        @default(READY)
+  shape                 String?                @default("")
+  beadsPerStrand        Int?                   @default(0) @map("beads_per_strand")
+  weightPerStrand       Float?                 @default(0) @map("weight_per_strand")
+  defaultPurchaseUnit   String?                @default("个") @map("default_purchase_unit")
+  defaultConversionRate Float?                 @default(1) @map("default_conversion_rate")
+  supplier              String                 @default("")
+  remark                String?                @default("")
+  createdAt             DateTime               @default(now()) @map("created_at")
+  updatedAt             DateTime               @updatedAt @map("updated_at")
+  bomItems              Bom[]
+  transactions          InventoryTransaction[]
+  purchaseRecords       PurchaseRecord[]
+
+  @@map("raw_materials")
+}
+
+model PurchaseRecord {
+  id                Int         @id @default(autoincrement())
+  materialId        Int
+  purchaseDate      DateTime    @default(now()) @map("purchase_date")
+  supplier          String?
+  purchaseUnit      String
+  conversionRate    Float
+  purchaseQuantity  Float
+  purchaseUnitPrice Float?      @map("purchase_unit_price")
+  purchasePrice     Float
+  inventoryQuantity Float       @map("inventory_quantity")
+  unitCost          Float?
+  remark            String?
+  createdAt         DateTime    @default(now()) @map("created_at")
+  material          RawMaterial @relation(fields: [materialId], references: [id])
+
+  @@map("purchase_records")
+}
+
+model InventoryTransaction {
+  id         Int             @id @default(autoincrement())
+  materialId Int
+  type       TransactionType
+  quantity   Float
+  beforeQty  Float
+  afterQty   Float
+  relatedDoc String?         @map("related_doc")
+  remark     String?
+  createdAt  DateTime        @default(now()) @map("created_at")
+  material   RawMaterial     @relation(fields: [materialId], references: [id])
+
+  @@map("inventory_transactions")
+}
+
+model Bom {
+  id                   Int         @id @default(autoincrement())
+  skuId                Int         @map("sku_id")
+  materialId           Int         @map("material_id")
+  quantity             Float
+  unitPrice            Float?
+  lineCost             Float?      @map("line_cost")
+  materialCodeSnapshot String      @map("material_code_snapshot")
+  materialNameSnapshot String      @map("material_name_snapshot")
+  material             RawMaterial @relation(fields: [materialId], references: [id])
+  sku                  ProductSku  @relation(fields: [skuId], references: [id])
+
+  @@unique([skuId, materialId])
+  @@map("bom")
+}
+
+model Customer {
+  id        Int           @id @default(autoincrement())
+  code      String        @unique
+  name      String
+  phone     String?
+  email     String?
+  wechat    String?       @map("wechat")
+  source    OrderChannel?
+  address   String?
+  tags      String?
+  notes     String?
+  createdAt DateTime      @default(now()) @map("created_at")
+  updatedAt DateTime      @updatedAt @map("updated_at")
+  orders    Order[]
+
+  @@map("customers")
+}
+
+model Order {
+  id              Int           @id @default(autoincrement())
+  orderNo         String        @unique @map("order_no")
+  customerId      Int           @map("customer_id")
+  channel         OrderChannel  @default(MANUAL)
+  status          OrderStatus   @default(PENDING)
+  paymentStatus   PaymentStatus @default(UNPAID) @map("payment_status")
+  items           String
+  subtotal        Float         @default(0)
+  discount        Float         @default(0)
+  totalAmount     Float         @default(0) @map("total_amount")
+  paidAmount      Float         @default(0) @map("paid_amount")
+  shippingFee     Float         @default(0) @map("shipping_fee")
+  platformOrderNo String?       @map("platform_order_no")
+  shippingAddress String?       @map("shipping_address")
+  deliveryDate    DateTime?     @map("delivery_date")
+  notes           String?
+  createdBy       Int?          @map("created_by")
+  orderDate       DateTime      @default(now()) @map("order_date")
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+  customer        Customer      @relation(fields: [customerId], references: [id])
+
+  @@map("orders")
+}
+
+enum LifecycleStatus {
+  DRAFT
+  DESIGNING
+  READY
+  ACTIVE
+  PAUSED
+  ARCHIVED
+}
+
+enum MaterialType {
+  BEAD
+  METAL
+  CERAMIC
+  LEATHER
+  INCENSE
+  CORD
+  PACKAGING
+  OTHER
+}
+
+enum TransactionType {
+  IN
+  OUT
+  ADJUST
+}
+
+enum OrderChannel {
+  MINIPROGRAM
+  WEBSITE
+  MANUAL
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  PROCESSING
+  SHIPPED
+  COMPLETED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  UNPAID
+  PARTIAL
+  PAID
+  REFUNDED
+}
+
+// ═══════════════════════════════════════════
+// Brand OS V2 — 新增枚举
+// ═══════════════════════════════════════════
+
+enum MediaType {
+  IMAGE
+  VIDEO
+  DOCUMENT
+  OTHER
+}
+
+enum MediaCategory {
+  PRODUCT
+  WORK
+  BANNER
+  BRAND
+  ARTICLE
+  PAGE
+  OTHER
+}
+
+// ═══════════════════════════════════════════
+// 三、Brand OS V2 — 媒体中心 (Phase A)
+// ═══════════════════════════════════════════
+
+model MediaAsset {
+  id          Int           @id @default(autoincrement())
+  filename    String
+  originalName String       @map("original_name")
+  mimeType    String        @map("mime_type")
+  size        Int
+  url         String
+  thumbnailUrl String?      @map("thumbnail_url")
+  width       Int?
+  height      Int?
+  duration    Int?
+  mediaType   MediaType     @map("media_type")
+  category    MediaCategory
+  alt         String?
+  caption     String?
+  tags        String?
+  uploadedBy  Int?          @map("uploaded_by")
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+  banners     Banner[]
+  references  MediaReference[]
+
+  @@map("media_assets")
+}
+
+model MediaReference {
+  id         Int      @id @default(autoincrement())
+  mediaId    Int      @map("media_id")
+  media      MediaAsset @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+  entityType String   @map("entity_type")   @db.VarChar(32)
+  entityId   Int      @map("entity_id")
+  fieldName  String   @map("field_name")    @db.VarChar(32)
+  sortOrder  Int      @default(0) @map("sort_order")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@unique([mediaId, entityType, entityId, fieldName])
+  @@index([entityType, entityId])
+  @@index([mediaId])
+  @@map("media_references")
+}
+
+model Banner {
+  id        Int        @id @default(autoincrement())
+  title     String
+  subtitle  String?
+  mediaId   Int        @map("media_id")
+  media     MediaAsset @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+  linkUrl   String?    @map("link_url")
+  sortOrder Int        @default(0) @map("sort_order")
+  isActive  Boolean    @default(true) @map("is_active")
+  startAt   DateTime?  @map("start_at")
+  endAt     DateTime?  @map("end_at")
+  createdAt DateTime   @default(now()) @map("created_at")
+  updatedAt DateTime   @updatedAt @map("updated_at")
+
+  @@map("banners")
+}

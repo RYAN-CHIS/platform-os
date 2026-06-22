@@ -1,0 +1,321 @@
+@import "tailwindcss";
+
+/* ══════════════════════════════════════
+   允物 Brand OS · 东方美学配色体系
+   ══════════════════════════════════════ */
+
+:root {
+  /* ── 底色 / 文字 ── */
+  --bg-xuan:      #f6f1eb;   /* 宣纸白 */
+  --bg-cream:      #faf6f0;   /* 米白 */
+  --bg-card:       #ffffff;    /* 卡片 */
+  --bg-sidebar:    #1a1715;   /* 侧栏深墨 */
+  --ink-primary:   #1c1917;   /* 主墨 */
+  --ink-secondary: #78716c;   /* 次墨（说明文字）*/
+  --ink-muted:     #a8a29e;   /* 淡墨（辅助）*/
+  --border-light:  #e7e5e4;   /* 极淡边框 */
+  --border-med:    #d6d3d1;   /* 中边框 */
+  --accent-red:    #B91C1C;   /* 朱砂 */
+  --accent-gold:   #b45309;   /* 赭金 */
+  --accent-blue:   #1e40af;   /* 靛青 */
+
+  /* ── 七序传统色 ── */
+  --seq-芙初: #7c9a6b;   /* 竹青  · 本真 */
+  --seq-栖迟: #4a7c59;   /* 松绿  · 归心 */
+  --seq-扶苏: #2d6a4f;   /* 翠色  · 生长 */
+  --seq-沧溟: #264653;   /* 靛蓝  · 格局 */
+  --seq-既明: #c9a84c;   /* 琥珀  · 觉知 */
+  --seq-观复: #b8523a;   /* 赭红  · 收藏 */
+  --seq-藏真: #1a1a2e;   /* 墨蓝  · 传承 */
+
+  /* ── 功能色 ── */
+  --func-green-bg:  #f0fdf4;  --func-green-text: #166534;
+  --func-red-bg:    #fef2f2;  --func-red-text:   #dc2626;
+  --func-amber-bg:  #fffbeb;  --func-amber-text: #d97706;
+  --func-blue-bg:   #eff6ff;  --func-blue-text:  #2563eb;
+}
+
+/* ── 全局 ── */
+html { font-size: 15px; }
+body {
+  background: var(--bg-xuan);
+  color: var(--ink-primary);
+  font-family:
+    var(--font-serif-zh),
+    "Noto Serif SC",
+    "Source Han Serif SC",
+    "Songti SC",
+    "SimSun",
+    serif;
+  -webkit-font-smoothing: antialiased;
+  line-height: 1.7;
+}
+
+/* ── 页面容器 ── */
+.page-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem 4rem;
+  padding-top: 4rem;
+}
+@media (min-width: 1024px) {
+  .page-container { padding-top: 2.5rem; }
+}
+
+/* ── 侧边栏样式覆盖 ── */
+/* 强制侧栏深色，不受 body 背景影响 */
+body > div[class*="fixed"] {
+  /* 仅作占位，具体在 Sidebar.tsx 内联完成 */
+}
+
+/* ── 统计卡片 ── */
+.stat-card {
+  background: var(--bg-card);
+  border-radius: 10px;
+  border: 1px solid var(--border-light);
+  padding: 1.25rem 1.4rem;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  transition: box-shadow 0.2s ease, transform 0.15s ease;
+}
+.stat-card:hover {
+  box-shadow: 0 4px 16px rgba(0,0,0,0.07);
+  transform: translateY(-1px);
+}
+.stat-card .stat-label {
+  font-size: 0.78rem;
+  color: var(--ink-muted);
+  letter-spacing: 0.02em;
+}
+.stat-card .stat-value {
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--ink-primary);
+  letter-spacing: -0.02em;
+}
+.stat-card .stat-sub {
+  font-size: 0.72rem;
+  color: var(--ink-muted);
+  margin-top: 2px;
+}
+
+/* ── 数据表格 ── */
+.data-table {
+  width: 100%;
+  font-size: 0.875rem;
+  border-collapse: collapse;
+  background: var(--bg-card);
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+}
+
+.data-table th {
+  text-align: left;
+  font-weight: 500;
+  font-size: 0.78rem;
+  color: var(--ink-muted);
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--border-light);
+  background: var(--bg-cream);
+  letter-spacing: 0.03em;
+  text-transform: none;
+}
+
+.data-table td {
+  padding: 10px 14px;
+  border-bottom: 1px solid #faf6f0;
+  color: var(--ink-primary);
+  font-size: 0.855rem;
+}
+
+.data-table tbody tr {
+  transition: background 0.12s ease;
+}
+.data-table tbody tr:hover td {
+  background: #faf6f066;
+}
+.data-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* ── 按钮体系 ── */
+.btn-primary {
+  background: var(--ink-primary);
+  color: var(--bg-xuan);
+  border: 1px solid var(--ink-primary);
+  padding: 7px 18px;
+  border-radius: 7px;
+  font-size: 0.835rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-family: inherit;
+  letter-spacing: 0.01em;
+}
+.btn-primary:hover {
+  background: #2c2c2c;
+  border-color: #2c2c2c;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+}
+
+.btn-secondary {
+  background: var(--bg-card);
+  color: var(--ink-primary);
+  border: 1px solid var(--border-med);
+  padding: 7px 18px;
+  border-radius: 7px;
+  font-size: 0.835rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-family: inherit;
+}
+.btn-secondary:hover {
+  background: var(--bg-cream);
+  border-color: var(--ink-muted);
+}
+
+.btn-sm {
+  background: var(--bg-cream);
+  color: var(--ink-secondary);
+  border: 1px solid transparent;
+  padding: 3px 10px;
+  border-radius: 5px;
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: all 0.12s ease;
+  font-family: inherit;
+}
+.btn-sm:hover {
+  background: var(--border-light);
+  color: var(--ink-primary);
+}
+
+.btn-danger {
+  background: none;
+  color: var(--func-red-text);
+  border: 1px solid #fecaca;
+  padding: 3px 10px;
+  border-radius: 5px;
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: all 0.12s ease;
+  font-family: inherit;
+}
+.btn-danger:hover {
+  background: var(--func-red-bg);
+}
+
+/* ── Badge ── */
+.badge {
+  display: inline-block;
+  padding: 2px 9px;
+  border-radius: 9999px;
+  font-size: 0.7rem;
+  font-weight: 500;
+  line-height: 1.6;
+  letter-spacing: 0.01em;
+}
+.badge-crystal  { background: var(--func-green-bg);  color: var(--func-green-text); }
+.badge-wood     { background: var(--func-amber-bg); color: var(--func-amber-text); }
+.badge-metal    { background: var(--func-blue-bg);   color: var(--func-blue-text); }
+.badge-other    { background: #f5f5f4;             color: var(--ink-muted); }
+.badge-danger   { background: var(--func-red-bg);    color: var(--func-red-text); }
+.badge-warning  { background: var(--func-amber-bg);  color: var(--func-amber-text); }
+
+/* ── 卡片（七序作品库） ── */
+.product-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+  border-radius: 10px;
+  padding: 1rem 1.2rem;
+  transition: box-shadow 0.2s ease, transform 0.15s ease;
+  position: relative;
+}
+.product-card:hover {
+  box-shadow: 0 4px 14px rgba(0,0,0,0.06);
+  transform: translateY(-1px);
+}
+
+/* ── 七序左边框色 ── */
+.seq-border-芙初 { border-left: 3px solid var(--seq-芙初); }
+.seq-border-栖迟 { border-left: 3px solid var(--seq-栖迟); }
+.seq-border-扶苏 { border-left: 3px solid var(--seq-扶苏); }
+.seq-border-沧溟 { border-left: 3px solid var(--seq-沧溟); }
+.seq-border-既明 { border-left: 3px solid var(--seq-既明); }
+.seq-border-观复 { border-left: 3px solid var(--seq-观复); }
+.seq-border-藏真 { border-left: 3px solid var(--seq-藏真); }
+
+/* ── Modal 遮罩 ── */
+.modal-overlay {
+  position: fixed; inset: 0;
+  background: rgba(28,25,23, 0.35);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  z-index: 1000;
+  display: flex; align-items: center; justify-content: center;
+}
+
+/* ── 空状态 ── */
+.empty-state {
+  text-align: center;
+  padding: 3rem 1rem;
+  color: var(--ink-muted);
+  font-size: 0.9rem;
+}
+
+/* ── 分割线 ── */
+.divider {
+  border: none;
+  border-top: 1px solid var(--border-light);
+  margin: 1.2rem 0;
+}
+
+/* ── 表单 input/select ── */
+input[type="text"],
+input[type="number"],
+input[type="date"],
+select,
+textarea {
+  font-family: inherit;
+  font-size: 0.855rem;
+  padding: 7px 10px;
+  border: 1px solid var(--border-med);
+  border-radius: 7px;
+  background: var(--bg-card);
+  color: var(--ink-primary);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  width: 100%;
+  box-sizing: border-box;
+}
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: var(--accent-red);
+  box-shadow: 0 0 0 3px rgba(185,28,28,0.08);
+}
+
+/* ── 标题 ── */
+h1, h2, h3 {
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+h2 { font-size: 1.2rem; color: var(--ink-primary); }
+h3 { font-size: 0.95rem; color: var(--ink-secondary); font-weight: 500; }
+
+/* ── 滚动条 ── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-med); border-radius: 10px; }
+::-webkit-scrollbar-thumb:hover { background: var(--ink-muted); }
+
+/* ── 页面渐入动画 ── */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.page-container > * {
+  animation: fadeUp 0.3s ease both;
+}
+.page-container > *:nth-child(2) { animation-delay: 0.04s; }
+.page-container > *:nth-child(3) { animation-delay: 0.08s; }
+.page-container > *:nth-child(4) { animation-delay: 0.12s; }

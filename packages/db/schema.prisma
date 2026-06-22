@@ -1,0 +1,688 @@
+// ═══════════════════════════════════════════════════════════
+// 允物 Yunwu · 统一数据库 Schema v1
+// Monorepo 唯一数据源 — packages/db
+// ═══════════════════════════════════════════════════════════
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_DATABASE_URL")
+}
+
+// ═══════════════════════════════════════════════════════════
+// PART 0 — 系统枚举
+// ═══════════════════════════════════════════════════════════
+
+enum SystemDomain {
+  ERP        // 进销存/财务/供应链
+  BRAND      // 品牌系统（内容/美学/对外叙事）
+  WEB        // 独立站（官网/SEO/展示）
+}
+
+enum UserRole {
+  SUPER_ADMIN    // 全系统
+  ERP_ADMIN      // ERP 管理员
+  BRAND_ADMIN    // Brand OS 管理员
+  WEB_ADMIN      // 独立站管理员
+  EDITOR         // 编辑
+  OPERATOR       // 运营
+  VIEWER         // 只读
+}
+
+// ═══════════════════════════════════════════════════════════
+// PART 1 — 统一用户 & 权限系统
+// ═══════════════════════════════════════════════════════════
+
+model User {
+  id               Int       @id @default(autoincrement())
+  email            String    @unique
+  password         String    // bcrypt hash
+  name             String?
+  avatar           String?
+  role             UserRole  @default(VIEWER)
+  systems          SystemDomain[]  // 可访问的系统域
+  resetToken       String?   @map("reset_token")
+  resetTokenExpiry DateTime? @map("reset_token_expiry")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  userPermissions      UserPermission[]
+  temporaryPermissions  TemporaryPermission[]
+  auditLogs            AuditLog[]            @relation("AuditActor")
+  mediaUploads         ErpMediaAsset[]       @relation("MediaUploader")
+
+  @@map("users")
+}
+
+model PermissionGroup {
+  id          Int          @id @default(autoincrement())
+  code        String       @unique
+  name        String
+  system      SystemDomain @default(ERP)
+  permissions Permission[]
+  createdAt   DateTime     @default(now()) @map("created_at")
+
+  @@map("permission_groups")
+}
+
+model Permission {
+  id        Int              @id @default(autoincrement())
+  code      String           @unique
+  name      String
+  system    SystemDomain     @default(ERP)
+  groupId   Int?             @map("group_id")
+  group     PermissionGroup? @relation(fields: [groupId], references: [id])
+  createdAt DateTime         @default(now()) @map("created_at")
+
+  users             UserPermission[]
+  templateItems     PermissionTemplateItem[]
+  temporaryGrants   TemporaryPermission[]
+
+  @@map("permissions")
+}
+
+model UserPermission {
+  id           Int        @id @default(autoincrement())
+  userId       Int        @map("user_id")
+  permissionId Int        @map("permission_id")
+  type         String     @default("GRANT") // GRANT | REVOKE
+  user         User       @relation(fields: [userId], references: [id])
+  permission   Permission @relation(fields: [permissionId], references: [id])
+
+  @@unique([userId, permissionId])
+  @@map("user_permissions")
+}
+
+model PermissionTemplate {
+  id          Int      @id @default(autoincrement())
+  name        String
+  role        UserRole
+  system      SystemDomain @default(ERP)
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  items PermissionTemplateItem[]
+
+  @@map("permission_templates")
+}
+
+model PermissionTemplateItem {
+  id           Int                @id @default(autoincrement())
+  templateId   Int                @map("template_id")
+  permissionId Int                @map("permission_id")
+  template     PermissionTemplate @relation(fields: [templateId], references: [id])
+  permission   Permission         @relation(fields: [permissionId], references: [id])
+
+  @@unique([templateId, permissionId])
+  @@map("permission_template_items")
+}
+
+model TemporaryPermission {
+  id           Int        @id @default(autoincrement())
+  userId       Int        @map("user_id")
+  permissionId Int        @map("permission_id")
+  grantedAt    DateTime   @default(now()) @map("granted_at")
+  expiresAt    DateTime   @map("expires_at")
+  grantedBy    Int?       @map("granted_by")
+  reason       String?
+  user         User       @relation(fields: [userId], references: [id])
+  permission   Permission @relation(fields: [permissionId], references: [id])
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("temporary_permissions")
+}
+
+model AuditLog {
+  id          String       @id @default(cuid())
+  userId      Int          @map("user_id")
+  user        User         @relation("AuditActor", fields: [userId], references: [id])
+  action      String       // GRANT / REVOKE / TEMP_GRANT / CREATE / UPDATE / DELETE / LOGIN
+  system      SystemDomain
+  entityType  String       @map("entity_type")
+  entityId    String?      @map("entity_id")
+  details     String?
+  createdAt   DateTime     @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@index([system, entityType, entityId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+// ═══════════════════════════════════════════════════════════
+// PART 2 — ERP 域：进销存 / 财务 / 供应链
+// ═══════════════════════════════════════════════════════════
+
+// ── 七序（制造域）──
+model ErpSeries {
+  id        Int              @id @default(autoincrement())
+  code      String           @unique
+  name      String
+  sortOrder Int              @default(0) @map("sort_order")
+  createdAt DateTime         @default(now()) @map("created_at")
+  updatedAt DateTime         @updatedAt @map("updated_at")
+  works     ErpWork[]
+
+  @@map("erp_series")
+}
+
+model ErpWork {
+  id        Int             @id @default(autoincrement())
+  code      String          @unique
+  name      String
+  seriesId  Int             @map("series_id")
+  status    LifecycleStatus @default(DESIGNING)
+  createdAt DateTime        @default(now()) @map("created_at")
+  updatedAt DateTime        @updatedAt @map("updated_at")
+  products  ErpProduct[]
+  series    ErpSeries       @relation(fields: [seriesId], references: [id])
+  assets    ErpWorkAsset?
+
+  @@map("erp_works")
+}
+
+model ErpWorkAsset {
+  id            Int       @id @default(autoincrement())
+  workId        Int       @unique @map("work_id")
+  story         String?
+  designConcept String?   @map("design_concept")
+  thumbnail     String?
+  gallery       String?
+  videoUrl      String?   @map("video_url")
+  quote         String?
+  launchDate    DateTime? @map("launch_date")
+  work          ErpWork   @relation(fields: [workId], references: [id])
+
+  @@map("erp_work_assets")
+}
+
+model ErpProduct {
+  id          Int             @id @default(autoincrement())
+  code        String          @unique
+  name        String
+  workId      Int             @map("work_id")
+  status      LifecycleStatus @default(DESIGNING)
+  description String?
+  createdAt   DateTime        @default(now()) @map("created_at")
+  updatedAt   DateTime        @updatedAt @map("updated_at")
+  skus        ErpProductSku[]
+  work        ErpWork         @relation(fields: [workId], references: [id])
+
+  @@map("erp_products")
+}
+
+model ErpProductSku {
+  id            Int                @id @default(autoincrement())
+  code          String             @unique
+  name          String
+  productId     Int                @map("product_id")
+  status        LifecycleStatus    @default(DESIGNING)
+  specification String?            @default("")
+  size          String?            @default("")
+  price         Float              @default(0)
+  finishedStock Int                @default(0) @map("finished_stock")
+  markupRatio   Float?             @default(1.0) @map("markup_ratio")
+  rarityLevel   Int?               @default(1) @map("rarity_level")
+  storyFactor   Float?             @default(1.0) @map("story_factor")
+  createdAt     DateTime           @default(now()) @map("created_at")
+  updatedAt     DateTime           @updatedAt @map("updated_at")
+  boms          ErpBom[]
+  cost          ErpProductCost?
+  product       ErpProduct         @relation(fields: [productId], references: [id])
+  productions   ErpProductionRecord[]
+
+  @@map("erp_product_skus")
+}
+
+model ErpProductCost {
+  id            Int           @id @default(autoincrement())
+  skuId         Int           @unique @map("sku_id")
+  materialCost  Float         @default(0) @map("material_cost")
+  laborCost     Float         @default(0) @map("labor_cost")
+  packagingCost Float         @default(0) @map("packaging_cost")
+  totalCost     Float         @default(0) @map("total_cost")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
+  sku           ErpProductSku @relation(fields: [skuId], references: [id])
+
+  @@map("erp_product_costs")
+}
+
+model ErpProductionRecord {
+  id            Int           @id @default(autoincrement())
+  skuId         Int           @map("sku_id")
+  quantity      Int           @default(0)
+  materialCost  Float         @default(0) @map("material_cost")
+  laborCost     Float         @default(0) @map("labor_cost")
+  packagingCost Float         @default(0) @map("packaging_cost")
+  totalCost     Float         @default(0) @map("total_cost")
+  unitCost      Float         @default(0) @map("unit_cost")
+  remark        String?
+  createdAt     DateTime      @default(now()) @map("created_at")
+  sku           ErpProductSku @relation(fields: [skuId], references: [id])
+
+  @@map("erp_production_records")
+}
+
+model ErpMaterial {
+  id                    Int                 @id @default(autoincrement())
+  code                  String              @unique
+  name                  String
+  category              String              @default("")
+  materialType          ErpMaterialType     @default(OTHER)
+  specification         String?             @default("")
+  inventoryUnit         String              @default("颗")
+  remaining             Float               @default(0)
+  unitCost              Float?
+  status                LifecycleStatus     @default(READY)
+  shape                 String?             @default("")
+  beadsPerStrand        Int?                @default(0) @map("beads_per_strand")
+  weightPerStrand       Float?              @default(0) @map("weight_per_strand")
+  defaultPurchaseUnit   String?             @default("个") @map("default_purchase_unit")
+  defaultConversionRate Float?              @default(1) @map("default_conversion_rate")
+  supplier              String              @default("")
+  remark                String?             @default("")
+  createdAt             DateTime            @default(now()) @map("created_at")
+  updatedAt             DateTime            @updatedAt @map("updated_at")
+  bomItems              ErpBom[]
+  transactions          ErpInventoryTransaction[]
+  purchaseRecords       ErpPurchaseRecord[]
+
+  @@map("erp_materials")
+}
+
+model ErpPurchaseRecord {
+  id                Int        @id @default(autoincrement())
+  materialId        Int
+  purchaseDate      DateTime   @default(now()) @map("purchase_date")
+  supplier          String?
+  purchaseUnit      String
+  conversionRate    Float
+  purchaseQuantity  Float
+  purchaseUnitPrice Float?     @map("purchase_unit_price")
+  purchasePrice     Float
+  inventoryQuantity Float      @map("inventory_quantity")
+  unitCost          Float?
+  remark            String?
+  createdAt         DateTime   @default(now()) @map("created_at")
+  material          ErpMaterial @relation(fields: [materialId], references: [id])
+
+  @@map("erp_purchase_records")
+}
+
+model ErpInventoryTransaction {
+  id         Int             @id @default(autoincrement())
+  materialId Int
+  type       TransactionType
+  quantity   Float
+  beforeQty  Float
+  afterQty   Float
+  relatedDoc String?         @map("related_doc")
+  remark     String?
+  createdAt  DateTime        @default(now()) @map("created_at")
+  material   ErpMaterial      @relation(fields: [materialId], references: [id])
+
+  @@map("erp_inventory_transactions")
+}
+
+model ErpBom {
+  id                   Int           @id @default(autoincrement())
+  skuId                Int           @map("sku_id")
+  materialId           Int           @map("material_id")
+  quantity             Float
+  unitPrice            Float?
+  lineCost             Float?        @map("line_cost")
+  materialCodeSnapshot String        @map("material_code_snapshot")
+  materialNameSnapshot String        @map("material_name_snapshot")
+  material             ErpMaterial    @relation(fields: [materialId], references: [id])
+  sku                  ErpProductSku @relation(fields: [skuId], references: [id])
+
+  @@unique([skuId, materialId])
+  @@map("erp_bom")
+}
+
+model ErpCustomer {
+  id        Int           @id @default(autoincrement())
+  code      String        @unique
+  name      String
+  phone     String?
+  email     String?
+  wechat    String?       @map("wechat")
+  source    OrderChannel?
+  address   String?
+  tags      String?
+  notes     String?
+  createdAt DateTime      @default(now()) @map("created_at")
+  updatedAt DateTime      @updatedAt @map("updated_at")
+  orders    ErpOrder[]
+
+  @@map("erp_customers")
+}
+
+model ErpOrder {
+  id              Int           @id @default(autoincrement())
+  orderNo         String        @unique @map("order_no")
+  customerId      Int           @map("customer_id")
+  channel         OrderChannel  @default(MANUAL)
+  status          OrderStatus   @default(PENDING)
+  paymentStatus   PaymentStatus @default(UNPAID) @map("payment_status")
+  items           String
+  subtotal        Float         @default(0)
+  discount        Float         @default(0)
+  totalAmount     Float         @default(0) @map("total_amount")
+  paidAmount      Float         @default(0) @map("paid_amount")
+  shippingFee     Float         @default(0) @map("shipping_fee")
+  platformOrderNo String?       @map("platform_order_no")
+  shippingAddress String?       @map("shipping_address")
+  deliveryDate    DateTime?     @map("delivery_date")
+  notes           String?
+  createdBy       Int?          @map("created_by")
+  orderDate       DateTime      @default(now()) @map("order_date")
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+  customer        ErpCustomer   @relation(fields: [customerId], references: [id])
+
+  @@map("erp_orders")
+}
+
+// ── ERP 枚举 ──
+enum LifecycleStatus { DRAFT DESIGNING READY ACTIVE PAUSED ARCHIVED }
+enum ErpMaterialType    { BEAD METAL CERAMIC LEATHER INCENSE CORD PACKAGING OTHER }
+enum TransactionType    { IN OUT ADJUST }
+enum OrderChannel       { MINIPROGRAM WEBSITE MANUAL }
+enum OrderStatus        { PENDING CONFIRMED PROCESSING SHIPPED COMPLETED CANCELLED }
+enum PaymentStatus      { UNPAID PARTIAL PAID REFUNDED }
+
+// ── ERP 媒体库 ──
+model ErpMediaAsset {
+  id           Int           @id @default(autoincrement())
+  filename     String
+  originalName String        @map("original_name")
+  mimeType     String        @map("mime_type")
+  size         Int
+  url          String
+  thumbnailUrl String?       @map("thumbnail_url")
+  width        Int?
+  height       Int?
+  duration     Int?
+  mediaType    ErpMediaType  @map("media_type")
+  category     ErpMediaCategory
+  alt          String?
+  caption      String?
+  tags         String?
+  uploadedBy   Int?          @map("uploaded_by")
+  uploader     User?         @relation("MediaUploader", fields: [uploadedBy], references: [id])
+  createdAt    DateTime      @default(now()) @map("created_at")
+  updatedAt    DateTime      @updatedAt @map("updated_at")
+  banners      ErpBanner[]
+  references   ErpMediaReference[]
+
+  @@map("erp_media_assets")
+}
+
+model ErpMediaReference {
+  id         Int           @id @default(autoincrement())
+  mediaId    Int           @map("media_id")
+  media      ErpMediaAsset @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+  entityType String        @map("entity_type") @db.VarChar(32)
+  entityId   Int           @map("entity_id")
+  fieldName  String        @map("field_name")  @db.VarChar(32)
+  sortOrder  Int           @default(0) @map("sort_order")
+  createdAt  DateTime      @default(now()) @map("created_at")
+
+  @@unique([mediaId, entityType, entityId, fieldName])
+  @@index([entityType, entityId])
+  @@index([mediaId])
+  @@map("erp_media_references")
+}
+
+model ErpBanner {
+  id        Int           @id @default(autoincrement())
+  title     String
+  subtitle  String?
+  mediaId   Int           @map("media_id")
+  media     ErpMediaAsset @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+  linkUrl   String?       @map("link_url")
+  sortOrder Int           @default(0) @map("sort_order")
+  isActive  Boolean       @default(true) @map("is_active")
+  startAt   DateTime?     @map("start_at")
+  endAt     DateTime?     @map("end_at")
+  createdAt DateTime      @default(now()) @map("created_at")
+  updatedAt DateTime      @updatedAt @map("updated_at")
+
+  @@map("erp_banners")
+}
+
+enum ErpMediaType     { IMAGE VIDEO DOCUMENT OTHER }
+enum ErpMediaCategory { PRODUCT WORK BANNER BRAND ARTICLE PAGE OTHER }
+
+// ═══════════════════════════════════════════════════════════
+// PART 3 — Brand OS + Web 域：内容 / 美学 / 对外叙事
+// ═══════════════════════════════════════════════════════════
+
+// ── 七序（品牌叙事域）──
+model BrandSeries {
+  id          Int            @id @default(autoincrement())
+  slug        String         @unique
+  name        String
+  description String
+  coverImage  String         @default("") @map("cover_image")
+  heroText    String         @default("") @map("hero_text")
+  longDesc    String?        @map("long_desc")
+  shortDesc   String?        @map("short_desc")
+  sortOrder   Int            @default(0) @map("sort_order")
+  isActive    Boolean        @default(true) @map("is_active")
+  products    BrandProduct[]
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  @@map("brand_series")
+}
+
+// ── 器物（品牌展示产品）──
+model BrandProduct {
+  id               Int              @id @default(autoincrement())
+  sku              String           @unique
+  name             String
+  slug             String           @unique
+  seriesId         Int              @map("series_id")
+  series           BrandSeries      @relation(fields: [seriesId], references: [id])
+  objectCategory   ObjectCategory   @default(BRACELET) @map("object_category")
+  theme            String           @default("")
+  story            String           @default("")
+  inspiration      String?
+  keywords         String?
+  lifeStage        String?          @map("life_stage")
+  suitableFor      String?          @map("suitable_for")
+  materials        String           @default("")
+  materialsRelation BrandProductMaterial[]
+  productTags      BrandProductTag[]
+  costPrice        Float            @default(0) @map("cost_price")
+  salePrice        Float            @default(0) @map("sale_price")
+  coverImage       String           @default("") @map("cover_image")
+  gallery          String           @default("[]")
+  stock            Int              @default(0)
+  status           String           @default("draft")
+  createdAt        DateTime         @default(now()) @map("created_at")
+  updatedAt        DateTime         @updatedAt @map("updated_at")
+
+  @@index([seriesId])
+  @@index([status])
+  @@index([objectCategory])
+  @@map("brand_products")
+}
+
+model BrandProductMaterial {
+  id         Int          @id @default(autoincrement())
+  productId  Int          @map("product_id")
+  materialId Int          @map("material_id")
+  product    BrandProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
+  material   BrandMaterial @relation(fields: [materialId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, materialId])
+  @@map("brand_product_materials")
+}
+
+model BrandProductTag {
+  id        String       @id @default(cuid())
+  productId Int          @map("product_id")
+  tagId     String       @map("tag_id")
+  product   BrandProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
+  tag       BrandTag     @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, tagId])
+  @@map("brand_product_tags")
+}
+
+// ── 材料库（品牌叙事）──
+model BrandMaterial {
+  id              Int                  @id @default(autoincrement())
+  name            String               @unique
+  alias           String?
+  type            String               @default("")
+  origin          String               @default("")
+  description     String               @default("")
+  features        String?
+  history         String?
+  image           String               @default("")
+  relatedArticles String               @default("[]") @map("related_articles")
+  productMaterials BrandProductMaterial[]
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+
+  @@map("brand_materials")
+}
+
+// ── 订单（品牌站）──
+model BrandOrder {
+  id           Int      @id @default(autoincrement())
+  orderNo      String   @unique @map("order_no")
+  productId    Int      @map("product_id")
+  productName  String   @default("") @map("product_name")
+  quantity     Int      @default(1)
+  amount       Float
+  customerName String   @default("") @map("customer_name")
+  phone        String   @default("")
+  address      String   @default("")
+  remark       String   @default("")
+  status       String   @default("pending")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@map("brand_orders")
+}
+
+// ── 品牌志 ──
+model JournalPost {
+  id             String          @id @default(cuid())
+  title          String
+  slug           String          @unique
+  excerpt        String?
+  content        String
+  coverImage     String?         @map("cover_image")
+  coverAlt       String?         @map("cover_alt")
+  readingTime    Int?            @map("reading_time")
+  category       JournalCategory
+  status         PublishStatus   @default(DRAFT)
+  seoTitle       String?         @map("seo_title")
+  seoDescription String?         @map("seo_description")
+  publishedAt    DateTime?       @map("published_at")
+  createdAt      DateTime        @default(now()) @map("created_at")
+  updatedAt      DateTime        @updatedAt @map("updated_at")
+  journalTags    BrandJournalTag[]
+
+  @@index([status, publishedAt])
+  @@index([category])
+  @@map("journal_posts")
+}
+
+// ── 联系表单 ──
+model ContactLead {
+  id                 String   @id @default(cuid())
+  name               String
+  weChat             String?  @map("we_chat")
+  email              String?  @map("email")
+  message            String?
+  interestedCategory String?  @map("interested_category")
+  interestedSeries   String?  @map("interested_series")
+  sourcePage         String?  @map("source_page")
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  @@index([createdAt])
+  @@map("contact_leads")
+}
+
+// ── 页面内容 ──
+model PageContent {
+  id         String   @id @default(cuid())
+  pageKey    String   @map("page_key")
+  sectionKey String   @map("section_key")
+  title      String   @default("")
+  content    String   @default("")
+  image      String?
+  sortOrder  Int      @default(0) @map("sort_order")
+  published  Boolean  @default(true)
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@unique([pageKey, sectionKey])
+  @@map("page_contents")
+}
+
+// ── SEO ──
+model SeoConfig {
+  id          String   @id @default(cuid())
+  pageKey     String   @unique @map("page_key")
+  title       String
+  description String
+  ogImage     String?  @map("og_image")
+  canonical   String?  @map("canonical")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("seo_configs")
+}
+
+// ── 站点设置 ──
+model SiteSetting {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("site_settings")
+}
+
+// ── 标签系统 ──
+model BrandTag {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  slug        String   @unique
+  description String?
+  type        TagType
+  createdAt   DateTime @default(now()) @map("created_at")
+  productTags BrandProductTag[]
+  journalTags BrandJournalTag[]
+
+  @@map("brand_tags")
+}
+
+model BrandJournalTag {
+  id        String      @id @default(cuid())
+  journalId String      @map("journal_id")
+  tagId     String      @map("tag_id")
+  journal   JournalPost @relation(fields: [journalId], references: [id], onDelete: Cascade)
+  tag       BrandTag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@unique([journalId, tagId])
+  @@map("brand_journal_tags")
+}
+
+// ── Brand + Web 枚举 ──
+enum ObjectCategory  { BRACELET INCENSE SEAL CERAMIC ENAMEL SCHOLAR }
+enum JournalCategory { OBJECT MATERIAL CRAFT DONGHAI CREATION PHILOSOPHY }
+enum PublishStatus   { DRAFT PUBLISHED }
+enum TagType         { SERIES VALUE MATERIAL EMOTION SCENE OBJECT }

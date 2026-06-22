@@ -1,0 +1,21 @@
+node_modules/
+.next/
+out/
+dist/
+build/
+
+# 构建时排除脚本目录（包含一次性 seed/工具脚本，不参与编译）
+scripts/
+
+# 环境配置文件
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+
+# 日志
+*.log
+npm-debug.log*

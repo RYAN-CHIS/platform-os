@@ -1,0 +1,138 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ══════════════════════════════════════════
+   允物 Brand OS V2 Lite · 设计令牌系统
+   ══════════════════════════════════════════ */
+
+/* ── 字体导入 ── */
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&family=Inter:wght@300;400;500&family=Noto+Serif+SC:wght@300;400;500;600;700&display=swap');
+
+/* ── 品牌设计令牌 ── */
+:root {
+  /* 主色系 */
+  --yun-paper: #F5F1EA;   /* 宣纸白 — 主背景 */
+  --yun-ink: #1A1A1A;     /* 墨黑 — 主文字/深色背景 */
+  --yun-gray: #6B6B6B;    /* 灰 — 次要文字 */
+
+  /* 点缀色（极少使用） */
+  --yun-jade: #5B7A6B;    /* 青绿 — 生命/自然点缀 */
+  --yun-gold: #C8A972;    /* 暖金 — 温暖点缀 */
+
+  /* 辅助色 */
+  --yun-border: #D9CCB8;  /* 灰褐 — 边框/分隔线 */
+  --yun-hover: #F0EBE2;   /* 浅暖灰 — hover 背景 */
+
+  /* 字体 */
+  --yun-font-serif: 'Noto Serif SC', 'Source Han Serif SC', 'STSong', 'SimSun', serif;
+  --yun-font-sans: 'Inter', 'Helvetica Neue', 'Arial', sans-serif;
+  --yun-font-display: 'Cormorant Garamond', 'Georgia', serif;
+
+  /* 间距 */
+  --yun-section-py: 120px;    /* 桌面端 section 上下间距 */
+  --yun-section-py-mobile: 64px;  /* 移动端 */
+  --yun-section-px: 24px;     /* section 左右内边距 */
+
+  /* 组件 */
+  --yun-radius: 16px;         /* 卡片圆角 */
+  --yun-radius-pill: 9999px;  /* 药丸形（按钮/标签） */
+  --yun-shadow-card: 0 2px 20px rgba(0,0,0,0.04);
+  --yun-shadow-hover: 0 8px 32px rgba(0,0,0,0.08);
+
+  /* 过渡 */
+  --yun-transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ── 全局重置 ── */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: var(--yun-font-serif);
+  color: var(--yun-ink);
+  background-color: var(--yun-paper);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  line-height: 1.8;
+  letter-spacing: 0.02em;
+}
+
+/* ── 排版基准 ── */
+h1, h2, h3, h4 {
+  font-weight: 400;
+  letter-spacing: 0.04em;
+}
+
+/* ── 品牌字族 ── */
+.font-serif {
+  font-family: var(--yun-font-serif);
+}
+.font-sans {
+  font-family: var(--yun-font-sans);
+}
+.font-display {
+  font-family: var(--yun-font-display);
+  font-style: italic;
+}
+
+/* ── 品牌色工具类 ── */
+.bg-paper { background-color: var(--yun-paper); }
+.bg-ink { background-color: var(--yun-ink); }
+.text-ink { color: var(--yun-ink); }
+.text-gray { color: var(--yun-gray); }
+.text-jade { color: var(--yun-jade); }
+.text-gold { color: var(--yun-gold); }
+.border-yun { border-color: var(--yun-border); }
+
+/* ── 分隔线 ── */
+.divider {
+  width: 40px;
+  height: 1px;
+  background-color: var(--yun-border);
+  margin: 0 auto;
+}
+
+/* ── 标签 ── */
+.tag-yun {
+  display: inline-block;
+  padding: 4px 14px;
+  border: 1px solid var(--yun-border);
+  border-radius: var(--yun-radius-pill);
+  font-size: 0.75rem;
+  color: var(--yun-ink);
+  letter-spacing: 0.06em;
+  transition: all var(--yun-transition);
+}
+.tag-yun:hover {
+  background-color: var(--yun-ink);
+  color: var(--yun-paper);
+  border-color: var(--yun-ink);
+}
+
+/* ── 动画 ── */
+.fade-in {
+  animation: fadeIn 1s ease forwards;
+}
+.fade-in-delay-1 { animation-delay: 0.2s; }
+.fade-in-delay-2 { animation-delay: 0.4s; }
+.fade-in-delay-3 { animation-delay: 0.6s; }
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(24px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ── 滚动渐现 ── */
+.reveal-on-scroll {
+  opacity: 0;
+  transform: translateY(32px);
+  transition: opacity 0.8s ease, transform 0.8s ease;
+}
+.reveal-on-scroll.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}

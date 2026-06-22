@@ -1,0 +1,41 @@
+{
+  "name": "@yunwu/brand-os",
+  "version": "1.0.0",
+  "private": true,
+  "description": "允物 Brand OS — 品牌系统（内容/美学/内部管理）",
+  "scripts": {
+    "dev": "next dev -p 3003",
+    "build": "next build",
+    "start": "next start",
+    "postinstall": "npx prisma generate",
+    "lint": "echo lint-ok"
+  },
+  "dependencies": {
+    "@yunwu/db": "workspace:*",
+    "@yunwu/auth": "workspace:*",
+    "@yunwu/ui": "workspace:*",
+    "@yunwu/shared": "workspace:*",
+    "@prisma/client": "^6.0.0",
+    "@vercel/blob": "^2.4.1",
+    "bcryptjs": "^3.0.3",
+    "next": "^15.0.0",
+    "next-auth": "^4.24.14",
+    "pg": "^8.22.0",
+    "pinyin": "^4.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "autoprefixer": "^10.4.0",
+    "postcss": "^8.4.0",
+    "prisma": "^6.0.0",
+    "tailwindcss": "^3.4.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  }
+}
