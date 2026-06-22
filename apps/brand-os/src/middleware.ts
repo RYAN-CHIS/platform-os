@@ -25,7 +25,20 @@ export default async function middleware(req: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  return NextResponse.next();
+  // Phase 3: Platform Identity injection
+  const response = NextResponse.next();
+  if (token) {
+    response.headers.set(
+      "x-yunwu-user",
+      Buffer.from(JSON.stringify({
+        id: token.sub,
+        email: token.email,
+        role: (token as any).role || "BRAND_ADMIN",
+        system: "brand",
+      })).toString("base64"),
+    );
+  }
+  return response;
 }
 
 export const config = {

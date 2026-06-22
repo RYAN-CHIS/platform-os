@@ -94,9 +94,14 @@ export async function middleware(request: NextRequest) {
   const basePermissions: string[] = (token as any).permissions || [];
   const tempPermissions: { code: string; expiresAt: string }[] = (token as any).tempPermissions || [];
 
-  // V3: 实时合并临时权限（自动过期检测）
-  const effectivePermissions = getEffectivePermissions(basePermissions, tempPermissions);
-  const superAdmin = isSuperAdmin(effectivePermissions) || role === "admin";
+  // Phase 3: Platform Identity context
+  const platformIdentity = {
+    id: token.sub,
+    email: token.email,
+    role,
+    system: "erp" as const,
+    permissions: basePermissions,
+  };
 
   // ─── 页面路由权限检查 ───
   const pageMatch = matchPathPrefix(PAGE_PERMISSION_MAP, pathname);
@@ -143,7 +148,13 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  return NextResponse.next();
+  // Phase 3: Inject platform identity into response headers
+  const response = NextResponse.next();
+  response.headers.set(
+    "x-yunwu-user",
+    Buffer.from(JSON.stringify(platformIdentity)).toString("base64"),
+  );
+  return response;
 }
 
 export const config = {
