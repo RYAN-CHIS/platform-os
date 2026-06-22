@@ -30,6 +30,15 @@ export {
 } from "./user-context";
 export type { RequestContext } from "./user-context";
 
+// ── Platform Identity v2 (WO-4.1) ──
+export { signIdentity, signFromToken } from "./sign-identity";
+export {
+  verifyIdentity,
+  verifySystemIdentity,
+  verifyIdentityResult,
+} from "./verify-identity";
+export type { IdentityPayload, VerifyResult } from "./sign-identity";
+
 // ── NextAuth (Phase 1 legacy, still used) ──
 export { authOptions } from "./nextauth";
 export { getSessionUser, requireAuth, requirePermission } from "./middleware";

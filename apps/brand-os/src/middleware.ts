@@ -1,6 +1,7 @@
 import { getToken } from "next-auth/jwt";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { signFromToken } from "@yunwu/auth";
 
 export const runtime = "nodejs";
 
@@ -25,19 +26,19 @@ export default async function middleware(req: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  // Phase 3: Platform Identity injection
+  // WO-4.1: Signed Platform Identity (HMAC-SHA256)
+  const signedToken = signFromToken(
+    {
+      sub: token.sub,
+      email: token.email as string,
+      role: (token as any).role || "BRAND_ADMIN",
+    },
+    "brand",
+    process.env.YUNWU_PLATFORM_SECRET || "yunwu-dev-secret",
+  );
+
   const response = NextResponse.next();
-  if (token) {
-    response.headers.set(
-      "x-yunwu-user",
-      Buffer.from(JSON.stringify({
-        id: token.sub,
-        email: token.email,
-        role: (token as any).role || "BRAND_ADMIN",
-        system: "brand",
-      })).toString("base64"),
-    );
-  }
+  response.headers.set("x-yunwu-user", signedToken);
   return response;
 }
 

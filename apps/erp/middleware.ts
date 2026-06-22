@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { getToken } from "next-auth/jwt";
+import { signFromToken } from "@yunwu/auth";
 import {
   PAGE_PERMISSION_MAP,
   API_PERMISSION_MAP,
@@ -94,14 +95,12 @@ export async function middleware(request: NextRequest) {
   const basePermissions: string[] = (token as any).permissions || [];
   const tempPermissions: { code: string; expiresAt: string }[] = (token as any).tempPermissions || [];
 
-  // Phase 3: Platform Identity context
-  const platformIdentity = {
-    id: token.sub,
-    email: token.email,
-    role,
-    system: "erp" as const,
-    permissions: basePermissions,
-  };
+  // Phase 3 / WO-4.1: Signed Platform Identity (HMAC-SHA256)
+  const signedToken = signFromToken(
+    { sub: token.sub, email: token.email as string, role, permissions: basePermissions },
+    "erp",
+    process.env.YUNWU_PLATFORM_SECRET || "yunwu-dev-secret",
+  );
 
   // ─── 页面路由权限检查 ───
   const pageMatch = matchPathPrefix(PAGE_PERMISSION_MAP, pathname);
@@ -148,12 +147,9 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  // Phase 3: Inject platform identity into response headers
+  // WO-4.1: Inject signed platform identity token
   const response = NextResponse.next();
-  response.headers.set(
-    "x-yunwu-user",
-    Buffer.from(JSON.stringify(platformIdentity)).toString("base64"),
-  );
+  response.headers.set("x-yunwu-user", signedToken);
   return response;
 }
 
