@@ -1,0 +1,49 @@
+{
+  "version": "4.5.1",
+  "status": "LOCKED",
+  "lockedAt": "2026-06-22",
+  "mode": "canonical-only",
+  "rules": {
+    "allowNewModels": false,
+    "allowSchemaEditDirect": false,
+    "requireMigrationForChange": true,
+    "allowCrossDomainRelation": "explicit-only"
+  },
+  "domains": {
+    "erp": {
+      "label": "ERP — 进销存/财务/供应链",
+      "ownership": [
+        "ErpSeries", "ErpWork", "ErpWorkAsset",
+        "ErpProduct", "ErpProductSku", "ErpProductCost",
+        "ErpProductionRecord", "ErpMaterial", "ErpPurchaseRecord",
+        "ErpInventoryTransaction", "ErpBom",
+        "ErpCustomer", "ErpOrder",
+        "ErpMediaAsset", "ErpMediaReference", "ErpBanner"
+      ]
+    },
+    "brand": {
+      "label": "Brand OS — 品牌内容/美学/叙事",
+      "ownership": [
+        "BrandSeries", "BrandProduct", "BrandProductMaterial",
+        "BrandProductTag", "BrandMaterial",
+        "BrandOrder", "BrandTag", "BrandJournalTag",
+        "JournalPost", "ContactLead",
+        "PageContent", "SeoConfig", "SiteSetting"
+      ]
+    },
+    "shared": {
+      "label": "Shared — 跨系统共用",
+      "ownership": [
+        "User", "PermissionGroup", "Permission",
+        "UserPermission", "PermissionTemplate",
+        "PermissionTemplateItem", "TemporaryPermission",
+        "AuditLog"
+      ]
+    }
+  },
+  "migration": {
+    "source": "packages/db/prisma/migrations",
+    "command": "pnpm --filter @yunwu/db db:migrate",
+    "requiresReview": true
+  }
+}

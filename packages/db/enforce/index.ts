@@ -40,3 +40,6 @@ export { withGuard, isGuarded, ensureGuarded } from "./with-guard";
 
 // Scanner (build-time only — 不在此导出以避免 Next.js bundle 错误)
 // 使用: import { scanViolations } from "@yunwu/db/enforce/scanner" (仅 CLI/scripts)
+
+// Schema Guard (Phase 4.5.1 — build-time only)
+// 使用: import { assertSchemaLocked } from "@yunwu/db/enforce/schemaGuard" (仅 CLI/scripts)

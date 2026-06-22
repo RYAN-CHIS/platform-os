@@ -1,12 +1,15 @@
 // ═══════════════════════════════════════════════════════════
-// @yunwu/db — 统一数据访问层入口
+// ⚠️  CANONICAL DB LAYER
+// Phase 4.5.1 LOCKED — schema-lock.json
 //
-// 当前状态 (Phase 2.5):
-//   - packages/db/schema.prisma = 权威 Schema 定义 (37 models)
-//   - 各 app 的 prisma/schema.prisma = 遗留副本 (待 Phase 3 迁移)
-//   - 所有系统 MUST import { createPrisma } from "@yunwu/db"
+// Rules:
+//   - No direct schema modification allowed
+//   - All changes must go through migration pipeline
+//   - This is system of record for ERP + Brand OS + Web
+//   - Domain ownership: erp(16) / brand(13) / shared(8)
+//   - Lock status: packages/db/schema-lock.json
 //
-// Phase 3 目标: 单一 schema，统一 Database
+// import { createPrisma } from "@yunwu/db"  ← MANDATORY
 // ═══════════════════════════════════════════════════════════
 
 import { PrismaClient } from "@prisma/client";
