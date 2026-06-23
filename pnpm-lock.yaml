@@ -196,6 +196,73 @@ importers:
         specifier: ^5
         version: 5.9.3
 
+  apps/platform:
+    dependencies:
+      '@prisma/client':
+        specifier: ^6.19.3
+        version: 6.19.3(prisma@6.19.3(typescript@5.9.3))(typescript@5.9.3)
+      '@yunwu/auth':
+        specifier: workspace:*
+        version: link:../../packages/auth
+      '@yunwu/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      '@yunwu/platform':
+        specifier: workspace:*
+        version: link:../../packages/platform
+      '@yunwu/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
+      '@yunwu/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
+      bcryptjs:
+        specifier: ^3.0.3
+        version: 3.0.3
+      clsx:
+        specifier: ^2.1.1
+        version: 2.1.1
+      lucide-react:
+        specifier: ^1.20.0
+        version: 1.21.0(react@19.2.4)
+      next:
+        specifier: 16.2.9
+        version: 16.2.9(@babel/core@7.29.7)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+      next-auth:
+        specifier: ^4.24.14
+        version: 4.24.14(next@16.2.9(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+      react:
+        specifier: 19.2.4
+        version: 19.2.4
+      react-dom:
+        specifier: 19.2.4
+        version: 19.2.4(react@19.2.4)
+      tailwind-merge:
+        specifier: ^3.6.0
+        version: 3.6.0
+    devDependencies:
+      '@tailwindcss/postcss':
+        specifier: ^4
+        version: 4.3.1
+      '@types/bcryptjs':
+        specifier: ^2.4.6
+        version: 2.4.6
+      '@types/node':
+        specifier: ^20
+        version: 20.19.43
+      '@types/react':
+        specifier: ^19
+        version: 19.2.17
+      '@types/react-dom':
+        specifier: ^19
+        version: 19.2.3(@types/react@19.2.17)
+      tailwindcss:
+        specifier: ^4
+        version: 4.3.1
+      typescript:
+        specifier: ^5
+        version: 5.9.3
+
   apps/web:
     dependencies:
       '@prisma/client':
@@ -277,6 +344,9 @@ importers:
       '@yunwu/db':
         specifier: workspace:*
         version: link:../db
+      '@yunwu/platform':
+        specifier: workspace:*
+        version: link:../platform
       bcryptjs:
         specifier: ^3.0.3
         version: 3.0.3
@@ -297,6 +367,12 @@ importers:
       prisma:
         specifier: ^6.19.3
         version: 6.19.3(typescript@5.9.3)
+
+  packages/platform:
+    dependencies:
+      lucide-react:
+        specifier: ^1.20.0
+        version: 1.21.0(react@19.2.4)
 
   packages/shared:
     dependencies:
@@ -327,12 +403,18 @@ importers:
       '@radix-ui/react-tabs':
         specifier: ^1.1.15
         version: 1.1.15(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+      '@yunwu/platform':
+        specifier: workspace:*
+        version: link:../platform
       clsx:
         specifier: ^2.1.1
         version: 2.1.1
       lucide-react:
         specifier: ^1.20.0
         version: 1.21.0(react@19.2.4)
+      next-auth:
+        specifier: ^4.24.14
+        version: 4.24.14(next@16.2.9(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       tailwind-merge:
         specifier: ^3.6.0
         version: 3.6.0

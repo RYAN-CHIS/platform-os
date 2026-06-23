@@ -1,0 +1,26 @@
+@import "tailwindcss";
+
+/* ══════════════════════════════════════
+   允物 Platform OS · 东方美学配色体系
+   ══════════════════════════════════════ */
+
+:root {
+  --bg-xuan: #f6f1eb;
+  --bg-cream: #faf6f0;
+  --bg-card: #ffffff;
+  --bg-sidebar: #1a1715;
+  --ink-primary: #1c1917;
+  --ink-secondary: #78716c;
+  --ink-muted: #a8a29e;
+  --border-light: #e7e5e4;
+  --border-med: #d6d3d1;
+  --accent-red: #B91C1C;
+  --accent-gold: #b45309;
+  --accent-blue: #1e40af;
+}
+
+body {
+  background: var(--bg-xuan);
+  color: var(--ink-primary);
+  -webkit-font-smoothing: antialiased;
+}

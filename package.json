@@ -4,9 +4,11 @@
   "private": true,
   "description": "允物 Yunwu Monorepo — ERP + Brand OS + Web",
   "scripts": {
+    "dev:platform": "pnpm --filter @yunwu/platform dev",
     "dev:erp": "pnpm --filter @yunwu/erp dev",
     "dev:web": "pnpm --filter @yunwu/web dev",
     "dev:brand-os": "pnpm --filter @yunwu/brand-os dev",
+    "build:platform": "pnpm --filter @yunwu/platform build",
     "build:erp": "pnpm --filter @yunwu/erp build",
     "build:web": "pnpm --filter @yunwu/web build",
     "build:brand-os": "pnpm --filter @yunwu/brand-os build",

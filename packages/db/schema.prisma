@@ -509,11 +509,33 @@ model BrandProduct {
   status           String           @default("draft")
   createdAt        DateTime         @default(now()) @map("created_at")
   updatedAt        DateTime         @updatedAt @map("updated_at")
+  /** Bridge to ERP master product */
+  erpProductId     Int?             @unique @map("erp_product_id")
+  erpProduct       ErpProduct?      @relation(fields: [erpProductId], references: [id])
+  /** Extension content — migrated to BrandProductContent over time */
+  extension        BrandProductContent?
 
   @@index([seriesId])
   @@index([status])
   @@index([objectCategory])
   @@map("brand_products")
+}
+
+// ── Brand Product Content Extension ──
+model BrandProductContent {
+  id            Int          @id @default(autoincrement())
+  productId     Int          @unique @map("product_id")
+  product       BrandProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
+  story         String       @default("")
+  gallery       String       @default("[]")
+  presentation  String       @default("")
+  seoTitle      String?      @map("seo_title")
+  seoDescription String?     @map("seo_description")
+  highlights    String?      @default("[]")
+  createdAt     DateTime     @default(now()) @map("created_at")
+  updatedAt     DateTime     @updatedAt @map("updated_at")
+
+  @@map("brand_product_content")
 }
 
 model BrandProductMaterial {
