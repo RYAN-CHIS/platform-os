@@ -5,7 +5,7 @@
  * ERP V3 permissions + Brand OS permissions + Platform permissions.
  *
  * WO-P2: Permission Unification
- * Usage: import { PERMISSIONS } from "@yunwu/platform/config/permissions.config"
+ * Usage: import { PERMISSIONS } from "@yunwu/platform-core/config/permissions.config"
  */
 
 // ═══════════════════════════════════════════

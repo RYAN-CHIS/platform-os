@@ -168,7 +168,7 @@ model ErpSeries {
   updatedAt DateTime         @updatedAt @map("updated_at")
   works     ErpWork[]
 
-  @@map("erp_series")
+  @@map("series")
 }
 
 model ErpWork {
@@ -183,7 +183,7 @@ model ErpWork {
   series    ErpSeries       @relation(fields: [seriesId], references: [id])
   assets    ErpWorkAsset?
 
-  @@map("erp_works")
+  @@map("works")
 }
 
 model ErpWorkAsset {
@@ -198,7 +198,7 @@ model ErpWorkAsset {
   launchDate    DateTime? @map("launch_date")
   work          ErpWork   @relation(fields: [workId], references: [id])
 
-  @@map("erp_work_assets")
+  @@map("works_assets")
 }
 
 model ErpProduct {
@@ -212,8 +212,9 @@ model ErpProduct {
   updatedAt   DateTime        @updatedAt @map("updated_at")
   skus        ErpProductSku[]
   work        ErpWork         @relation(fields: [workId], references: [id])
+  brandProduct BrandProduct?  @relation("ErpToBrand")
 
-  @@map("erp_products")
+  @@map("products")
 }
 
 model ErpProductSku {
@@ -236,7 +237,7 @@ model ErpProductSku {
   product       ErpProduct         @relation(fields: [productId], references: [id])
   productions   ErpProductionRecord[]
 
-  @@map("erp_product_skus")
+  @@map("product_skus")
 }
 
 model ErpProductCost {
@@ -249,7 +250,7 @@ model ErpProductCost {
   updatedAt     DateTime      @updatedAt @map("updated_at")
   sku           ErpProductSku @relation(fields: [skuId], references: [id])
 
-  @@map("erp_product_costs")
+  @@map("product_costs")
 }
 
 model ErpProductionRecord {
@@ -265,7 +266,7 @@ model ErpProductionRecord {
   createdAt     DateTime      @default(now()) @map("created_at")
   sku           ErpProductSku @relation(fields: [skuId], references: [id])
 
-  @@map("erp_production_records")
+  @@map("production_records")
 }
 
 model ErpMaterial {
@@ -292,7 +293,7 @@ model ErpMaterial {
   transactions          ErpInventoryTransaction[]
   purchaseRecords       ErpPurchaseRecord[]
 
-  @@map("erp_materials")
+  @@map("raw_materials")
 }
 
 model ErpPurchaseRecord {
@@ -311,7 +312,7 @@ model ErpPurchaseRecord {
   createdAt         DateTime   @default(now()) @map("created_at")
   material          ErpMaterial @relation(fields: [materialId], references: [id])
 
-  @@map("erp_purchase_records")
+  @@map("purchase_records")
 }
 
 model ErpInventoryTransaction {
@@ -326,7 +327,7 @@ model ErpInventoryTransaction {
   createdAt  DateTime        @default(now()) @map("created_at")
   material   ErpMaterial      @relation(fields: [materialId], references: [id])
 
-  @@map("erp_inventory_transactions")
+  @@map("inventory_transactions")
 }
 
 model ErpBom {
@@ -342,7 +343,7 @@ model ErpBom {
   sku                  ErpProductSku @relation(fields: [skuId], references: [id])
 
   @@unique([skuId, materialId])
-  @@map("erp_bom")
+  @@map("bom")
 }
 
 model ErpCustomer {
@@ -360,7 +361,7 @@ model ErpCustomer {
   updatedAt DateTime      @updatedAt @map("updated_at")
   orders    ErpOrder[]
 
-  @@map("erp_customers")
+  @@map("customers")
 }
 
 model ErpOrder {
@@ -386,16 +387,57 @@ model ErpOrder {
   updatedAt       DateTime      @updatedAt @map("updated_at")
   customer        ErpCustomer   @relation(fields: [customerId], references: [id])
 
-  @@map("erp_orders")
+  @@map("orders")
 }
 
 // ── ERP 枚举 ──
-enum LifecycleStatus { DRAFT DESIGNING READY ACTIVE PAUSED ARCHIVED }
-enum ErpMaterialType    { BEAD METAL CERAMIC LEATHER INCENSE CORD PACKAGING OTHER }
-enum TransactionType    { IN OUT ADJUST }
-enum OrderChannel       { MINIPROGRAM WEBSITE MANUAL }
-enum OrderStatus        { PENDING CONFIRMED PROCESSING SHIPPED COMPLETED CANCELLED }
-enum PaymentStatus      { UNPAID PARTIAL PAID REFUNDED }
+enum LifecycleStatus {
+  DRAFT
+  DESIGNING
+  READY
+  ACTIVE
+  PAUSED
+  ARCHIVED
+}
+
+enum ErpMaterialType {
+  BEAD
+  METAL
+  CERAMIC
+  LEATHER
+  INCENSE
+  CORD
+  PACKAGING
+  OTHER
+}
+
+enum TransactionType {
+  IN
+  OUT
+  ADJUST
+}
+
+enum OrderChannel {
+  MINIPROGRAM
+  WEBSITE
+  MANUAL
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  PROCESSING
+  SHIPPED
+  COMPLETED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  UNPAID
+  PARTIAL
+  PAID
+  REFUNDED
+}
 
 // ── ERP 媒体库 ──
 model ErpMediaAsset {
@@ -421,7 +463,7 @@ model ErpMediaAsset {
   banners      ErpBanner[]
   references   ErpMediaReference[]
 
-  @@map("erp_media_assets")
+  @@map("media_assets")
 }
 
 model ErpMediaReference {
@@ -437,7 +479,7 @@ model ErpMediaReference {
   @@unique([mediaId, entityType, entityId, fieldName])
   @@index([entityType, entityId])
   @@index([mediaId])
-  @@map("erp_media_references")
+  @@map("media_references")
 }
 
 model ErpBanner {
@@ -454,11 +496,25 @@ model ErpBanner {
   createdAt DateTime      @default(now()) @map("created_at")
   updatedAt DateTime      @updatedAt @map("updated_at")
 
-  @@map("erp_banners")
+  @@map("banners")
 }
 
-enum ErpMediaType     { IMAGE VIDEO DOCUMENT OTHER }
-enum ErpMediaCategory { PRODUCT WORK BANNER BRAND ARTICLE PAGE OTHER }
+enum ErpMediaType {
+  IMAGE
+  VIDEO
+  DOCUMENT
+  OTHER
+}
+
+enum ErpMediaCategory {
+  PRODUCT
+  WORK
+  BANNER
+  BRAND
+  ARTICLE
+  PAGE
+  OTHER
+}
 
 // ═══════════════════════════════════════════════════════════
 // PART 3 — Brand OS + Web 域：内容 / 美学 / 对外叙事
@@ -511,7 +567,7 @@ model BrandProduct {
   updatedAt        DateTime         @updatedAt @map("updated_at")
   /** Bridge to ERP master product */
   erpProductId     Int?             @unique @map("erp_product_id")
-  erpProduct       ErpProduct?      @relation(fields: [erpProductId], references: [id])
+  erpProduct       ErpProduct?      @relation("ErpToBrand", fields: [erpProductId], references: [id])
   /** Extension content — migrated to BrandProductContent over time */
   extension        BrandProductContent?
 
@@ -704,7 +760,34 @@ model BrandJournalTag {
 }
 
 // ── Brand + Web 枚举 ──
-enum ObjectCategory  { BRACELET INCENSE SEAL CERAMIC ENAMEL SCHOLAR }
-enum JournalCategory { OBJECT MATERIAL CRAFT DONGHAI CREATION PHILOSOPHY }
-enum PublishStatus   { DRAFT PUBLISHED }
-enum TagType         { SERIES VALUE MATERIAL EMOTION SCENE OBJECT }
+enum ObjectCategory {
+  BRACELET
+  INCENSE
+  SEAL
+  CERAMIC
+  ENAMEL
+  SCHOLAR
+}
+
+enum JournalCategory {
+  OBJECT
+  MATERIAL
+  CRAFT
+  DONGHAI
+  CREATION
+  PHILOSOPHY
+}
+
+enum PublishStatus {
+  DRAFT
+  PUBLISHED
+}
+
+enum TagType {
+  SERIES
+  VALUE
+  MATERIAL
+  EMOTION
+  SCENE
+  OBJECT
+}

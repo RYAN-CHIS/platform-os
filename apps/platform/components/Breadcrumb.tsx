@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { SIDEBAR_CONFIG, flattenSidebarItems } from "@yunwu/platform";
-import { DEFAULT_ENABLED_MODULES } from "@yunwu/platform";
+import { SIDEBAR_CONFIG, flattenSidebarItems } from "@yunwu/platform-core";
+import { DEFAULT_ENABLED_MODULES } from "@yunwu/platform-core";
 import { ChevronRight, Home } from "lucide-react";
 
 /**

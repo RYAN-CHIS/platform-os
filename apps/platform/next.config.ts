@@ -1,9 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Keep Prisma as server external (runtime require, not bundled at build)
-  transpilePackages: ["@yunwu/auth", "@yunwu/platform", "@yunwu/ui", "@yunwu/shared"],
-  transpilePackages: ["@yunwu/auth", "@yunwu/platform", "@yunwu/ui", "@yunwu/shared"],
+  transpilePackages: ["@yunwu/auth", "@yunwu/platform-core", "@yunwu/ui", "@yunwu/shared"],
+  serverExternalPackages: ["@prisma/client"],
   // Security headers for admin tool
   async headers() {
     return [

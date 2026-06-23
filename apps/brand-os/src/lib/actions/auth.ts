@@ -3,7 +3,7 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import { PERMISSIONS } from "@yunwu/platform";
+import { PERMISSIONS } from "@yunwu/platform-core";
 
 /**
  * Unified Auth — Brand OS server actions.

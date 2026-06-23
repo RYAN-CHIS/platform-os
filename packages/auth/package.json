@@ -6,7 +6,7 @@
   "types": "./index.ts",
   "dependencies": {
     "@yunwu/db": "workspace:*",
-    "@yunwu/platform": "workspace:*",
+    "@yunwu/platform-core": "workspace:*",
     "next-auth": "^4.24.14",
     "bcryptjs": "^3.0.3"
   },

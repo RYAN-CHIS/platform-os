@@ -35,8 +35,8 @@ import {
   SIDEBAR_CONFIG,
   DEFAULT_ENABLED_MODULES,
   findActiveItem,
-} from "@yunwu/platform";
-import type { SidebarSection, SystemModule } from "@yunwu/platform";
+} from "@yunwu/platform-core";
+import type { SidebarSection, SystemModule } from "@yunwu/platform-core";
 
 // ─── Icon map ───
 const ICON_MAP: Record<string, React.ComponentType<any>> = {

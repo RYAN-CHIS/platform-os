@@ -2,7 +2,7 @@
 
 import { ReactNode, createContext, useContext } from "react";
 import { useSession } from "next-auth/react";
-import type { PermissionCode } from "@yunwu/platform";
+import type { PermissionCode } from "@yunwu/platform-core";
 
 // ═══════════════════════════════════════════
 // Permission Context (for cascading permission checks)

@@ -5,7 +5,7 @@
   "main": "./index.ts",
   "types": "./index.ts",
   "dependencies": {
-    "@yunwu/platform": "workspace:*",
+    "@yunwu/platform-core": "workspace:*",
     "next-auth": "^4.24.14",
     "clsx": "^2.1.1",
     "tailwind-merge": "^3.6.0",

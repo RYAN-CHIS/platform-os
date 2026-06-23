@@ -1,8 +1,10 @@
-"use server"; import { requirePermission } from "@yunwu/auth/platform-auth"; import { PERMISSIONS } from "@yunwu/platform/config/permissions.config"; import { getServerSession } from "next-auth"; import { authOptions } from "@/lib/auth"; import { redirect } from "next/navigation";
-const E=process.env.ERP_API_URL||"http://localhost:3001"; async function s(){const x=await getServerSession(authOptions);if(!x?.user)redirect("/platform/login");return x;}
-async function f(p:string,o?:RequestInit){const r=await fetch(`${E}/api/${p}`,{...o,cache:"no-store"});if(!r.ok)throw new Error(`ERP ${r.status}`);return r.json();}
-export async function list(filters?:any){const x=await s();await requirePermission(x as any,PERMISSIONS.CUSTOMER_VIEW);const q=new URLSearchParams();if(filters?.keyword)q.set("keyword",filters.keyword);return f(`customers?${q}`);}
-export async function get(id:number){await s();return f(`customers/${id}`);}
-export async function create(d:any){const x=await s();await requirePermission(x as any,PERMISSIONS.CUSTOMER_EDIT);const r=await fetch(`${E}/api/customers`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(d)});return r.ok?await r.json():{error:`失败:${r.status}`};}
-export async function update(id:number,d:any){const x=await s();await requirePermission(x as any,PERMISSIONS.CUSTOMER_EDIT);const r=await fetch(`${E}/api/customers/${id}`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(d)});return r.ok?{}:{error:`失败:${r.status}`};}
-export async function del(id:number){const x=await s();await requirePermission(x as any,PERMISSIONS.CUSTOMER_EDIT);const r=await fetch(`${E}/api/customers/${id}`,{method:"DELETE"});return r.ok?{}:{error:`失败:${r.status}`};}
+"use server";
+/** ERP Customers — WO-P7E: Direct Prisma. Zero fetch. */
+import { PrismaClient } from "@prisma/client"; import { requirePermission } from "@yunwu/auth/platform-auth"; import { PERMISSIONS } from "@yunwu/platform-core/config/permissions.config"; import { getServerSession } from "next-auth"; import { authOptions } from "@/lib/auth"; import { redirect } from "next/navigation";
+const db=new PrismaClient()as any;
+async function s(){const x=await getServerSession(authOptions);if(!x?.user)redirect("/platform/login");return x;}
+export async function list(filters?:any){const x=await s();await requirePermission(x as any,PERMISSIONS.CUSTOMER_VIEW);const where:any={};if(filters?.keyword){where.OR=[{code:{contains:filters.keyword}},{name:{contains:filters.keyword}}];}return db.erpCustomer.findMany({where,include:{orders:true},orderBy:{createdAt:"desc"}});}
+export async function get(id:number){await s();return db.erpCustomer.findUnique({where:{id},include:{orders:{orderBy:{createdAt:"desc"}}}});}
+export async function create(d:any){const x=await s();await requirePermission(x as any,PERMISSIONS.CUSTOMER_EDIT);try{return await db.erpCustomer.create({data:d});}catch(e:any){return{error:e.message};}}
+export async function update(id:number,d:any){const x=await s();await requirePermission(x as any,PERMISSIONS.CUSTOMER_EDIT);try{await db.erpCustomer.update({where:{id},data:d});return{};}catch(e:any){return{error:e.message};}}
+export async function del(id:number){const x=await s();await requirePermission(x as any,PERMISSIONS.CUSTOMER_EDIT);try{await db.erpCustomer.delete({where:{id}});return{};}catch(e:any){return{error:e.message};}}

@@ -29,6 +29,11 @@ export function createPrisma() {
 
 export { PrismaClient };
 
+// ── Singleton PrismaClient for Edge/Serverless ──
+const globalForPrisma = globalThis as unknown as { prisma: PrismaClient | undefined };
+export const prisma = globalForPrisma.prisma ?? createPrisma();
+if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
+
 // ── Domain Layer (Phase 2.95) ──
 export {
   ProductService,

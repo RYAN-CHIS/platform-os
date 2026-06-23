@@ -95,6 +95,10 @@ export async function middleware(request: NextRequest) {
   const basePermissions: string[] = (token as any).permissions || [];
   const tempPermissions: { code: string; expiresAt: string }[] = (token as any).tempPermissions || [];
 
+  // Compute effective permissions (base + unexpired temp)
+  const superAdmin = isSuperAdmin(basePermissions);
+  const effectivePermissions = getEffectivePermissions(basePermissions, tempPermissions);
+
   // Phase 3 / WO-4.1: Signed Platform Identity (HMAC-SHA256)
   const signedToken = signFromToken(
     { sub: token.sub, email: token.email as string, role, permissions: basePermissions },

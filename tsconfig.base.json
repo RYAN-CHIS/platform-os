@@ -18,7 +18,9 @@
       "@yunwu/db": ["../../packages/db"],
       "@yunwu/auth": ["../../packages/auth"],
       "@yunwu/ui": ["../../packages/ui"],
-      "@yunwu/shared": ["../../packages/shared"]
+      "@yunwu/shared": ["../../packages/shared"],
+      "@yunwu/platform-core": ["../../packages/platform"],
+      "@yunwu/platform-core/*": ["../../packages/platform/*"]
     }
   }
 }

@@ -1,11 +1,16 @@
 "use server";
-import { requirePermission } from "@yunwu/auth/platform-auth"; import { PERMISSIONS } from "@yunwu/platform/config/permissions.config";
+/** ERP BOM — WO-P7D: Direct Prisma. Zero fetch, zero localhost:3001. */
+import { PrismaClient } from "@prisma/client";
+import { requirePermission } from "@yunwu/auth/platform-auth";
+import { PERMISSIONS } from "@yunwu/platform-core/config/permissions.config";
 import { getServerSession } from "next-auth"; import { authOptions } from "@/lib/auth"; import { redirect } from "next/navigation";
-const ERP=process.env.ERP_API_URL||"http://localhost:3001";
-async function s(){const s_=await getServerSession(authOptions);if(!s_?.user)redirect("/platform/login");return s_;}
-async function f(p:string,o?:RequestInit){const r=await fetch(`${ERP}/api/${p}`,{...o,cache:"no-store"});if(!r.ok)throw new Error(`ERP API ${r.status}`);return r.json();}
-export async function listBom(skuId?:number){await s();const q=skuId?`bom?skuId=${skuId}`:"bom";return f(q);}
-export async function getBom(id:number){await s();return f(`bom/${id}`);}
-export async function createBom(d:any){const s_=await s();await requirePermission(s_ as any,PERMISSIONS.BOM_EDIT);const r=await fetch(`${ERP}/api/bom`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(d)});return r.ok?await r.json():{error:`失败:${r.status}`};}
-export async function updateBom(id:number,d:any){const s_=await s();await requirePermission(s_ as any,PERMISSIONS.BOM_EDIT);const r=await fetch(`${ERP}/api/bom/${id}`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(d)});return r.ok?{}:{error:`失败:${r.status}`};}
-export async function deleteBom(id:number){const s_=await s();await requirePermission(s_ as any,PERMISSIONS.BOM_EDIT);const r=await fetch(`${ERP}/api/bom/${id}`,{method:"DELETE"});return r.ok?{}:{error:`失败:${r.status}`};}
+
+const prisma = new PrismaClient(); const db = prisma as any;
+
+async function s(){const x=await getServerSession(authOptions);if(!x?.user)redirect("/platform/login");return x;}
+
+export async function listBom(skuId?:number){await s();const where:any={};if(skuId)where.skuId=skuId;return db.erpBom.findMany({where,include:{material:true,sku:true}});}
+export async function getBom(id:number){await s();return db.erpBom.findUnique({where:{id},include:{material:true,sku:{include:{product:true}}}});}
+export async function createBom(d:any){const x=await s();await requirePermission(x as any,PERMISSIONS.BOM_EDIT);const mat=await db.erpMaterial.findUnique({where:{id:d.materialId}});try{return await db.erpBom.create({data:{...d,materialCodeSnapshot:mat.code,materialNameSnapshot:mat.name,lineCost:(d.unitPrice||0)*d.quantity}});}catch(e:any){return{error:e.message};}}
+export async function updateBom(id:number,d:any){const x=await s();await requirePermission(x as any,PERMISSIONS.BOM_EDIT);const b=await db.erpBom.findUnique({where:{id}});const lineCost=(d.unitPrice??b.unitPrice??0)*(d.quantity??b.quantity);try{await db.erpBom.update({where:{id},data:{...d,lineCost}});return{};}catch(e:any){return{error:e.message};}}
+export async function deleteBom(id:number){const x=await s();await requirePermission(x as any,PERMISSIONS.BOM_EDIT);try{await db.erpBom.delete({where:{id}});return{};}catch(e:any){return{error:e.message};}}

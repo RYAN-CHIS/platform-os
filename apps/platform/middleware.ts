@@ -1,9 +1,8 @@
 /**
- * Platform OS Middleware — Reverse Proxy
+ * Platform OS Middleware — Native-first routing with legacy fallback
  *
- * Routes /erp/* → ERP app (port 3001)
- * Routes /admin/* → Brand OS app (port 3003)
- * Serves Platform pages directly for all other routes.
+ * Migrated Platform routes are served locally.
+ * Unmigrated ERP and Brand OS routes continue to use the legacy apps.
  *
  * Dev: proxies to localhost. Prod: expects same-origin (nginx/Vercel routing).
  */
@@ -16,9 +15,50 @@ const IS_DEV = process.env.NODE_ENV === "development";
 const ERP_ORIGIN = IS_DEV ? "http://localhost:3001" : "http://erp:3001";
 const BRAND_ORIGIN = IS_DEV ? "http://localhost:3003" : "http://brand-os:3003";
 
+const NATIVE_ERP_ROUTES = [
+  "/erp/materials",
+  "/erp/products",
+  "/erp/bom",
+  "/erp/inventory",
+  "/erp/production",
+  "/erp/orders",
+  "/erp/customers",
+] as const;
+
+// Brand business pages still live in Brand OS. This Platform-owned bridge is
+// the only migrated /admin surface in Phase 2A.
+const NATIVE_BRAND_ROUTES = ["/admin/brand"] as const;
+
+function matchesRoute(pathname: string, route: string) {
+  return pathname === route || pathname.startsWith(`${route}/`);
+}
+
+function isNativeErpRoute(pathname: string) {
+  return NATIVE_ERP_ROUTES.some((route) => matchesRoute(pathname, route));
+}
+
+function isNativeBrandRoute(pathname: string) {
+  return NATIVE_BRAND_ROUTES.some((route) => matchesRoute(pathname, route));
+}
+
+function getRefererPathname(referer: string) {
+  if (!referer) return "";
+
+  try {
+    return new URL(referer).pathname;
+  } catch {
+    return "";
+  }
+}
+
+function rewriteTo(request: NextRequest, origin: string) {
+  const url = new URL(request.nextUrl.pathname + request.nextUrl.search, origin);
+  return NextResponse.rewrite(url);
+}
+
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  const referer = request.headers.get("referer") || "";
+  const refererPathname = getRefererPathname(request.headers.get("referer") || "");
 
   // ══════════════════════════════════════
   // Platform's own routes — serve directly
@@ -26,6 +66,8 @@ export function middleware(request: NextRequest) {
   if (
     pathname === "/platform" ||
     pathname.startsWith("/platform/") ||
+    pathname === "/brand" ||
+    pathname.startsWith("/brand/") ||
     pathname === "/" ||
     pathname.startsWith("/login") ||
     pathname.startsWith("/api/auth")
@@ -34,34 +76,41 @@ export function middleware(request: NextRequest) {
   }
 
   // ══════════════════════════════════════
-  // Proxy ERP app (port 3001)
+  // ERP: native modules first, legacy app fallback
   // ══════════════════════════════════════
-  if (pathname.startsWith("/erp")) {
-    const url = new URL(pathname + request.nextUrl.search, ERP_ORIGIN);
-    return NextResponse.rewrite(url);
+  if (pathname === "/erp" || pathname.startsWith("/erp/")) {
+    if (isNativeErpRoute(pathname)) {
+      return NextResponse.next();
+    }
+
+    return rewriteTo(request, ERP_ORIGIN);
   }
 
   // ══════════════════════════════════════
-  // Proxy Brand OS app (port 3003)
+  // Brand: native Platform bridge first, legacy app fallback
   // ══════════════════════════════════════
-  if (pathname.startsWith("/admin")) {
-    const url = new URL(pathname + request.nextUrl.search, BRAND_ORIGIN);
-    return NextResponse.rewrite(url);
+  if (pathname === "/admin" || pathname.startsWith("/admin/")) {
+    if (isNativeBrandRoute(pathname)) {
+      return NextResponse.next();
+    }
+
+    return rewriteTo(request, BRAND_ORIGIN);
   }
 
   // ══════════════════════════════════════
-  // Asset proxy: route based on Referer
-  // ERP pages request /_next/static/... from ERP app
-  // Brand pages request /_next/static/... from Brand app
+  // Next assets: route using the page that requested them
   // ══════════════════════════════════════
   if (pathname.startsWith("/_next/static")) {
-    if (referer.includes("/erp")) {
-      const url = new URL(pathname + request.nextUrl.search, ERP_ORIGIN);
-      return NextResponse.rewrite(url);
+    if (isNativeErpRoute(refererPathname) || isNativeBrandRoute(refererPathname)) {
+      return NextResponse.next();
     }
-    if (referer.includes("/admin")) {
-      const url = new URL(pathname + request.nextUrl.search, BRAND_ORIGIN);
-      return NextResponse.rewrite(url);
+
+    if (refererPathname === "/erp" || refererPathname.startsWith("/erp/")) {
+      return rewriteTo(request, ERP_ORIGIN);
+    }
+
+    if (refererPathname === "/admin" || refererPathname.startsWith("/admin/")) {
+      return rewriteTo(request, BRAND_ORIGIN);
     }
   }
 
@@ -75,24 +124,26 @@ export function middleware(request: NextRequest) {
       pathname.startsWith("/api/contact") ||
       pathname.startsWith("/api/site-settings")
     ) {
-      const url = new URL(pathname + request.nextUrl.search, BRAND_ORIGIN);
-      return NextResponse.rewrite(url);
+      return rewriteTo(request, BRAND_ORIGIN);
     }
+
     // ERP APIs (catch-all for materials, products, orders, etc.)
-    const url = new URL(pathname + request.nextUrl.search, ERP_ORIGIN);
-    return NextResponse.rewrite(url);
+    return rewriteTo(request, ERP_ORIGIN);
   }
 
   // ══════════════════════════════════════
-  // Static assets (images, fonts)
+  // Other static assets: use the same native-first referer policy
   // ══════════════════════════════════════
-  if (referer.includes("/erp")) {
-    const url = new URL(pathname + request.nextUrl.search, ERP_ORIGIN);
-    return NextResponse.rewrite(url);
+  if (isNativeErpRoute(refererPathname) || isNativeBrandRoute(refererPathname)) {
+    return NextResponse.next();
   }
-  if (referer.includes("/admin")) {
-    const url = new URL(pathname + request.nextUrl.search, BRAND_ORIGIN);
-    return NextResponse.rewrite(url);
+
+  if (refererPathname === "/erp" || refererPathname.startsWith("/erp/")) {
+    return rewriteTo(request, ERP_ORIGIN);
+  }
+
+  if (refererPathname === "/admin" || refererPathname.startsWith("/admin/")) {
+    return rewriteTo(request, BRAND_ORIGIN);
   }
 
   return NextResponse.next();

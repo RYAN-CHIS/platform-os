@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "next dev -p 3003",
     "build": "next build",
-    "start": "next start",
+    "start": "next start -p 3003",
     "postinstall": "npx prisma generate",
     "lint": "echo lint-ok"
   },
@@ -15,6 +15,7 @@
     "@yunwu/auth": "workspace:*",
     "@yunwu/ui": "workspace:*",
     "@yunwu/shared": "workspace:*",
+    "@yunwu/platform-core": "workspace:*",
     "@prisma/client": "^6.0.0",
     "@vercel/blob": "^2.4.1",
     "bcryptjs": "^3.0.3",

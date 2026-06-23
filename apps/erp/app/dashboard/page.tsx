@@ -33,7 +33,7 @@ async function getStats(role: Role, permissions: string[]) {
   ]);
 
   let costTotal = 0;
-  let totalGrossProfit = 0;
+  const totalGrossProfit = 0;
   let profitRanking: any[] = [];
 
   if (showCost) {

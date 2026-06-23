@@ -1,5 +1,5 @@
 /**
- * @yunwu/platform — Platform OS Core
+ * @yunwu/platform-core — Platform OS Core
  *
  * Unified admin shell configuration, permissions, domain registry.
  * WO-P2: Permission Unification
@@ -64,7 +64,7 @@ export {
 
 export type { DomainKey, DomainConfig } from "./domain-registry";
 
-// Gateway exports — use: import { ... } from "@yunwu/platform/data-gateway"
+// Gateway exports — use: import { ... } from "@yunwu/platform-core/data-gateway"
 // NOT exported from main index to prevent build-time Prisma dependency
 
 // Master Data exports

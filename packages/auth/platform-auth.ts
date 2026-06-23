@@ -10,8 +10,8 @@
 import { getToken } from "next-auth/jwt";
 import { NextRequest, NextResponse } from "next/server";
 import { signFromToken } from "./sign-identity";
-import type { PermissionCode } from "@yunwu/platform/config/permissions.config";
-import { PERMISSIONS } from "@yunwu/platform/config/permissions.config";
+import type { PermissionCode } from "@yunwu/platform-core/config/permissions.config";
+import { PERMISSIONS } from "@yunwu/platform-core/config/permissions.config";
 
 // ═══════════════════════════════════════════
 // Types
