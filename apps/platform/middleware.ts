@@ -65,6 +65,26 @@ export function middleware(request: NextRequest) {
   const refererPathname = getRefererPathname(request.headers.get("referer") || "");
 
   // ══════════════════════════════════════
+  // Auth guard: redirect unauthenticated to /login
+  // ══════════════════════════════════════
+  const isPublicRoute =
+    pathname === "/login" ||
+    pathname.startsWith("/api/auth") ||
+    pathname.startsWith("/_next") ||
+    pathname === "/favicon.ico";
+
+  if (!isPublicRoute) {
+    const sessionToken =
+      request.cookies.get("next-auth.session-token")?.value ||
+      request.cookies.get("__Secure-next-auth.session-token")?.value;
+
+    if (!sessionToken) {
+      const loginUrl = new URL("/login", request.url);
+      return NextResponse.redirect(loginUrl);
+    }
+  }
+
+  // ══════════════════════════════════════
   // Platform's own routes — serve directly
   // ══════════════════════════════════════
   if (

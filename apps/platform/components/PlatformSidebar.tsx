@@ -517,7 +517,7 @@ export default function PlatformSidebar() {
             </>
           )}
           <button
-            onClick={() => signOut({ callbackUrl: "/platform/login" })}
+            onClick={() => signOut({ callbackUrl: "/login" })}
             title="退出登录"
             style={{
               display: "flex",
