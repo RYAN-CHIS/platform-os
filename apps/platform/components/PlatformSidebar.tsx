@@ -531,6 +531,12 @@ export default function PlatformSidebar() {
                     onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
                     <Shield size={14} /> 修改密码
                   </Link>
+                  <Link href="/settings/profile?tab=security" onClick={() => setUserMenuOpen(false)}
+                    style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", borderRadius: 8, fontSize: "0.82rem", color: COLORS.text, textDecoration: "none", transition: "0.15s" }}
+                    onMouseEnter={e => (e.currentTarget.style.background = "#3D5A72")}
+                    onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
+                    <Settings size={14} /> 账号设置
+                  </Link>
                   <div style={{ height: 1, background: "rgba(255,255,255,0.08)", margin: "4px 8px" }} />
                   <button
                     onClick={() => signOut({ callbackUrl: "/login" })}
