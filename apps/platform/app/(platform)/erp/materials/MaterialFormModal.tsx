@@ -18,35 +18,42 @@ const SHAPES = ["圆珠", "桶珠", "苹果珠", "算盘珠", "雕刻", "随形"
 
 type PricingMode = "by_piece" | "by_weight" | "by_strand" | "by_item";
 
-export default function MaterialFormModal({ mode, initialData, onSave, onClose }: Props) {
-  // ── Form state ──
-  const [f, setF] = useState<Record<string, any>>(() => ({
-    code: initialData?.code ?? "",
-    name: initialData?.name ?? "",
-    category: initialData?.category ?? "",
-    specification: initialData?.specification ?? "",
-    shape: initialData?.shape ?? "",
-    remark: initialData?.remark ?? "",
-    // pricing
-    pricingMode: initialData?.pricingMethod || initialData?.pricingMode || "by_weight",
-    purchaseWeight: initialData?.totalWeightG ?? 0,
-    pricePerGram: initialData?.pricePerGram ?? 0,
-    purchaseBeadCount: initialData?.totalPieces ?? 0,
-    purchaseQty: initialData?.purchaseQty ?? 0,
-    unitPrice: initialData?.unitPrice ?? 0,
-    strandCount: initialData?.strandCount ?? 0,
-    beadsPerStrand: initialData?.beadsPerStrand ?? 0,
-    strandPrice: initialData?.strandPrice ?? 0,
-    purchaseTotalPrice: initialData?.purchaseTotalPrice ?? 0,
+/** Normalize material record — map old/new field names for edit prefill */
+function normalizeMaterial(src: Record<string, any> | undefined): Record<string, any> {
+  if (!src) return {};
+  const d = (v: any, fallback: any) => (v !== null && v !== undefined ? v : fallback);
+  return {
+    code: d(src.code, ""),
+    name: d(src.name, ""),
+    category: d(src.category, ""),
+    specification: d(src.specification || src.spec || src.spec_mm, ""),
+    shape: d(src.shape, ""),
+    remark: d(src.remark, ""),
+    // pricing — map old to new
+    pricingMode: d(src.pricingMethod || src.pricingMode || src.pricing_method, "by_weight"),
+    purchaseWeight: parseFloat(d(src.totalWeightG || src.totalWeight || src.total_weight || src.total_weight_g, 0)),
+    pricePerGram: parseFloat(d(src.pricePerGram || src.gramPrice || src.gram_price || src.price_per_gram, 0)),
+    purchaseBeadCount: parseInt(d(src.totalPieces || src.beadCount || src.totalPieces || src.total_pieces || src.bead_count, 0)),
+    purchaseQty: parseFloat(d(src.purchaseQty || src.purchase_qty || src.strandCount || src.strand_count, 0)),
+    unitPrice: parseFloat(d(src.unitPrice || src.unit_price || src.pricePerGram || src.price_per_gram, 0)),
+    strandCount: parseInt(d(src.strandCount || src.strand_count || src.purchaseQty || src.purchase_qty, 0)),
+    beadsPerStrand: parseInt(d(src.beadsPerStrand || src.beads_per_strand, 0)),
+    strandPrice: parseFloat(d(src.strandPrice || src.strand_price, 0)),
+    purchaseTotalPrice: parseFloat(d(src.purchaseTotalPrice || src.purchaseTotalPrice || src.purchasePrice || src.purchase_price || src.purchaseTotalPrice, 0)),
     // inventory
-    remaining: initialData?.remaining ?? 0,
-    safetyStock: initialData?.safetyStock ?? 0,
+    remaining: parseFloat(d(src.remaining || src.stockQuantity || src.stock_quantity, 0)),
+    safetyStock: parseFloat(d(src.safetyStock || src.safety_stock, 0)),
     // ext
-    supplier: initialData?.supplier ?? "",
-    purchaseMethod: initialData?.purchaseMethod ?? "",
-    status: initialData?.status || "ACTIVE",
-    materialType: initialData?.materialType || "BEAD",
-  }));
+    supplier: d(src.supplier, ""),
+    purchaseMethod: d(src.purchaseMethod || src.purchase_method, ""),
+    status: d(src.status, "ACTIVE"),
+    materialType: d(src.materialType || src.material_type, "BEAD"),
+  };
+}
+
+export default function MaterialFormModal({ mode, initialData, onSave, onClose }: Props) {
+  // ── Form state with proper normalization ──
+  const [f, setF] = useState<Record<string, any>>(() => normalizeMaterial(initialData));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [sections, setSections] = useState<Record<string, boolean>>({
@@ -118,7 +125,6 @@ export default function MaterialFormModal({ mode, initialData, onSave, onClose }
     setSaving(true);
     try {
       const data: Record<string, any> = {
-        // 基础
         code: f.code,
         name: f.name,
         category: f.category,
@@ -128,29 +134,49 @@ export default function MaterialFormModal({ mode, initialData, onSave, onClose }
         purchaseMethod: f.purchaseMethod,
         remark: f.remark,
         status: f.status,
-        // 计价
         pricingMethod: f.pricingMode,
-        unitPrice: parseFloat(f.unitPrice || f.pricePerGram || 0),
-        purchaseQty: parseInt(f.purchaseQty || f.strandCount || 0),
-        strandCount: parseInt(f.strandCount || 0),
-        strandPrice: parseFloat(f.strandPrice || 0),
-        beadsPerStrand: parseInt(f.beadsPerStrand || 0),
-        weightPerStrand: parseFloat(f.weightPerStrand || 0),
-        // Excel对应字段
-        totalWeightG: parseFloat(f.purchaseWeight || 0),
-        pricePerGram: parseFloat(f.pricePerGram || 0),
-        totalPieces: calc.totalPieces,
-        purchaseTotalPrice: calc.totalPrice,
-        costPerUsageUnit: calc.singleCost,
-        // 库存
-        remaining: parseInt(f.remaining || 0),
-        safetyStock: parseInt(f.safetyStock || 0),
-        // 固定
         materialType: "BEAD",
         inventoryUnit: getUsageUnit(),
         usageUnit: getUsageUnit(),
+        // 计价 — only include non-empty values to avoid overwriting
+        ...(calc.singleCost > 0 || mode === "add" ? {
+          unitPrice: parseFloat(f.unitPrice || f.pricePerGram || 0),
+          purchaseQty: parseInt(f.purchaseQty || f.strandCount || 0),
+          strandCount: parseInt(f.strandCount || 0),
+          strandPrice: parseFloat(f.strandPrice || 0),
+          beadsPerStrand: parseInt(f.beadsPerStrand || 0),
+          weightPerStrand: parseFloat(f.weightPerStrand || 0),
+          totalWeightG: parseFloat(f.purchaseWeight || 0),
+          pricePerGram: parseFloat(f.pricePerGram || 0),
+          totalPieces: calc.totalPieces,
+          purchaseTotalPrice: calc.totalPrice,
+          costPerUsageUnit: calc.singleCost,
+          remaining: parseInt(f.remaining || 0),
+          safetyStock: parseInt(f.safetyStock || 0),
+        } : {}),
       };
-      await onSave(data);
+      // In edit mode, only include fields that actually changed or have values
+      if (mode === "edit") {
+        const orig = normalizeMaterial(initialData);
+        const changed: Record<string, any> = {};
+        for (const [k, v] of Object.entries(data)) {
+          const origV = orig[k] !== undefined ? orig[k] : null;
+          const newV = v !== undefined ? v : null;
+          if (String(newV) !== String(origV)) {
+            changed[k] = v;
+          }
+        }
+        // Always include these for edit
+        changed.code = data.code;
+        changed.name = data.name;
+        changed.category = data.category;
+        changed.specification = data.specification;
+        changed.shape = data.shape;
+        changed.supplier = data.supplier;
+        await onSave(Object.keys(changed).length > 1 ? changed : { name: data.name });
+      } else {
+        await onSave(data);
+      }
     } catch (e: any) {
       setError(e.message || "保存失败");
     }
