@@ -1,6 +1,8 @@
 import Link from 'next/link';
 import prisma from '@/lib/prisma';
 
+export const dynamic = 'force-dynamic'; // V2.1: bypass ISR cache for production sync
+
 export default async function HomePage() {
   // Task A5：首屏仅一件作品
   const featuredWork = await prisma.product.findFirst({
