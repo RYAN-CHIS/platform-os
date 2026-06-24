@@ -1,4 +1,4 @@
-import { listRoles } from "@/modules/settings/roles/actions";
+import { listRoles, seedStandardRoles } from "@/modules/settings/roles/actions";
 import RolesClient from "./client";
 
 export default async function SettingsRolesPage({
@@ -10,6 +10,8 @@ export default async function SettingsRolesPage({
   let roles: Awaited<ReturnType<typeof listRoles>> = [];
 
   try {
+    // Ensure standard roles exist (idempotent, runs on every load)
+    await seedStandardRoles();
     roles = await listRoles(q);
   } catch {}
 

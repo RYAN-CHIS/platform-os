@@ -13,7 +13,7 @@ import {
   toggleUserStatus,
   resetUserPassword,
 } from "@/modules/settings/users/actions";
-import { ROLE_OPTIONS, ROLE_COLORS, getRoleLabel } from "@/modules/settings/users/role-labels";
+import { ROLE_COLORS, getRoleLabel } from "@/modules/settings/users/role-labels";
 
 const STATUS_OPTIONS = ["active", "disabled", "inactive", "suspended"];
 
@@ -35,7 +35,14 @@ const STATUS_COLORS: Record<string, string> = {
 
 function getStatusLabel(s: string) { return STATUS_LABEL_MAP[s] || s; }
 
-export default function UsersClient({ initialUsers }: { initialUsers: UserRow[] }) {
+export default function UsersClient({
+  initialUsers,
+  roleOptions = [],
+}: {
+  initialUsers: UserRow[];
+  roleOptions?: { value: string; label: string }[];
+}) {
+  const roleOpts = roleOptions.length > 0 ? roleOptions : [{ value: "VIEWER", label: "查看员" }, { value: "SUPER_ADMIN", label: "超级管理员" }, { value: "ERP_ADMIN", label: "ERP 管理员" }, { value: "BRAND_ADMIN", label: "品牌管理员" }, { value: "WEB_ADMIN", label: "网站管理员" }, { value: "EDITOR", label: "编辑员" }, { value: "OPERATOR", label: "运营员" }];
   const router = useRouter();
   const [users, setUsers] = useState<UserRow[]>(initialUsers);
   useEffect(() => { setUsers(initialUsers); }, [initialUsers]);
@@ -185,8 +192,8 @@ export default function UsersClient({ initialUsers }: { initialUsers: UserRow[] 
             <Field label="邮箱" name="email" type="email" required />
             <Field label="姓名" name="name" required />
             <Field label="密码" name="password" type="password" required />
-            <select name="role" defaultValue="VIEWER" className="w-full px-3 py-2 border border-stone-200 rounded-md text-sm">
-              {ROLE_OPTIONS.map(r => (
+            <select name="role" defaultValue={roleOpts[0]?.value || "VIEWER"} className="w-full px-3 py-2 border border-stone-200 rounded-md text-sm">
+              {roleOpts.map(r => (
                 <option key={r.value} value={r.value}>{r.label}</option>
               ))}
             </select>
@@ -206,7 +213,7 @@ export default function UsersClient({ initialUsers }: { initialUsers: UserRow[] 
             <Field label="姓名" name="name" defaultValue={modal.user.name || ""} />
             <Field label="邮箱" name="email" type="email" defaultValue={modal.user.email} required />
             <select name="role" defaultValue={modal.user.role} className="w-full px-3 py-2 border border-stone-200 rounded-md text-sm">
-              {ROLE_OPTIONS.map(r => (
+              {roleOpts.map(r => (
                 <option key={r.value} value={r.value}>{r.label}</option>
               ))}
             </select>

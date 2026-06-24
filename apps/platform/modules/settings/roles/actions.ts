@@ -35,6 +35,126 @@ export interface UpdateRoleInput {
   isActive?: boolean;
 }
 
+// ── Standard roles definition (single source of truth) ──
+const STANDARD_ROLES = [
+  { role_name: "超级管理员", role_code: "SUPER_ADMIN", description: "拥有所有系统权限" },
+  { role_name: "ERP 管理员", role_code: "ERP_ADMIN", description: "管理 ERP 系统，包括材料、产品、BOM、库存、生产、销售、采购等" },
+  { role_name: "品牌管理员", role_code: "BRAND_ADMIN", description: "管理 Brand OS，包括产品展示、七序系列、材料展示、品牌志、媒体素材、Banner、SEO、页面设置" },
+  { role_name: "网站管理员", role_code: "WEB_ADMIN", description: "管理网站展示、页面配置、SEO、Banner 与前台发布内容" },
+  { role_name: "编辑员", role_code: "EDITOR", description: "负责内容编辑、品牌志、媒体素材、产品展示维护" },
+  { role_name: "运营员", role_code: "OPERATOR", description: "负责日常业务操作，包括材料、库存、订单、生产记录等" },
+  { role_name: "查看员", role_code: "VIEWER", description: "只读查看权限" },
+] as const;
+
+const STANDARD_CODES = STANDARD_ROLES.map(r => r.role_code);
+
+// ── Default permissions per standard role ──
+const DEFAULT_PERMISSIONS: Record<string, string[]> = {
+  SUPER_ADMIN: [
+    "erp.products", "erp.materials", "erp.bom", "erp.purchase", "erp.inventory",
+    "erp.production", "erp.orders", "erp.customers", "erp.costs", "erp.supplier",
+    "brand.products", "brand.series", "brand.journal", "brand.home", "brand.media",
+    "brand.banners", "brand.seo", "brand.settings",
+    "settings.users", "settings.roles", "settings.permissions", "settings.audit", "settings.system",
+  ],
+  ERP_ADMIN: [
+    "erp.products", "erp.materials", "erp.bom", "erp.purchase", "erp.inventory",
+    "erp.production", "erp.orders", "erp.customers", "erp.costs", "erp.supplier",
+    "brand.products", "brand.series", "brand.journal", "brand.media",
+    "settings.audit",
+  ],
+  BRAND_ADMIN: [
+    "brand.products", "brand.series", "brand.journal", "brand.home", "brand.media",
+    "brand.banners", "brand.seo", "brand.settings",
+    "erp.products",
+  ],
+  WEB_ADMIN: [
+    "brand.products", "brand.series", "brand.home", "brand.media",
+    "brand.banners", "brand.seo", "brand.settings",
+  ],
+  EDITOR: [
+    "brand.products", "brand.series", "brand.journal", "brand.media",
+  ],
+  OPERATOR: [
+    "erp.materials", "erp.inventory", "erp.production", "erp.orders",
+    "erp.purchase", "erp.customers",
+    "erp.products",
+  ],
+  VIEWER: [],
+};
+
+// ── Seed standard roles (idempotent) ──
+export async function seedStandardRoles(): Promise<{ ok: boolean; migrated: number; seeded: number; permissionsSet: number }> {
+  let migrated = 0;
+  let seeded = 0;
+  let permissionsSet = 0;
+
+  try {
+    // 1. Delete old roles that don't match standard codes
+    const oldRoles = await prisma.$queryRawUnsafe<{ id: number; role_code: string }[]>(
+      `SELECT id, role_code FROM roles ORDER BY id`
+    );
+
+    const existingCodes = new Set(oldRoles.map(r => r.role_code));
+    const newCodes = new Set(STANDARD_CODES);
+
+    // Delete roles that are not standard
+    for (const old of oldRoles) {
+      if (!newCodes.has(old.role_code)) {
+        await prisma.$executeRawUnsafe(`DELETE FROM roles WHERE id = $1`, old.id);
+        migrated++;
+      }
+    }
+
+    // 2. Insert missing standard roles with default permissions
+    for (const role of STANDARD_ROLES) {
+      if (!existingCodes.has(role.role_code)) {
+        const perms = DEFAULT_PERMISSIONS[role.role_code] || [];
+        await prisma.$executeRawUnsafe(
+          `INSERT INTO roles (role_name, role_code, description, permissions, is_active, created_at, updated_at)
+           VALUES ($1, $2, $3, $4::jsonb, true, NOW(), NOW())`,
+          role.role_name, role.role_code, role.description, JSON.stringify(perms)
+        );
+        seeded++;
+      }
+    }
+
+    // 3. For existing roles with empty permissions, set defaults
+    for (const role of STANDARD_ROLES) {
+      if (existingCodes.has(role.role_code)) {
+        const rows = await prisma.$queryRawUnsafe<{ permissions: string }[]>(
+          `SELECT permissions::text as permissions FROM roles WHERE role_code = $1 AND (permissions IS NULL OR permissions::text = '[]'::text OR permissions::text = 'null')`,
+          role.role_code
+        );
+        if (rows.length > 0) {
+          const perms = DEFAULT_PERMISSIONS[role.role_code] || [];
+          await prisma.$executeRawUnsafe(
+            `UPDATE roles SET permissions = $1::jsonb, updated_at = NOW() WHERE role_code = $2`,
+            JSON.stringify(perms), role.role_code
+          );
+          permissionsSet++;
+        }
+      }
+    }
+
+    return { ok: true, migrated, seeded, permissionsSet };
+  } catch (e: any) {
+    return { ok: false, migrated, seeded, permissionsSet };
+  }
+}
+
+// ── List roles for select dropdown ──
+export async function listRolesForSelect(): Promise<{ value: string; label: string }[]> {
+  try {
+    const rows = await prisma.$queryRawUnsafe<{ role_code: string; role_name: string }[]>(
+      `SELECT role_code, role_name FROM roles WHERE is_active = true ORDER BY id ASC`
+    );
+    return rows.map(r => ({ value: r.role_code, label: r.role_name }));
+  } catch {
+    return STANDARD_ROLES.map(r => ({ value: r.role_code, label: r.role_name }));
+  }
+}
+
 // ── List ──
 export async function listRoles(q?: string): Promise<RoleRow[]> {
   const rows = await prisma.$queryRawUnsafe<any[]>(
