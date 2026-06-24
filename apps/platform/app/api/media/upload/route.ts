@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { writeFile, mkdir } from "fs/promises";
 import { join } from "path";
 import crypto from "crypto";
+import { put } from "@vercel/blob";
 
 export const runtime = "nodejs";
 
@@ -75,8 +76,6 @@ export async function POST(request: NextRequest) {
 
     if (process.env.BLOB_READ_WRITE_TOKEN) {
       try {
-        const dynamicImport = new Function("specifier", "return import(specifier)") as (specifier: string) => Promise<{ put: Function }>;
-        const { put } = await dynamicImport("@vercel/blob");
         const blob = await put(`brand-media/${uniqueName}`, buffer, {
           access: "public",
           contentType: mimeType,
