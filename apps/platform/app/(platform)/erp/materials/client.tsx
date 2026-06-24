@@ -68,6 +68,9 @@ export default function MaterialsClient({
     { key: 'purchasePrice', label: '采购单价', type: 'number' as const, placeholder: '0' },
     { key: 'safetyStock', label: '安全库存', type: 'number' as const, placeholder: '0' },
     { key: 'supplier', label: '供应商', placeholder: '供应商名称' },
+    { key: 'purchaseMethod', label: '采购方式', placeholder: '如 直接采购/定制/批发' },
+    { key: 'beadsPerStrand', label: '每串颗数', type: 'number' as const, placeholder: '0' },
+    { key: 'weightPerStrand', label: '每串重量(g)', type: 'number' as const, placeholder: '0' },
     { key: 'remark', label: '备注', type: 'textarea' as const, placeholder: '备注信息' },
   ];
 
@@ -78,6 +81,12 @@ export default function MaterialsClient({
       unitCost: parseFloat(formData.unitCost) || 0,
       purchasePrice: parseFloat(formData.purchasePrice) || 0,
       safetyStock: parseFloat(formData.safetyStock) || 0,
+      beadsPerStrand: formData.beadsPerStrand != null && formData.beadsPerStrand !== ''
+        ? parseInt(formData.beadsPerStrand) || 0
+        : undefined,
+      weightPerStrand: formData.weightPerStrand != null && formData.weightPerStrand !== ''
+        ? parseFloat(formData.weightPerStrand) || 0
+        : undefined,
     };
     if (editItem) {
       await updateMaterial(editItem.id, data);
@@ -183,11 +192,12 @@ export default function MaterialsClient({
     { key: 'name', label: '名称', sortable: true, render: (v: any, row: any) => <span style={{ fontWeight: 500, color: '#1c1917' }}>{row.name || '—'}</span> },
     { key: 'code', label: '编码', render: (v: any, row: any) => <code style={{ fontSize: 11, background: '#f5f5f4', padding: '2px 6px', borderRadius: 4 }}>{row.code || '—'}</code> },
     { key: 'category', label: '分类' },
+    { key: 'specification', label: '规格', render: (v: any, row: any) => <span>{row.specification || '—'}</span> },
     { key: 'inventoryUnit', label: '单位' },
-    { key: 'remaining', label: '库存', sortable: true, width: '120px', render: (v: any, row: any) => (
+    { key: 'remaining', label: '库存', sortable: true, width: '140px', render: (v: any, row: any) => (
       <span style={{ textAlign: 'right', display: 'block' }}>{formatStock(row)}</span>
     ) },
-    { key: 'unitCost', label: '最小单位单价', width: '120px', render: (v: any, row: any) => (
+    { key: 'unitCost', label: '最小单位单价', width: '130px', render: (v: any, row: any) => (
       <span style={{ color: '#16a34a', fontWeight: 500, textAlign: 'right', display: 'block' }}>{calcUnitPrice(row)}</span>
     ) },
     { key: 'status', label: '状态', width: '100px', render: (v: any, row: any) => {
@@ -240,19 +250,62 @@ export default function MaterialsClient({
         rows={filtered}
         emptyText="暂无材料"
         expandedRows={expandedRows}
-        renderExpanded={(row: any) => (
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:"4px 16px",fontSize:12,color:"#57534e",padding:"8px 0"}}>
-            <div><span style={{color:"#a8a29e"}}>创建时间:</span> {formatDate(row.createdAt)}</div>
-            <div><span style={{color:"#a8a29e"}}>更新时间:</span> {formatDate(row.updatedAt)}</div>
-            <div><span style={{color:"#a8a29e"}}>供应商:</span> {row.supplier || "—"}</div>
-            <div><span style={{color:"#a8a29e"}}>采购单位:</span> {row.defaultPurchaseUnit || "—"}</div>
-            <div><span style={{color:"#a8a29e"}}>库存单位:</span> {row.inventoryUnit || "—"}</div>
-            <div><span style={{color:"#a8a29e"}}>使用单位:</span> {row.usageUnit || "—"}</div>
-            <div><span style={{color:"#a8a29e"}}>换算关系:</span> {row.conversionDescription || (row.defaultConversionRate ? `1${row.defaultPurchaseUnit || '采购单位'} = ${row.defaultConversionRate}${row.inventoryUnit || '库存单位'}` : "—")}</div>
-            <div><span style={{color:"#a8a29e"}}>采购单价:</span> {row.purchasePrice != null ? `¥${Number(row.purchasePrice).toFixed(2)}` : "—"}</div>
-            <div><span style={{color:"#a8a29e"}}>备注:</span> {row.remark || "—"}</div>
-          </div>
-        )}
+        renderExpanded={(row: any) => {
+          // Compute total pieces = remaining in inventory units
+          const totalPieces = row.remaining ?? 0;
+          // Compute total weight from beadsPerStrand * weightPerStrand
+          const totalWeight = (row.beadsPerStrand && row.weightPerStrand)
+            ? Math.round(row.beadsPerStrand * row.weightPerStrand * 100) / 100
+            : null;
+          // Compute total cost from most recent purchase price x remaining
+          const totalCost = (row.purchasePrice != null && row.remaining)
+            ? row.purchasePrice * row.remaining
+            : null;
+          return (
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:"6px 20px",fontSize:12,color:"#57534e",padding:"10px 0"}}>
+              {/* 供应商相关 */}
+              <div style={{fontWeight:500,color:"#292524",borderBottom:"1px solid #f5f5f4",paddingBottom:4,gridColumn:"1/-1",marginBottom:2}}>
+                供应商与采购
+              </div>
+              <div><span style={{color:"#a8a29e"}}>供应商:</span> {row.supplier || "—"}</div>
+              <div><span style={{color:"#a8a29e"}}>采购方式:</span> {row.purchaseMethod || "—"}</div>
+              <div><span style={{color:"#a8a29e"}}>采购单价:</span> {row.purchasePrice != null ? `¥${Number(row.purchasePrice).toFixed(2)}` : "—"}</div>
+              <div><span style={{color:"#a8a29e"}}>采购单位:</span> {row.defaultPurchaseUnit || "—"}</div>
+
+              {/* 库存与数量相关 */}
+              <div style={{fontWeight:500,color:"#292524",borderBottom:"1px solid #f5f5f4",paddingBottom:4,gridColumn:"1/-1",marginTop:8,marginBottom:2}}>
+                库存与数量
+              </div>
+              <div><span style={{color:"#a8a29e"}}>库存数量（&nbsp;{row.inventoryUnit || "单位"}&nbsp;）:</span> {totalPieces}</div>
+              <div><span style={{color:"#a8a29e"}}>总成本:</span> {totalCost != null ? `¥${totalCost.toFixed(2)}` : "—"}</div>
+              <div><span style={{color:"#a8a29e"}}>总克重:</span> {totalWeight != null ? `${totalWeight}g` : "—"}</div>
+              <div><span style={{color:"#a8a29e"}}>安全库存:</span> {row.safetyStock != null && row.safetyStock > 0 ? `${row.safetyStock} ${row.inventoryUnit || '单位'}` : "—"}</div>
+
+              {/* 单位换算 */}
+              <div style={{fontWeight:500,color:"#292524",borderBottom:"1px solid #f5f5f4",paddingBottom:4,gridColumn:"1/-1",marginTop:8,marginBottom:2}}>
+                单位换算
+              </div>
+              <div style={{gridColumn:"1/-1"}}>
+                <span style={{color:"#a8a29e"}}>换算关系:</span>{' '}
+                {row.conversionDescription || (row.defaultConversionRate
+                  ? `1 ${row.defaultPurchaseUnit || '采购单位'} = ${row.defaultConversionRate} ${row.inventoryUnit || '库存单位'}`
+                  : "—")}
+              </div>
+              <div><span style={{color:"#a8a29e"}}>库存单位:</span> {row.inventoryUnit || "—"}</div>
+              <div><span style={{color:"#a8a29e"}}>使用单位:</span> {row.usageUnit || "—"}</div>
+              <div><span style={{color:"#a8a29e"}}>每串颗数:</span> {row.beadsPerStrand != null ? `${row.beadsPerStrand} 颗/串` : "—"}</div>
+              <div><span style={{color:"#a8a29e"}}>每串重量:</span> {row.weightPerStrand != null ? `${row.weightPerStrand}g` : "—"}</div>
+
+              {/* 时间与备注 */}
+              <div style={{fontWeight:500,color:"#292524",borderBottom:"1px solid #f5f5f4",paddingBottom:4,gridColumn:"1/-1",marginTop:8,marginBottom:2}}>
+                时间与备注
+              </div>
+              <div><span style={{color:"#a8a29e"}}>创建时间:</span> {formatDate(row.createdAt)}</div>
+              <div><span style={{color:"#a8a29e"}}>更新时间:</span> {formatDate(row.updatedAt)}</div>
+              <div style={{gridColumn:"1/-1"}}><span style={{color:"#a8a29e"}}>备注:</span> {row.remark || "—"}</div>
+            </div>
+          );
+        }}
       />
 
       {modalOpen && (

@@ -290,6 +290,7 @@ model ErpMaterial {
   defaultPurchaseUnit   String?             @default("个") @map("default_purchase_unit")
   defaultConversionRate Float?              @default(1) @map("default_conversion_rate")
   supplier              String              @default("")
+  purchaseMethod        String?             @default("") @map("purchase_method")
   remark                String?             @default("")
   usageUnit             String?             @map("usage_unit")
   purchasePrice         Float?              @map("purchase_price")

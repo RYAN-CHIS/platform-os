@@ -7,9 +7,10 @@ import { createCrudAudit, createStatusAudit } from '@/lib/audit';
 export async function createMaterial(data: {
   code: string; name: string; category?: string; materialType?: string;
   specification?: string; inventoryUnit?: string; unitCost?: number;
-  supplier?: string; remark?: string;
+  supplier?: string; purchaseMethod?: string; remark?: string;
   defaultPurchaseUnit?: string; usageUnit?: string; defaultConversionRate?: number;
   purchasePrice?: number; safetyStock?: number; conversionDescription?: string;
+  beadsPerStrand?: number; weightPerStrand?: number;
 }) {
   const m = await prisma.erpMaterial.create({
     data: {
@@ -28,6 +29,8 @@ export async function createMaterial(data: {
       purchasePrice: data.purchasePrice || null,
       safetyStock: data.safetyStock || 0,
       conversionDescription: data.conversionDescription || null,
+      beadsPerStrand: data.beadsPerStrand || 0,
+      weightPerStrand: data.weightPerStrand || 0,
     },
   });
 
@@ -40,9 +43,10 @@ export async function createMaterial(data: {
 export async function updateMaterial(id: number, data: {
   code?: string; name?: string; category?: string; materialType?: string;
   specification?: string; inventoryUnit?: string; unitCost?: number;
-  status?: string; supplier?: string; remark?: string;
+  status?: string; supplier?: string; purchaseMethod?: string; remark?: string;
   defaultPurchaseUnit?: string; usageUnit?: string; defaultConversionRate?: number;
   purchasePrice?: number; safetyStock?: number; conversionDescription?: string;
+  beadsPerStrand?: number; weightPerStrand?: number;
 }) {
   // Fetch before state
   const beforeRows = await prisma.$queryRawUnsafe<any[]>(`SELECT * FROM raw_materials WHERE id = $1`, id);
@@ -65,6 +69,8 @@ export async function updateMaterial(id: number, data: {
   if (data.purchasePrice !== undefined) updateData.purchasePrice = data.purchasePrice || null;
   if (data.safetyStock !== undefined) updateData.safetyStock = data.safetyStock || 0;
   if (data.conversionDescription !== undefined) updateData.conversionDescription = data.conversionDescription || null;
+  if (data.beadsPerStrand !== undefined) updateData.beadsPerStrand = data.beadsPerStrand || 0;
+  if (data.weightPerStrand !== undefined) updateData.weightPerStrand = data.weightPerStrand || 0;
 
   const m = await prisma.erpMaterial.update({ where: { id }, data: updateData });
 
