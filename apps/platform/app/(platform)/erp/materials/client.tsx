@@ -39,8 +39,8 @@ export default function MaterialsClient({
     { value: 'METAL', label: '金属' },
     { value: 'CERAMIC', label: '陶瓷' },
     { value: 'LEATHER', label: '皮革' },
-    { value: 'INCENSE', label: '香品' },
-    { value: 'CORD', label: '线绳' },
+    { value: 'INCENSE', label: '香' },
+    { value: 'CORD', label: '绳线' },
     { value: 'PACKAGING', label: '包装' },
     { value: 'OTHER', label: '其他' },
   ];
@@ -59,17 +59,30 @@ export default function MaterialsClient({
     { key: 'category', label: '分类', placeholder: '如 天然水晶' },
     { key: 'materialType', label: '类型', type: 'select' as const, options: materialTypes },
     { key: 'specification', label: '规格', placeholder: '如 10mm' },
-    { key: 'inventoryUnit', label: '单位', placeholder: '颗/个/克' },
-    { key: 'unitCost', label: '单价', type: 'number' as const, placeholder: '0' },
+    { key: 'defaultPurchaseUnit', label: '采购单位', placeholder: '如 卷/包/箱' },
+    { key: 'inventoryUnit', label: '库存单位', placeholder: '颗/个/克/米' },
+    { key: 'usageUnit', label: '使用单位', placeholder: 'BOM使用的单位' },
+    { key: 'defaultConversionRate', label: '单位换算率', type: 'number' as const, placeholder: '1采购单位=多少库存单位' },
+    { key: 'conversionDescription', label: '换算说明', type: 'textarea' as const, placeholder: '如: 1卷=50米, 1包=100颗' },
+    { key: 'unitCost', label: '库存单价', type: 'number' as const, placeholder: '0' },
+    { key: 'purchasePrice', label: '采购单价', type: 'number' as const, placeholder: '0' },
+    { key: 'safetyStock', label: '安全库存', type: 'number' as const, placeholder: '0' },
     { key: 'supplier', label: '供应商', placeholder: '供应商名称' },
     { key: 'remark', label: '备注', type: 'textarea' as const, placeholder: '备注信息' },
   ];
 
   const handleSave = useCallback(async (formData: any) => {
+    const data = {
+      ...formData,
+      defaultConversionRate: parseFloat(formData.defaultConversionRate) || 1,
+      unitCost: parseFloat(formData.unitCost) || 0,
+      purchasePrice: parseFloat(formData.purchasePrice) || 0,
+      safetyStock: parseFloat(formData.safetyStock) || 0,
+    };
     if (editItem) {
-      await updateMaterial(editItem.id, formData);
+      await updateMaterial(editItem.id, data);
     } else {
-      await createMaterial(formData);
+      await createMaterial(data);
     }
     setModalOpen(false);
     setEditItem(null);
@@ -124,13 +137,29 @@ export default function MaterialsClient({
 
   const filtered = statusFilter ? data.filter(d => d.status === statusFilter) : data;
 
+  function formatStock(row: any) {
+    const qty = row.remaining ?? 0;
+    const stockUnit = row.inventoryUnit || '';
+    const purchaseUnit = row.defaultPurchaseUnit || '';
+    const rate = row.defaultConversionRate || 1;
+
+    if (purchaseUnit && purchaseUnit !== stockUnit && rate > 0) {
+      const inPurchase = qty / rate;
+      if (Number.isInteger(inPurchase)) {
+        return `${inPurchase}${purchaseUnit} / ${qty}${stockUnit}`;
+      }
+      return `${inPurchase.toFixed(1)}${purchaseUnit} / ${qty}${stockUnit}`;
+    }
+    return `${qty} ${stockUnit}`;
+  }
+
   const columns: Column[] = [
     { key: 'name', label: '名称', sortable: true, render: (v: any, row: any) => <span style={{ fontWeight: 500, color: '#1c1917' }}>{row.name || '—'}</span> },
     { key: 'code', label: '编码', render: (v: any, row: any) => <code style={{ fontSize: 11, background: '#f5f5f4', padding: '2px 6px', borderRadius: 4 }}>{row.code || '—'}</code> },
     { key: 'category', label: '分类' },
     { key: 'inventoryUnit', label: '单位' },
-    { key: 'remaining', label: '库存', sortable: true, width: '80px', render: (v: any, row: any) => (
-      <span style={{ textAlign: 'right', display: 'block' }}>{row.remaining ?? 0} <span style={{ color: '#a8a29e' }}>{row.inventoryUnit || ''}</span></span>
+    { key: 'remaining', label: '库存', sortable: true, width: '120px', render: (v: any, row: any) => (
+      <span style={{ textAlign: 'right', display: 'block' }}>{formatStock(row)}</span>
     ) },
     { key: 'status', label: '状态', width: '100px', render: (v: any, row: any) => {
       const sc = statusColors[row.status] || statusColors.DRAFT;

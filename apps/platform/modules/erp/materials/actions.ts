@@ -8,6 +8,8 @@ export async function createMaterial(data: {
   code: string; name: string; category?: string; materialType?: string;
   specification?: string; inventoryUnit?: string; unitCost?: number;
   supplier?: string; remark?: string;
+  defaultPurchaseUnit?: string; usageUnit?: string; defaultConversionRate?: number;
+  purchasePrice?: number; safetyStock?: number; conversionDescription?: string;
 }) {
   const m = await prisma.erpMaterial.create({
     data: {
@@ -20,6 +22,12 @@ export async function createMaterial(data: {
       unitCost: data.unitCost || 0,
       supplier: data.supplier || '',
       remark: data.remark || '',
+      defaultPurchaseUnit: data.defaultPurchaseUnit || null,
+      usageUnit: data.usageUnit || null,
+      defaultConversionRate: data.defaultConversionRate || null,
+      purchasePrice: data.purchasePrice || null,
+      safetyStock: data.safetyStock || 0,
+      conversionDescription: data.conversionDescription || null,
     },
   });
 
@@ -33,9 +41,11 @@ export async function updateMaterial(id: number, data: {
   code?: string; name?: string; category?: string; materialType?: string;
   specification?: string; inventoryUnit?: string; unitCost?: number;
   status?: string; supplier?: string; remark?: string;
+  defaultPurchaseUnit?: string; usageUnit?: string; defaultConversionRate?: number;
+  purchasePrice?: number; safetyStock?: number; conversionDescription?: string;
 }) {
   // Fetch before state
-  const beforeRows = await prisma.$queryRawUnsafe<any[]>(`SELECT * FROM erp_materials WHERE id = $1`, id);
+  const beforeRows = await prisma.$queryRawUnsafe<any[]>(`SELECT * FROM raw_materials WHERE id = $1`, id);
   const before = beforeRows[0] || null;
 
   const updateData: any = {};
@@ -49,6 +59,12 @@ export async function updateMaterial(id: number, data: {
   if (data.status !== undefined) updateData.status = data.status;
   if (data.supplier !== undefined) updateData.supplier = data.supplier;
   if (data.remark !== undefined) updateData.remark = data.remark;
+  if (data.defaultPurchaseUnit !== undefined) updateData.defaultPurchaseUnit = data.defaultPurchaseUnit || null;
+  if (data.usageUnit !== undefined) updateData.usageUnit = data.usageUnit || null;
+  if (data.defaultConversionRate !== undefined) updateData.defaultConversionRate = data.defaultConversionRate || null;
+  if (data.purchasePrice !== undefined) updateData.purchasePrice = data.purchasePrice || null;
+  if (data.safetyStock !== undefined) updateData.safetyStock = data.safetyStock || 0;
+  if (data.conversionDescription !== undefined) updateData.conversionDescription = data.conversionDescription || null;
 
   const m = await prisma.erpMaterial.update({ where: { id }, data: updateData });
 
@@ -60,7 +76,7 @@ export async function updateMaterial(id: number, data: {
 
 export async function deleteMaterial(id: number) {
   // Fetch before state
-  const beforeRows = await prisma.$queryRawUnsafe<any[]>(`SELECT * FROM erp_materials WHERE id = $1`, id);
+  const beforeRows = await prisma.$queryRawUnsafe<any[]>(`SELECT * FROM raw_materials WHERE id = $1`, id);
   const before = beforeRows[0] || null;
 
   // Check for BOM references
@@ -78,7 +94,7 @@ export async function deleteMaterial(id: number) {
 
 export async function toggleMaterialStatus(id: number, newStatus: string) {
   // Fetch before state
-  const beforeRows = await prisma.$queryRawUnsafe<any[]>(`SELECT * FROM erp_materials WHERE id = $1`, id);
+  const beforeRows = await prisma.$queryRawUnsafe<any[]>(`SELECT * FROM raw_materials WHERE id = $1`, id);
   const before = beforeRows[0] || null;
 
   const m = await prisma.erpMaterial.update({

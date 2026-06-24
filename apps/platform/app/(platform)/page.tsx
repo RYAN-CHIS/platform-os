@@ -64,7 +64,7 @@ export default async function DashboardPage() {
         ERP · Brand OS · 系统状态
         {system.timestamp && (
           <span style={{ marginLeft: 12 }}>
-            {system.timestamp.slice(0, 19).replace("T", " ")}
+            数据刷新: {system.timestamp}
           </span>
         )}
       </p>
@@ -156,6 +156,38 @@ export default async function DashboardPage() {
         />
         <KpiCard label="版本" value={system.version} />
         <KpiCard label="环境" value={system.nodeEnv} />
+        <KpiCard label="今日操作" value={system.todayActions} />
+      </div>
+
+      {/* ── SECTION 4: 今日数据 ── */}
+      <SectionHeader label="今日数据" color="#f59e0b" />
+      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:32}}>
+        <KpiCard label="今日生产" value="—" />
+        <KpiCard label="今日订单" value="—" />
+        <KpiCard label="今日采购" value="—" />
+        <KpiCard label="今日操作" value="—" />
+      </div>
+
+      {/* ── SECTION 5: 快捷入口 ── */}
+      <SectionHeader label="快捷入口" color="#78716c" />
+      <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:32}}>
+        {[
+          {label:"新增材料",href:"/erp/materials",color:"#3b82f6"},
+          {label:"新增 SKU",href:"/erp/products",color:"#3b82f6"},
+          {label:"新建 BOM",href:"/erp/bom",color:"#3b82f6"},
+          {label:"新建生产单",href:"/erp/production",color:"#f59e0b"},
+          {label:"采购入库",href:"/erp/purchase",color:"#f59e0b"},
+          {label:"ERP 概览 →",href:"/erp",color:"#10b981"},
+        ].map(link => (
+          <a key={link.label} href={link.href} style={{
+            padding:"10px 20px",background:"#fafaf9",border:"1px solid #e7e5e4",
+            borderRadius:8,fontSize:13,color:"#57534e",textDecoration:"none",
+            display:"flex",alignItems:"center",gap:6
+          }}>
+            <span style={{width:6,height:6,borderRadius:"50%",background:link.color,display:"inline-block"}}></span>
+            {link.label}
+          </a>
+        ))}
       </div>
     </div>
   );

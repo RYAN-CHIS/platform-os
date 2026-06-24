@@ -291,6 +291,10 @@ model ErpMaterial {
   defaultConversionRate Float?              @default(1) @map("default_conversion_rate")
   supplier              String              @default("")
   remark                String?             @default("")
+  usageUnit             String?             @map("usage_unit")
+  purchasePrice         Float?              @map("purchase_price")
+  safetyStock           Float               @default(0) @map("safety_stock")
+  conversionDescription String?             @map("conversion_description")
   createdAt             DateTime            @default(now()) @map("created_at")
   updatedAt             DateTime            @updatedAt @map("updated_at")
   bomItems              ErpBom[]

@@ -169,12 +169,27 @@ export async function getSystemStatus() {
   try { await prisma.$queryRaw`SELECT 1`; } catch { erpConnected = false; }
   try { await brandPrisma.$queryRaw`SELECT 1`; } catch { brandConnected = false; }
 
+  let todayActions = 0;
+  try {
+    const result: any[] = await prisma.$queryRaw`SELECT COUNT(*)::int as c FROM audit_logs WHERE created_at::date = CURRENT_DATE`;
+    todayActions = Number(result[0]?.c) || 0;
+  } catch {}
+
+  const now = new Date();
+  const ts = now.getFullYear() + "-" +
+    String(now.getMonth() + 1).padStart(2, "0") + "-" +
+    String(now.getDate()).padStart(2, "0") + " " +
+    String(now.getHours()).padStart(2, "0") + ":" +
+    String(now.getMinutes()).padStart(2, "0") + ":" +
+    String(now.getSeconds()).padStart(2, "0");
+
   return {
     erpConnected,
     brandConnected,
     brandDbConfigured: brandOk,
     nodeEnv: process.env.NODE_ENV || "development",
-    version: "vP11B",
-    timestamp: new Date().toISOString(),
+    version: "P14B",
+    timestamp: ts,
+    todayActions,
   };
 }
