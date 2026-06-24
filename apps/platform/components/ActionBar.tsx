@@ -1,7 +1,7 @@
 "use client";
 /**
  * ERP Action Bar — WO-P12A
- * Client component: 搜索、刷新、导出 CSV（真实可用）+ 新增/筛选 Modal 骨架
+ * Client component: 搜索、刷新、导出 CSV（真实可用）+ 新增 Modal + 筛选（仅在 filterModalContent 提供时）
  */
 import { useState, useTransition, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -13,6 +13,7 @@ export interface ActionBarProps {
   searchPlaceholder?: string;
   searchParam?: string;
   addModalContent?: React.ReactNode;
+  /** 筛选弹窗内容 — 提供时才会渲染筛选按钮 */
   filterModalContent?: React.ReactNode;
   /** 外部新增处理函数 — 提供时替换默认「+ 新增」Modal */
   onAdd?: () => void;
@@ -30,7 +31,7 @@ function exportToCsv(filename: string, columns: { key: string; label: string }[]
       return `"${str}"`;
     }).join(",")
   ).join("\n");
-  const csv = "\uFEFF" + header + "\n" + body; // BOM for Excel
+  const csv = "\uFEFF" + header + "\n" + body;
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -43,8 +44,7 @@ function exportToCsv(filename: string, columns: { key: string; label: string }[]
 export function ActionBar({
   module, csvColumns, data,
   searchPlaceholder = "搜索...", searchParam = "q",
-  addModalContent, filterModalContent,
-  onAdd, addLabel,
+  addModalContent, filterModalContent, onAdd, addLabel,
 }: ActionBarProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -55,7 +55,6 @@ export function ActionBar({
   const [exportDone, setExportDone] = useState(false);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // 搜索（防抖 300ms，更新 URL param）
   function handleSearch(val: string) {
     setSearchValue(val);
     if (searchTimer.current) clearTimeout(searchTimer.current);
@@ -64,20 +63,16 @@ export function ActionBar({
         const params = new URLSearchParams(Array.from(searchParams.entries()));
         if (val) params.set(searchParam, val);
         else params.delete(searchParam);
-        params.delete("page"); // 重置翻页
+        params.delete("page");
         router.replace(`?${params.toString()}`);
       });
     }, 300);
   }
 
-  // 刷新当前页
   function handleRefresh() {
-    startTransition(() => {
-      router.refresh();
-    });
+    startTransition(() => { router.refresh(); });
   }
 
-  // 导出 CSV
   function handleExport() {
     exportToCsv(`erp-${module}.csv`, csvColumns, data);
     setExportDone(true);
@@ -86,79 +81,48 @@ export function ActionBar({
 
   return (
     <>
-      {/* ── Action Bar ── */}
-      <div style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 8,
-        marginBottom: 20,
-        flexWrap: "wrap",
-      }}>
-        {/* 搜索框 */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 20, flexWrap: "wrap" }}>
         <div style={{ position: "relative", flex: "1 1 200px", minWidth: 160, maxWidth: 320 }}>
           <span style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "#a8a29e", fontSize: 14 }}>🔍</span>
           <input
-            type="text"
-            value={searchValue}
-            onChange={(e) => handleSearch(e.target.value)}
+            type="text" value={searchValue} onChange={(e) => handleSearch(e.target.value)}
             placeholder={searchPlaceholder}
-            style={{
-              width: "100%",
-              paddingLeft: 32,
-              paddingRight: 10,
-              height: 36,
-              border: "1px solid #e7e5e4",
-              borderRadius: 6,
-              fontSize: 13,
-              outline: "none",
-              background: "#fff",
-              boxSizing: "border-box",
-            }}
+            style={{ width: "100%", paddingLeft: 32, paddingRight: 10, height: 36, border: "1px solid #e7e5e4", borderRadius: 6, fontSize: 13, outline: "none", background: "#fff", boxSizing: "border-box" }}
           />
           {isPending && (
-            <span style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", fontSize: 11, color: "#a8a29e" }}>
-              搜索中…
-            </span>
+            <span style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", fontSize: 11, color: "#a8a29e" }}>搜索中…</span>
           )}
         </div>
 
-        {/* 筛选按钮 */}
-        <button
-          onClick={() => setFilterOpen(true)}
-          style={btnStyle("secondary")}
-        >
-          🔧 筛选
-        </button>
+        {filterModalContent && (
+          <button onClick={() => setFilterOpen(true)} style={btnStyle("secondary")}>
+            🔧 筛选
+          </button>
+        )}
 
-        {/* 刷新按钮 */}
-        <button
-          onClick={handleRefresh}
-          disabled={isPending}
-          style={btnStyle("secondary")}
-        >
+        <button onClick={handleRefresh} disabled={isPending} style={btnStyle("secondary")}>
           {isPending ? "⟳ 刷新中…" : "⟳ 刷新"}
         </button>
 
-        {/* 导出按钮 */}
-        <button
-          onClick={handleExport}
-          style={btnStyle("secondary")}
-        >
+        <button onClick={handleExport} style={btnStyle("secondary")}>
           {exportDone ? "✅ 已导出" : "↓ 导出 CSV"}
         </button>
 
         <div style={{ flex: 1 }} />
 
-        {/* 新增按钮 */}
-        <button
-          onClick={() => onAdd ? onAdd() : setAddOpen(true)}
-          style={btnStyle("primary")}
-        >
+        <button onClick={() => onAdd ? onAdd() : setAddOpen(true)} style={btnStyle("primary")}>
           {addLabel || "+ 新增"}
         </button>
       </div>
 
-      {/* ── 新增 Modal (only when onAdd not provided) ── */}
+      {/* 筛选 Modal (only when filterModalContent provided) */}
+      {filterModalContent && filterOpen && (
+        <Modal title="筛选条件" onClose={() => setFilterOpen(false)}>
+          {filterModalContent}
+        </Modal>
+      )}
+
+      {/* 新增 Modal (only when onAdd not provided) */}
       {!onAdd && addOpen && (
         <Modal title="新增" onClose={() => setAddOpen(false)}>
           {addModalContent || (
@@ -169,83 +133,27 @@ export function ActionBar({
           )}
         </Modal>
       )}
-
-      {/* ── 筛选 Modal ── */}
-      {filterOpen && (
-        <Modal title="筛选条件" onClose={() => setFilterOpen(false)}>
-          {filterModalContent || (
-            <div style={{ padding: "24px 0", textAlign: "center" }}>
-              <p style={{ fontSize: 32, marginBottom: 12 }}>🔧</p>
-              <p style={{ fontWeight: 500, color: "#44403c", marginBottom: 8 }}>高级筛选建设中</p>
-              <p style={{ fontSize: 13, color: "#a8a29e" }}>
-                当前可通过顶部搜索框按关键词过滤数据。<br />
-                字段级筛选将在下一工单中接入。
-              </p>
-            </div>
-          )}
-        </Modal>
-      )}
     </>
   );
 }
 
-// ── Modal 组件 ──────────────────────────────
 function Modal({ title, children, onClose }: { title: string; children: React.ReactNode; onClose: () => void }) {
   return (
-    <div
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
-      style={{
-        position: "fixed", inset: 0, zIndex: 9000,
-        background: "rgba(0,0,0,0.4)",
-        display: "flex", alignItems: "center", justifyContent: "center",
-      }}
-    >
-      <div style={{
-        background: "#fff",
-        borderRadius: 12,
-        width: "100%",
-        maxWidth: 480,
-        boxShadow: "0 20px 60px rgba(0,0,0,0.15)",
-        overflow: "hidden",
-      }}>
-        {/* Header */}
-        <div style={{
-          display: "flex", alignItems: "center", justifyContent: "space-between",
-          padding: "16px 20px",
-          borderBottom: "1px solid #f5f5f4",
-        }}>
+    <div onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      style={{ position: "fixed", inset: 0, zIndex: 9000, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ background: "#fff", borderRadius: 12, width: "100%", maxWidth: 480, boxShadow: "0 20px 60px rgba(0,0,0,0.15)", overflow: "hidden" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", borderBottom: "1px solid #f5f5f4" }}>
           <span style={{ fontWeight: 500, fontSize: 15, color: "#1c1917" }}>{title}</span>
-          <button
-            onClick={onClose}
-            style={{
-              background: "none", border: "none", fontSize: 18,
-              cursor: "pointer", color: "#a8a29e", lineHeight: 1,
-              padding: "2px 6px", borderRadius: 4,
-            }}
-          >✕</button>
+          <button onClick={onClose} style={{ background: "none", border: "none", fontSize: 18, cursor: "pointer", color: "#a8a29e", lineHeight: 1, padding: "2px 6px", borderRadius: 4 }}>✕</button>
         </div>
-        {/* Body */}
         <div style={{ padding: "16px 20px 20px" }}>{children}</div>
       </div>
     </div>
   );
 }
 
-// ── 按钮样式工具函数 ──────────────────────────────
 function btnStyle(variant: "primary" | "secondary") {
-  const base: React.CSSProperties = {
-    height: 36,
-    padding: "0 14px",
-    borderRadius: 6,
-    fontSize: 13,
-    cursor: "pointer",
-    border: "1px solid",
-    fontWeight: 400,
-    whiteSpace: "nowrap",
-    transition: "opacity 0.15s",
-  };
-  if (variant === "primary") {
-    return { ...base, background: "#1c1917", color: "#fff", borderColor: "#1c1917" };
-  }
+  const base: React.CSSProperties = { height: 36, padding: "0 14px", borderRadius: 6, fontSize: 13, cursor: "pointer", border: "1px solid", fontWeight: 400, whiteSpace: "nowrap", transition: "opacity 0.15s" };
+  if (variant === "primary") { return { ...base, background: "#1c1917", color: "#fff", borderColor: "#1c1917" }; }
   return { ...base, background: "#fff", color: "#44403c", borderColor: "#e7e5e4" };
 }
