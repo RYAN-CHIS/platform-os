@@ -74,13 +74,15 @@ export async function POST(request: NextRequest) {
     let url = "";
     let storage = "local";
 
-    if (process.env.BLOB_READ_WRITE_TOKEN) {
+    const blobToken = process.env.BLOB_READ_WRITE_TOKEN || process.env.BLOB_READ_WRITE_TOKEN_V2;
+
+    if (blobToken) {
       try {
         const blob = await put(`brand-media/${uniqueName}`, buffer, {
           access: "public",
           contentType: mimeType,
           addRandomSuffix: false,
-          token: process.env.BLOB_READ_WRITE_TOKEN,
+          token: blobToken,
         });
         url = blob.url;
         storage = "vercel-blob";
