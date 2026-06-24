@@ -17,6 +17,7 @@ const BRAND_ORIGIN = IS_DEV ? "http://localhost:3003" : "http://brand-os:3003";
 
 const NATIVE_ERP_ROUTES = [
   "/erp",
+  "/erp/dashboard",
   "/erp/materials",
   "/erp/products",
   "/erp/bom",
