@@ -11,7 +11,20 @@ export async function createMaterial(data: {
   defaultPurchaseUnit?: string; usageUnit?: string; defaultConversionRate?: number;
   purchasePrice?: number; safetyStock?: number; conversionDescription?: string;
   beadsPerStrand?: number; weightPerStrand?: number;
+  pricingMethod?: string; totalWeightG?: number; totalPieces?: number;
+  pricePerGram?: number; costPerUsageUnit?: number;
 }) {
+  // Auto-calculate costPerUsageUnit for by-weight pricing
+  let costPerUsageUnit = data.costPerUsageUnit ?? 0;
+  if (data.pricingMethod === 'by_weight' && data.totalPieces && data.totalPieces > 0) {
+    const totalPrice = data.totalWeightG && data.pricePerGram
+      ? data.totalWeightG * data.pricePerGram
+      : (data.purchasePrice || 0);
+    costPerUsageUnit = totalPrice / data.totalPieces;
+  } else if (!costPerUsageUnit && data.unitCost) {
+    costPerUsageUnit = data.unitCost;
+  }
+
   const m = await prisma.erpMaterial.create({
     data: {
       code: data.code,
@@ -31,6 +44,11 @@ export async function createMaterial(data: {
       conversionDescription: data.conversionDescription || null,
       beadsPerStrand: data.beadsPerStrand || 0,
       weightPerStrand: data.weightPerStrand || 0,
+      pricingMethod: data.pricingMethod || 'by_piece',
+      totalWeightG: data.totalWeightG || 0,
+      totalPieces: data.totalPieces || 0,
+      pricePerGram: data.pricePerGram || 0,
+      costPerUsageUnit: costPerUsageUnit || 0,
     },
   });
 
@@ -47,10 +65,23 @@ export async function updateMaterial(id: number, data: {
   defaultPurchaseUnit?: string; usageUnit?: string; defaultConversionRate?: number;
   purchasePrice?: number; safetyStock?: number; conversionDescription?: string;
   beadsPerStrand?: number; weightPerStrand?: number;
+  pricingMethod?: string; totalWeightG?: number; totalPieces?: number;
+  pricePerGram?: number; costPerUsageUnit?: number;
 }) {
   // Fetch before state
   const beforeRows = await prisma.$queryRawUnsafe<any[]>(`SELECT * FROM raw_materials WHERE id = $1`, id);
   const before = beforeRows[0] || null;
+
+  // Auto-calculate costPerUsageUnit
+  let computedCostPerUsageUnit: number | undefined;
+  if (data.pricingMethod === 'by_weight') {
+    if (data.totalPieces && data.totalPieces > 0) {
+      const totalWeight = data.totalWeightG ?? before?.total_weight_g ?? 0;
+      const pricePGram = data.pricePerGram ?? before?.price_per_gram ?? 0;
+      const totalPrice = totalWeight * pricePGram;
+      computedCostPerUsageUnit = totalPrice / data.totalPieces;
+    }
+  }
 
   const updateData: any = {};
   if (data.code !== undefined) updateData.code = data.code;
@@ -71,6 +102,15 @@ export async function updateMaterial(id: number, data: {
   if (data.conversionDescription !== undefined) updateData.conversionDescription = data.conversionDescription || null;
   if (data.beadsPerStrand !== undefined) updateData.beadsPerStrand = data.beadsPerStrand || 0;
   if (data.weightPerStrand !== undefined) updateData.weightPerStrand = data.weightPerStrand || 0;
+  if (data.pricingMethod !== undefined) updateData.pricingMethod = data.pricingMethod || 'by_piece';
+  if (data.totalWeightG !== undefined) updateData.totalWeightG = data.totalWeightG || 0;
+  if (data.totalPieces !== undefined) updateData.totalPieces = data.totalPieces || 0;
+  if (data.pricePerGram !== undefined) updateData.pricePerGram = data.pricePerGram || 0;
+  if (computedCostPerUsageUnit !== undefined) {
+    updateData.costPerUsageUnit = computedCostPerUsageUnit;
+  } else if (data.costPerUsageUnit !== undefined) {
+    updateData.costPerUsageUnit = data.costPerUsageUnit || 0;
+  }
 
   const m = await prisma.erpMaterial.update({ where: { id }, data: updateData });
 

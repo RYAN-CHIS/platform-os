@@ -53,19 +53,29 @@ export default function MaterialsClient({
     { value: 'ARCHIVED', label: '停用' },
   ];
 
+  const pricingMethods = [
+    { value: 'by_piece', label: '按个计价' },
+    { value: 'by_weight', label: '按克计价' },
+    { value: 'by_strand', label: '按串计价' },
+  ];
+
   const fields = [
     { key: 'code', label: '编码', required: true, placeholder: '如 MAT-001' },
     { key: 'name', label: '名称', required: true, placeholder: '材料名称' },
     { key: 'category', label: '分类', placeholder: '如 天然水晶' },
     { key: 'materialType', label: '类型', type: 'select' as const, options: materialTypes },
-    { key: 'specification', label: '规格', placeholder: '如 10mm' },
-    { key: 'defaultPurchaseUnit', label: '采购单位', placeholder: '如 卷/包/箱' },
+    { key: 'specification', label: '规格', placeholder: '如 10mm / 8mm' },
+    { key: 'pricingMethod', label: '计价方式', type: 'select' as const, options: pricingMethods },
+    { key: 'usageUnit', label: 'BOM使用单位', placeholder: 'BOM使用的单位（默认 颗）' },
+    { key: 'totalWeightG', label: '总克重(g)', type: 'number' as const, placeholder: '仅按克计价时填写' },
+    { key: 'totalPieces', label: '总颗数', type: 'number' as const, placeholder: '从采购批次中获得的总颗数' },
+    { key: 'pricePerGram', label: '克单价(元/g)', type: 'number' as const, placeholder: '仅按克计价时填写' },
+    { key: 'purchasePrice', label: '采购总价', type: 'number' as const, placeholder: '实际采购总花费' },
+    { key: 'defaultPurchaseUnit', label: '采购单位', placeholder: '如 克/串/箱' },
     { key: 'inventoryUnit', label: '库存单位', placeholder: '颗/个/克/米' },
-    { key: 'usageUnit', label: '使用单位', placeholder: 'BOM使用的单位' },
     { key: 'defaultConversionRate', label: '单位换算率', type: 'number' as const, placeholder: '1采购单位=多少库存单位' },
     { key: 'conversionDescription', label: '换算说明', type: 'textarea' as const, placeholder: '如: 1卷=50米, 1包=100颗' },
-    { key: 'unitCost', label: '库存单价', type: 'number' as const, placeholder: '0' },
-    { key: 'purchasePrice', label: '采购单价', type: 'number' as const, placeholder: '0' },
+    { key: 'unitCost', label: '库存单价(备用)', type: 'number' as const, placeholder: '备用字段' },
     { key: 'safetyStock', label: '安全库存', type: 'number' as const, placeholder: '0' },
     { key: 'supplier', label: '供应商', placeholder: '供应商名称' },
     { key: 'purchaseMethod', label: '采购方式', placeholder: '如 直接采购/定制/批发' },
@@ -87,6 +97,16 @@ export default function MaterialsClient({
       weightPerStrand: formData.weightPerStrand != null && formData.weightPerStrand !== ''
         ? parseFloat(formData.weightPerStrand) || 0
         : undefined,
+      totalWeightG: formData.totalWeightG != null && formData.totalWeightG !== ''
+        ? parseFloat(formData.totalWeightG) || 0
+        : 0,
+      totalPieces: formData.totalPieces != null && formData.totalPieces !== ''
+        ? parseInt(formData.totalPieces) || 0
+        : 0,
+      pricePerGram: formData.pricePerGram != null && formData.pricePerGram !== ''
+        ? parseFloat(formData.pricePerGram) || 0
+        : 0,
+      pricingMethod: formData.pricingMethod || 'by_piece',
     };
     if (editItem) {
       await updateMaterial(editItem.id, data);
@@ -149,10 +169,20 @@ export default function MaterialsClient({
   function formatStock(row: any) {
     const qty = row.remaining ?? 0;
     const stockUnit = row.inventoryUnit || '';
+    const usageUnit = getUsageUnit(row);
+
+    // For bead materials with weight data, show: totalWeight / pieces
+    if (row.materialType === 'BEAD' || row.materialType === 'OTHER') {
+      const parts: string[] = [];
+      if (row.totalWeightG && row.totalWeightG > 0) parts.push(`${row.totalWeightG}g`);
+      if (row.totalPieces && row.totalPieces > 0) parts.push(`${row.totalPieces}${usageUnit}`);
+      if (parts.length > 0) return parts.join(' / ');
+    }
+
+    // Standard format with purchase unit conversion
     const purchaseUnit = row.defaultPurchaseUnit || '';
     const rate = row.defaultConversionRate || 1;
-
-    if (purchaseUnit && purchaseUnit !== stockUnit && rate > 0) {
+    if (purchaseUnit && purchaseUnit !== stockUnit && rate > 0 && rate !== 1) {
       const inPurchase = qty / rate;
       if (Number.isInteger(inPurchase)) {
         return `${inPurchase}${purchaseUnit} / ${qty}${stockUnit}`;
@@ -162,11 +192,32 @@ export default function MaterialsClient({
     return `${qty} ${stockUnit}`;
   }
 
+  /** Get display unit for BOM usage (颗 for beads, 个 for metal, etc.) */
+  function getUsageUnit(row: any): string {
+    if (row.usageUnit) return row.usageUnit;
+    const mt = row.materialType;
+    if (mt === 'BEAD') return '颗';
+    if (mt === 'METAL') return '个';
+    if (mt === 'CERAMIC' || mt === 'LEATHER' || mt === 'INCENSE') return '件';
+    return row.inventoryUnit || '单位';
+  }
+
   function calcUnitPrice(row: any): string {
-    const unitCost = row.unitCost;
-    if (unitCost != null && unitCost > 0) {
-      return `¥${Number(unitCost).toFixed(2)} / ${row.inventoryUnit || '单位'}`;
+    // Priority 1: use costPerUsageUnit (auto-calculated from purchase data)
+    if (row.costPerUsageUnit != null && row.costPerUsageUnit > 0) {
+      return `¥${Number(row.costPerUsageUnit).toFixed(2)} / ${getUsageUnit(row)}`;
     }
+    // Priority 2: for by_weight pricing, calculate from totalWeightG/pricePerGram/totalPieces
+    if (row.pricingMethod === 'by_weight' && row.totalWeightG && row.pricePerGram && row.totalPieces) {
+      const totalPrice = row.totalWeightG * row.pricePerGram;
+      const perPiece = totalPrice / row.totalPieces;
+      return `¥${perPiece.toFixed(2)} / ${getUsageUnit(row)}`;
+    }
+    // Fallback: unitCost
+    if (row.unitCost != null && row.unitCost > 0) {
+      return `¥${Number(row.unitCost).toFixed(2)} / ${row.inventoryUnit || '单位'}`;
+    }
+    // Fallback: purchasePrice / conversionRate
     const purchasePrice = row.purchasePrice;
     const rate = row.defaultConversionRate || 1;
     if (purchasePrice != null && purchasePrice > 0 && rate > 0) {
@@ -251,35 +302,45 @@ export default function MaterialsClient({
         emptyText="暂无材料"
         expandedRows={expandedRows}
         renderExpanded={(row: any) => {
-          // Compute total pieces = remaining in inventory units
-          const totalPieces = row.remaining ?? 0;
-          // Compute total weight from beadsPerStrand * weightPerStrand
-          const totalWeight = (row.beadsPerStrand && row.weightPerStrand)
-            ? Math.round(row.beadsPerStrand * row.weightPerStrand * 100) / 100
-            : null;
-          // Compute total cost from most recent purchase price x remaining
-          const totalCost = (row.purchasePrice != null && row.remaining)
-            ? row.purchasePrice * row.remaining
-            : null;
+          const usageUnit = getUsageUnit(row);
+          const pricingLabel: Record<string, string> = {
+            by_piece: '按个计价', by_weight: '按克计价', by_strand: '按串计价',
+          };
+          const purchaseTotal = row.totalWeightG && row.pricePerGram
+            ? row.totalWeightG * row.pricePerGram
+            : (row.purchasePrice || 0);
           return (
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:"6px 20px",fontSize:12,color:"#57534e",padding:"10px 0"}}>
-              {/* 供应商相关 */}
+              {/* 供应商与采购 */}
               <div style={{fontWeight:500,color:"#292524",borderBottom:"1px solid #f5f5f4",paddingBottom:4,gridColumn:"1/-1",marginBottom:2}}>
                 供应商与采购
               </div>
               <div><span style={{color:"#a8a29e"}}>供应商:</span> {row.supplier || "—"}</div>
               <div><span style={{color:"#a8a29e"}}>采购方式:</span> {row.purchaseMethod || "—"}</div>
-              <div><span style={{color:"#a8a29e"}}>采购单价:</span> {row.purchasePrice != null ? `¥${Number(row.purchasePrice).toFixed(2)}` : "—"}</div>
               <div><span style={{color:"#a8a29e"}}>采购单位:</span> {row.defaultPurchaseUnit || "—"}</div>
 
-              {/* 库存与数量相关 */}
+              {/* 计价信息 */}
+              <div style={{fontWeight:500,color:"#292524",borderBottom:"1px solid #f5f5f4",paddingBottom:4,gridColumn:"1/-1",marginTop:8,marginBottom:2}}>
+                计价信息
+              </div>
+              <div><span style={{color:"#a8a29e"}}>计价方式:</span> {pricingLabel[row.pricingMethod] || row.pricingMethod || "—"}</div>
+              {row.pricingMethod === 'by_weight' && (
+                <>
+                  <div><span style={{color:"#a8a29e"}}>克单价:</span> {row.pricePerGram ? `¥${Number(row.pricePerGram).toFixed(2)}/g` : "—"}</div>
+                  <div><span style={{color:"#a8a29e"}}>总克重:</span> {row.totalWeightG ? `${row.totalWeightG}g` : "—"}</div>
+                  <div><span style={{color:"#a8a29e"}}>采购总价:</span> {purchaseTotal ? `¥${Number(purchaseTotal).toFixed(2)}` : "—"}</div>
+                </>
+              )}
+              <div><span style={{color:"#a8a29e"}}>总颗数:</span> {row.totalPieces ? `${row.totalPieces} ${usageUnit}` : "—"}</div>
+              <div><span style={{color:"#a8a29e"}}>单颗成本:</span> {row.costPerUsageUnit ? `¥${Number(row.costPerUsageUnit).toFixed(2)}/${usageUnit}` : "—"}</div>
+              <div><span style={{color:"#a8a29e"}}>BOM使用单位:</span> {usageUnit}</div>
+
+              {/* 库存与数量 */}
               <div style={{fontWeight:500,color:"#292524",borderBottom:"1px solid #f5f5f4",paddingBottom:4,gridColumn:"1/-1",marginTop:8,marginBottom:2}}>
                 库存与数量
               </div>
-              <div><span style={{color:"#a8a29e"}}>库存数量（&nbsp;{row.inventoryUnit || "单位"}&nbsp;）:</span> {totalPieces}</div>
-              <div><span style={{color:"#a8a29e"}}>总成本:</span> {totalCost != null ? `¥${totalCost.toFixed(2)}` : "—"}</div>
-              <div><span style={{color:"#a8a29e"}}>总克重:</span> {totalWeight != null ? `${totalWeight}g` : "—"}</div>
-              <div><span style={{color:"#a8a29e"}}>安全库存:</span> {row.safetyStock != null && row.safetyStock > 0 ? `${row.safetyStock} ${row.inventoryUnit || '单位'}` : "—"}</div>
+              <div><span style={{color:"#a8a29e"}}>库存数量({row.inventoryUnit||"单位"}):</span> {row.remaining ?? 0}</div>
+              <div><span style={{color:"#a8a29e"}}>安全库存:</span> {row.safetyStock && row.safetyStock > 0 ? `${row.safetyStock} ${row.inventoryUnit || '单位'}` : "—"}</div>
 
               {/* 单位换算 */}
               <div style={{fontWeight:500,color:"#292524",borderBottom:"1px solid #f5f5f4",paddingBottom:4,gridColumn:"1/-1",marginTop:8,marginBottom:2}}>
@@ -292,9 +353,7 @@ export default function MaterialsClient({
                   : "—")}
               </div>
               <div><span style={{color:"#a8a29e"}}>库存单位:</span> {row.inventoryUnit || "—"}</div>
-              <div><span style={{color:"#a8a29e"}}>使用单位:</span> {row.usageUnit || "—"}</div>
-              <div><span style={{color:"#a8a29e"}}>每串颗数:</span> {row.beadsPerStrand != null ? `${row.beadsPerStrand} 颗/串` : "—"}</div>
-              <div><span style={{color:"#a8a29e"}}>每串重量:</span> {row.weightPerStrand != null ? `${row.weightPerStrand}g` : "—"}</div>
+              <div><span style={{color:"#a8a29e"}}>使用单位:</span> {usageUnit}</div>
 
               {/* 时间与备注 */}
               <div style={{fontWeight:500,color:"#292524",borderBottom:"1px solid #f5f5f4",paddingBottom:4,gridColumn:"1/-1",marginTop:8,marginBottom:2}}>
