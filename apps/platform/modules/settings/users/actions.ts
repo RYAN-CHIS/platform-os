@@ -273,7 +273,7 @@ export async function deleteUser(id: number): Promise<ActionResult> {
 
       await tx.$executeRaw(Prisma.sql`
         UPDATE users
-        SET email = CONCAT(email, ${"__deleted__" + new Date().toISOString().slice(0, 10)}),
+        SET email = CONCAT('deleted__', ${id}, '__', EXTRACT(EPOCH FROM NOW())::bigint, '__', email),
             status = ${DELETED_STATUS},
             reset_token = NULL,
             reset_token_expiry = NULL,
