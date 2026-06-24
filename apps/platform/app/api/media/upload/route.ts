@@ -87,29 +87,40 @@ export async function POST(request: NextRequest) {
         url = blob.url;
         storage = "vercel-blob";
       } catch (error) {
-        console.error("[media-upload] Vercel Blob upload failed", error);
-        return jsonError(`Storage 上传失败：${error instanceof Error ? error.message : "Vercel Blob 写入失败"}`, 500, {
-          stage: "storage",
-          storage: "vercel-blob",
-          filename: file.name,
+        const errMsg = error instanceof Error ? error.message : "未知错误";
+        console.error("[media-upload] Vercel Blob upload failed:", errMsg);
+
+        if (errMsg.includes("Access denied") || errMsg.includes("invalid token") || errMsg.includes("not found")) {
+          return jsonError(
+            `Vercel Blob Token 无效。请在本地终端运行以下命令修复：\n` +
+            `1. cd apps/platform\n` +
+            `2. npx vercel blob create-store "platform-os-blob" --access public\n` +
+            `3. 复制输出的 BLOB_READ_WRITE_TOKEN\n` +
+            `4. npx vercel env add BLOB_READ_WRITE_TOKEN production\n` +
+            `5. npx vercel env add BLOB_READ_WRITE_TOKEN preview\n` +
+            `6. npx vercel --prod --yes`,
+            500, { stage: "storage", storage: "vercel-blob", detail: errMsg }
+          );
+        }
+
+        return jsonError(`Storage 上传失败：${errMsg}`, 500, {
+          stage: "storage", storage: "vercel-blob", filename: file.name,
         });
       }
     } else if (isVercelRuntime) {
-      return jsonError("Storage Token 未配置：缺少 BLOB_READ_WRITE_TOKEN", 500, {
-        stage: "storage",
-        storage: "vercel-blob",
-        filename: file.name,
-      });
+      return jsonError(
+        "Vercel Blob 未配置。请运行：\n" +
+        "1. npx vercel blob create-store \"platform-os-blob\" --access public\n" +
+        "2. 复制输出的 BLOB_READ_WRITE_TOKEN\n" +
+        "3. npx vercel env add BLOB_READ_WRITE_TOKEN production",
+        500, { stage: "storage", storage: "vercel-blob" }
+      );
     } else {
+      // Local dev fallback
       const uploadDir = join(process.cwd(), "public", "uploads");
-
-      // Ensure directory exists
       await mkdir(uploadDir, { recursive: true });
-
-      // Write file
       const filePath = join(uploadDir, uniqueName);
       await writeFile(filePath, buffer);
-
       url = `/uploads/${uniqueName}`;
     }
 
