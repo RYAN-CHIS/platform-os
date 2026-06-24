@@ -1,7 +1,9 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { ActionBar } from '@/components/ActionBar';
+import { useRouter, useSearchParams } from 'next/navigation';
+import ErpToolbar from '@/components/ErpToolbar';
+import ErpDataTable, { type Column } from '@/components/ErpDataTable';
 import ErpCrudModal from '@/components/ErpCrudModal';
 import { createInventoryTransaction } from '@/modules/erp/inventory/actions';
 
@@ -14,6 +16,9 @@ export default function InventoryClient({
   const [modalOpen, setModalOpen] = useState(false);
   const [typeFilter, setTypeFilter] = useState('');
   const [stockView, setStockView] = useState(false);
+
+  const router = useRouter();
+  const searchParams = useSearchParams();
 
   useEffect(() => { setData(initialTxns); }, [initialTxns]);
 
@@ -45,46 +50,96 @@ export default function InventoryClient({
     window.location.reload();
   }, []);
 
+  const handleSearch = (q: string) => {
+    const params = new URLSearchParams(Array.from(searchParams.entries()));
+    if (q) params.set('q', q);
+    else params.delete('q');
+    params.delete('page');
+    router.replace(`?${params.toString()}`);
+  };
+
+  const handleRefresh = () => { router.refresh(); };
+
+  const handleExport = () => {
+    const header = csvColumns.map((c: any) => `"${c.label}"`).join(',');
+    const body = csvData.map((row: any) =>
+      csvColumns.map((c: any) => {
+        const v = row[c.key];
+        if (v === null || v === undefined) return '';
+        return `"${String(v).replace(/"/g, '""')}"`;
+      }).join(',')
+    ).join('\n');
+    const csv = '\uFEFF' + header + '\n' + body;
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'erp-inventory.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const typeFilterOptions = [
+    { label: '全部', value: '' },
+    { label: '入库', value: 'IN' },
+    { label: '出库', value: 'OUT' },
+    { label: '调整', value: 'ADJUST' },
+  ];
+
   const filtered = typeFilter ? data.filter(d => d.type === typeFilter) : data;
+
+  const txnColumns: Column[] = [
+    { key: 'material', label: '材料', render: (v: any, row: any) => (
+      <div>
+        <p style={{ margin: 0, fontWeight: 500, color: '#1c1917' }}>{row.material?.name || '—'}</p>
+        <code style={{ fontSize: 10, background: '#f5f5f4', padding: '1px 5px', borderRadius: 3 }}>{row.material?.code || ''}</code>
+      </div>
+    ) },
+    { key: 'type', label: '类型', width: '80px', render: (v: any) => {
+      const tc = typeColors[v] || { bg: '#f5f5f4', color: '#78716c' };
+      return <span style={{ background: tc.bg, color: tc.color, padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 500 }}>{v}</span>;
+    } },
+    { key: 'quantity', label: '数量', width: '80px', render: (v: any, row: any) => (
+      <span style={{ fontWeight: 500 }}>
+        {row.type === 'OUT' ? <span style={{ color: '#dc2626' }}>-{row.quantity}</span> : <span style={{ color: '#16a34a' }}>+{row.quantity}</span>}
+      </span>
+    ) },
+    { key: 'beforeQty', label: '变更前', width: '80px', render: (v: any) => <span style={{ color: '#78716c' }}>{v}</span> },
+    { key: 'afterQty', label: '变更后', width: '80px', render: (v: any) => <span style={{ fontWeight: 500, color: '#1c1917' }}>{v}</span> },
+    { key: 'relatedDoc', label: '关联单据', width: '100px', render: (v: any) => v || '—' },
+    { key: 'createdAt', label: '时间', sortable: true, width: '140px', render: (v: any) => v ? new Date(v).toISOString().slice(0, 16).replace('T', ' ') : '—' },
+  ];
 
   return (
     <div style={{ maxWidth: 1200, margin: '0 auto', padding: 24 }}>
-      <div style={{ marginBottom: 20 }}>
-        <h1 style={{ fontSize: 24, fontWeight: 300, letterSpacing: '0.1em', color: '#1c1917' }}>库存管理</h1>
-        <p style={{ fontSize: 13, color: '#a8a29e', marginTop: 4 }}>
-          共 <strong style={{ color: '#78716c' }}>{totalCount}</strong> 条流水
-        </p>
-      </div>
-
-      <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
-        <ActionBar module="inventory" csvColumns={csvColumns} data={csvData}
-          searchPlaceholder="搜索材料 / 单据…" searchParam="q" />
-        <button onClick={() => setStockView(!stockView)} style={{
-          padding: '8px 16px', background: stockView ? '#1c1917' : '#f5f5f4', color: stockView ? '#fff' : '#78716c',
-          border: 'none', borderRadius: 6, fontSize: 13, cursor: 'pointer', whiteSpace: 'nowrap',
-        }}>{stockView ? '流水明细' : '库存概览'}</button>
-        <button onClick={() => setModalOpen(true)} style={{
-          padding: '8px 16px', background: '#1c1917', color: '#fff', border: 'none',
-          borderRadius: 6, fontSize: 13, cursor: 'pointer', whiteSpace: 'nowrap',
-        }}>+ 库存操作</button>
-        {!stockView && (
-          <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)} style={{
-            padding: '8px 12px', border: '1px solid #e7e5e4', borderRadius: 6, fontSize: 13, background: '#fff',
-          }}>
-            <option value="">全部类型</option>
-            <option value="IN">入库</option>
-            <option value="OUT">出库</option>
-            <option value="ADJUST">调整</option>
-          </select>
-        )}
-      </div>
+      <ErpToolbar
+        title="库存管理"
+        total={stockView ? materialOptions.length : totalCount}
+        entityLabel={stockView ? "种材料" : "条流水"}
+        searchPlaceholder="搜索材料 / 单据…"
+        onSearch={handleSearch}
+        onRefresh={handleRefresh}
+        onExport={handleExport}
+        onAdd={() => setModalOpen(true)}
+        filterOptions={!stockView ? typeFilterOptions : undefined}
+        activeFilter={typeFilter}
+        onFilterChange={setTypeFilter}
+        extraButtons={
+          <button onClick={() => setStockView(!stockView)} style={{
+            padding: '6px 12px',
+            background: stockView ? '#292524' : '#fff',
+            color: stockView ? '#fff' : '#57534e',
+            border: '1px solid #e7e5e4',
+            borderRadius: 6, fontSize: 13, cursor: 'pointer',
+          }}>{stockView ? '流水明细' : '库存概览'}</button>
+        }
+      />
 
       {stockView ? (
         /* Stock overview */
         <div style={{ border: '1px solid #e7e5e4', borderRadius: 8, background: '#fff', overflow: 'hidden' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
-              <tr style={{ background: '#fafaf9', borderBottom: '2px solid #e7e5e4', textAlign: 'left', color: '#78716c', fontSize: 11 }}>
+              <tr style={{ background: '#fafaf9', borderBottom: '2px solid #e7e5e4', textAlign: 'left', color: '#57534e', fontSize: 12 }}>
                 <th style={{ padding: '10px 14px' }}>编码</th>
                 <th style={{ padding: '10px 14px' }}>名称</th>
                 <th style={{ padding: '10px 14px', textAlign: 'right' }}>库存</th>
@@ -110,47 +165,11 @@ export default function InventoryClient({
           </table>
         </div>
       ) : (
-        /* Transaction list */
-        <div style={{ overflowX: 'auto', border: '1px solid #e7e5e4', borderRadius: 8, background: '#fff' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-            <thead>
-              <tr style={{ background: '#fafaf9', borderBottom: '2px solid #e7e5e4', textAlign: 'left', color: '#78716c', fontSize: 11, textTransform: 'uppercase' }}>
-                <th style={{ padding: '10px 14px' }}>材料</th>
-                <th style={{ padding: '10px 14px' }}>类型</th>
-                <th style={{ padding: '10px 14px', textAlign: 'right' }}>数量</th>
-                <th style={{ padding: '10px 14px', textAlign: 'right' }}>变更前</th>
-                <th style={{ padding: '10px 14px', textAlign: 'right' }}>变更后</th>
-                <th style={{ padding: '10px 14px' }}>关联单据</th>
-                <th style={{ padding: '10px 14px' }}>备注</th>
-                <th style={{ padding: '10px 14px' }}>时间</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((t: any) => {
-                const tc = typeColors[t.type] || { bg: '#f5f5f4', color: '#78716c' };
-                return (
-                  <tr key={t.id} style={{ borderBottom: '1px solid #f5f5f4' }}>
-                    <td style={{ padding: '10px 14px' }}>
-                      <p style={{ margin: 0, fontWeight: 500, color: '#1c1917' }}>{t.material?.name || '—'}</p>
-                      <code style={{ fontSize: 10, background: '#f5f5f4', padding: '1px 5px', borderRadius: 3 }}>{t.material?.code || ''}</code>
-                    </td>
-                    <td style={{ padding: '10px 14px' }}>
-                      <span style={{ background: tc.bg, color: tc.color, padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 500 }}>{t.type}</span>
-                    </td>
-                    <td style={{ padding: '10px 14px', textAlign: 'right', fontWeight: 500 }}>
-                      {t.type === 'OUT' ? <span style={{ color: '#dc2626' }}>-{t.quantity}</span> : <span style={{ color: '#16a34a' }}>+{t.quantity}</span>}
-                    </td>
-                    <td style={{ padding: '10px 14px', textAlign: 'right', color: '#78716c' }}>{t.beforeQty}</td>
-                    <td style={{ padding: '10px 14px', textAlign: 'right', fontWeight: 500, color: '#1c1917' }}>{t.afterQty}</td>
-                    <td style={{ padding: '10px 14px', fontSize: 12, color: '#78716c' }}>{t.relatedDoc || '—'}</td>
-                    <td style={{ padding: '10px 14px', fontSize: 12, color: '#a8a29e', maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.remark || '—'}</td>
-                    <td style={{ padding: '10px 14px', fontSize: 11, color: '#a8a29e' }}>{t.createdAt ? new Date(t.createdAt).toISOString().slice(0, 16).replace('T', ' ') : '—'}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+        <ErpDataTable
+          columns={txnColumns}
+          rows={filtered}
+          emptyText="暂无库存流水"
+        />
       )}
 
       {modalOpen && (

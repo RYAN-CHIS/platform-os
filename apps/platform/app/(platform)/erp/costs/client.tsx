@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { ActionBar } from '@/components/ActionBar';
+import { useRouter, useSearchParams } from 'next/navigation';
+import ErpToolbar from '@/components/ErpToolbar';
 import { updateCostLabor, updateCostPackaging, recalcAllCosts, getCostSummary } from '@/modules/erp/costs/actions';
 
 type Row = Record<string, any>;
@@ -13,6 +14,9 @@ export default function CostsClient({
   const [summary, setSummary] = useState<{ totalMaterial: number; totalLabor: number; totalPackaging: number; totalCost: number; totalRevenue: number; margin: string } | null>(null);
   const [editingCell, setEditingCell] = useState<{ id: number; field: string } | null>(null);
   const [editValue, setEditValue] = useState('');
+
+  const router = useRouter();
+  const searchParams = useSearchParams();
 
   useEffect(() => { setData(initialData); }, [initialData]);
 
@@ -46,17 +50,56 @@ export default function CostsClient({
     window.location.reload();
   }, []);
 
+  const handleSearch = (q: string) => {
+    const params = new URLSearchParams(Array.from(searchParams.entries()));
+    if (q) params.set('q', q);
+    else params.delete('q');
+    params.delete('page');
+    router.replace(`?${params.toString()}`);
+  };
+
+  const handleRefresh = () => { router.refresh(); };
+
+  const handleExport = () => {
+    const header = csvColumns.map((c: any) => `"${c.label}"`).join(',');
+    const body = csvData.map((row: any) =>
+      csvColumns.map((c: any) => {
+        const v = row[c.key];
+        if (v === null || v === undefined) return '';
+        return `"${String(v).replace(/"/g, '""')}"`;
+      }).join(',')
+    ).join('\n');
+    const csv = '\uFEFF' + header + '\n' + body;
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'erp-costs.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const totalCostSum = data.reduce((s, c) => s + Number(c.totalCost), 0);
 
   return (
     <div style={{ maxWidth: 1200, margin: '0 auto', padding: 24 }}>
-      <div style={{ marginBottom: 20 }}>
-        <h1 style={{ fontSize: 24, fontWeight: 300, letterSpacing: '0.1em', color: '#1c1917' }}>成本核算</h1>
-        <p style={{ fontSize: 13, color: '#a8a29e', marginTop: 4 }}>
-          共 <strong style={{ color: '#78716c' }}>{data.length}</strong> 条成本
-          · 总成本 <strong style={{ color: '#b45309' }}>¥{totalCostSum.toFixed(0)}</strong>
-        </p>
-      </div>
+      <ErpToolbar
+        title="成本核算"
+        subtitle={`总成本 ¥${totalCostSum.toFixed(0)}`}
+        total={data.length}
+        entityLabel="条成本"
+        searchPlaceholder="搜索 SKU / 产品名…"
+        onSearch={handleSearch}
+        onRefresh={handleRefresh}
+        onExport={handleExport}
+        extraButtons={
+          <button onClick={handleRecalc} style={{
+            padding: '6px 16px',
+            background: '#292524', color: '#fff',
+            border: 'none', borderRadius: 6,
+            fontSize: 13, cursor: 'pointer',
+          }}>🔄 重算成本</button>
+        }
+      />
 
       {summary && (
         <div style={{ display: 'flex', gap: 16, marginBottom: 20, flexWrap: 'wrap' }}>
@@ -83,19 +126,10 @@ export default function CostsClient({
         </div>
       )}
 
-      <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-        <ActionBar module="costs" csvColumns={csvColumns} data={csvData}
-          searchPlaceholder="搜索 SKU / 产品名…" searchParam="q" />
-        <button onClick={handleRecalc} style={{
-          padding: '8px 16px', background: '#1c1917', color: '#fff', border: 'none',
-          borderRadius: 6, fontSize: 13, cursor: 'pointer', whiteSpace: 'nowrap',
-        }}>🔄 重算成本</button>
-      </div>
-
       <div style={{ overflowX: 'auto', border: '1px solid #e7e5e4', borderRadius: 8, background: '#fff' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
           <thead>
-            <tr style={{ background: '#fafaf9', borderBottom: '2px solid #e7e5e4', textAlign: 'left', color: '#78716c', fontSize: 11, textTransform: 'uppercase' }}>
+            <tr style={{ background: '#fafaf9', borderBottom: '2px solid #e7e5e4', textAlign: 'left', color: '#57534e', fontSize: 12 }}>
               <th style={{ padding: '10px 14px' }}>SKU</th>
               <th style={{ padding: '10px 14px' }}>产品</th>
               <th style={{ padding: '10px 14px', textAlign: 'right' }}>材料</th>
@@ -157,6 +191,9 @@ export default function CostsClient({
             })}
           </tbody>
         </table>
+        {data.length === 0 && (
+          <div style={{ textAlign: 'center', padding: 40, color: '#a8a29e' }}>暂无成本数据</div>
+        )}
       </div>
     </div>
   );

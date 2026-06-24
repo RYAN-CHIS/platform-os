@@ -1,100 +1,162 @@
 /**
- * Platform Dashboard — WO-P11B Real Data
- * 显示 ERP KPI + Brand KPI + 系统状态（真实 DB 查询）
+ * Platform OS 主仪表盘
+ * ERP · Brand OS · 系统状态 — 三区总览
  */
-import { Suspense } from "react";
 import { getErpKpis, getBrandKpis, getSystemStatus } from "@/modules/dashboard/actions";
-import { Card } from "@yunwu/ui";
-
-function KpiCard({ label, value, sub, color }: { label: string; value: string|number; sub?: string; color?: string }) {
+function KpiCard({ label, value, sub }: { label: string; value: any; sub?: string }) {
   return (
-    <Card padding="md" className="relative overflow-hidden">
-      <p className="text-xs text-stone-500 tracking-wider uppercase">{label}</p>
-      <p className={`text-2xl font-light mt-1 ${color || "text-stone-800"}`}>{value}</p>
-      {sub && <p className="text-xs text-stone-400 mt-1">{sub}</p>}
-    </Card>
+    <div style={{ background: "#fafaf9", padding: "16px", borderRadius: 8, textAlign: "center" }}>
+      <div style={{ fontSize: 28, fontWeight: 500, color: "#292524" }}>{value ?? "—"}</div>
+      <div style={{ fontSize: 12, color: "#78716c", marginTop: 4 }}>{label}</div>
+      {sub && <div style={{ fontSize: 10, color: "#a8a29e", marginTop: 2 }}>{sub}</div>}
+    </div>
   );
 }
 
-function SectionTitle({ children }: { children: React.ReactNode }) {
-  return <h2 className="text-sm font-medium text-stone-500 tracking-wider uppercase mt-8 mb-3">{children}</h2>;
+function SectionHeader({ label, color }: { label: string; color: string }) {
+  return (
+    <h2
+      style={{
+        fontSize: 16,
+        fontWeight: 500,
+        color: "#44403c",
+        marginBottom: 16,
+        display: "flex",
+        alignItems: "center",
+        gap: 8,
+      }}
+    >
+      <span
+        style={{
+          width: 4,
+          height: 20,
+          background: color,
+          borderRadius: 2,
+          display: "inline-block",
+        }}
+      />
+      {label}
+    </h2>
+  );
 }
 
 export default async function DashboardPage() {
-  const [erp, brand, sys] = await Promise.all([
+  const [erp, brand, system] = await Promise.all([
     getErpKpis(),
     getBrandKpis(),
     getSystemStatus(),
   ]);
 
   return (
-    <div className="max-w-7xl mx-auto p-8">
-      <div className="flex items-end justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-light tracking-[0.1em] text-stone-800">Platform OS 总览</h1>
-          <p className="text-xs text-stone-400 mt-1">ERP + Brand OS 运营驾驶舱 · {sys.timestamp?.slice(0, 19).replace("T", " ")}</p>
-        </div>
-        <span className="text-xs text-stone-400">v{sys.version}</span>
-      </div>
+    <div style={{ maxWidth: 1200, margin: "0 auto", padding: "32px 24px" }}>
+      <h1
+        style={{
+          fontSize: 24,
+          fontWeight: 300,
+          letterSpacing: "0.1em",
+          color: "#292524",
+          marginBottom: 8,
+        }}
+      >
+        Platform 总览
+      </h1>
+      <p style={{ fontSize: 12, color: "#a8a29e", marginBottom: 32 }}>
+        ERP · Brand OS · 系统状态
+        {system.timestamp && (
+          <span style={{ marginLeft: 12 }}>
+            {system.timestamp.slice(0, 19).replace("T", " ")}
+          </span>
+        )}
+      </p>
 
-      {/* ERP KPI */}
-      <SectionTitle>ERP 系统</SectionTitle>
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+      {/* ── SECTION 1: ERP ── */}
+      <SectionHeader label="ERP 系统" color="#3b82f6" />
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(4, 1fr)",
+          gap: 12,
+          marginBottom: 32,
+        }}
+      >
+        <KpiCard label="SKU 总数" value={erp.skuCount} />
+        <KpiCard label="材料总数" value={erp.materialCount} />
         <KpiCard label="商品数" value={erp.productCount} />
-        <KpiCard label="SKU 数" value={erp.skuCount} />
-        <KpiCard label="材料数" value={erp.materialCount} />
         <KpiCard label="BOM 数" value={erp.bomCount} />
         <KpiCard label="库存流水" value={erp.inventoryCount} />
-        <KpiCard label="生产记录" value={erp.productionCount} />
+        <KpiCard label="生产批次" value={erp.productionCount} />
         <KpiCard label="订单数" value={erp.orderCount} />
         <KpiCard label="客户数" value={erp.customerCount} />
         <KpiCard label="采购记录" value={erp.purchaseCount} />
-        <KpiCard label="成本总额" value={`¥${(erp.totalCost / 10000).toFixed(1)}万`} color="text-amber-700" />
+        <KpiCard
+          label="成本总额"
+          value={erp.totalCost ? `¥${Number(erp.totalCost).toLocaleString()}` : "—"}
+        />
       </div>
 
-      {/* Brand KPI */}
-      <SectionTitle>Brand OS</SectionTitle>
+      {/* ── SECTION 2: Brand OS ── */}
+      <SectionHeader label="Brand OS" color="#10b981" />
       {!brand.brandConnected && (
-        <div className="mb-3 p-3 rounded bg-red-50 border border-red-200 text-sm text-red-700">
-          ⚠️ Brand DB 未连接：{brand.brandError || "BRAND_DATABASE_URL 未配置"}
+        <div
+          style={{
+            padding: 16,
+            borderRadius: 8,
+            marginBottom: 16,
+            border: "1px solid #fecaca",
+            background: "#fef2f2",
+          }}
+        >
+          <p style={{ color: "#dc2626", fontSize: 13, margin: 0 }}>
+            ⚠️ Brand DB 未连接 —{" "}
+            {brand.brandError || "BRAND_DATABASE_URL 未配置"}
+          </p>
         </div>
       )}
-      {brand.brandConnected && !brand.bannerTableExists && (
-        <div className="mb-3 p-3 rounded bg-amber-50 border border-amber-200 text-sm text-amber-700">
-          ⚠️ Banner 表不存在：{brand.bannerError || "需要 migration"}（前台 Banner 控制链路未接通）
-        </div>
-      )}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-4">
-        <KpiCard label="前台产品" value={brand.brandProductCount} />
-        <KpiCard label="七序系列" value={brand.seriesCount} />
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(4, 1fr)",
+          gap: 12,
+          marginBottom: 32,
+        }}
+      >
+        <KpiCard label="产品数" value={brand.brandProductCount} />
+        <KpiCard label="系列数" value={brand.seriesCount} />
         <KpiCard label="品牌志" value={brand.journalCount} />
-        <KpiCard label="Banner" value={brand.bannerTableExists ? brand.bannerCount : "N/A"} sub={brand.bannerTableExists ? undefined : "表缺失"} />
+        <KpiCard
+          label="Banner"
+          value={brand.bannerTableExists ? brand.bannerCount : "—"}
+          sub={brand.bannerTableExists ? undefined : "表缺失"}
+        />
         <KpiCard label="SEO 配置" value={brand.seoCount} />
         <KpiCard label="页面内容" value={brand.pageContentCount} />
-        <KpiCard label="媒体素材" value={brand.mediaCount} />
+        <KpiCard label="发布任务" value={brand.publishJobCount ?? "—"} />
+        <KpiCard label="版本记录" value={brand.versionCount ?? "—"} />
       </div>
 
-      {/* 系统状态 */}
-      <SectionTitle>系统状态</SectionTitle>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <StatusCard label="ERP DB" ok={erp.erpConnected} detail={erp.erpConnected ? "已连接" : erp.erpError} />
-        <StatusCard label="Brand DB" ok={brand.brandConnected} detail={brand.brandConnected ? "已连接" : "未连接"} />
-        <StatusCard label="版本" ok={true} detail={sys.version} />
-        <StatusCard label="环境" ok={true} detail={sys.nodeEnv} />
+      {/* ── SECTION 3: 系统状态 ── */}
+      <SectionHeader label="系统状态" color="#8b5cf6" />
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(4, 1fr)",
+          gap: 12,
+          marginBottom: 32,
+        }}
+      >
+        <KpiCard
+          label="ERP DB"
+          value={system.erpConnected ? "✓ 正常" : "✗ 异常"}
+          sub={system.erpConnected ? undefined : "连接失败"}
+        />
+        <KpiCard
+          label="Brand DB"
+          value={system.brandConnected ? "✓ 正常" : "✗ 未连接"}
+          sub={system.brandConnected ? undefined : "请检查配置"}
+        />
+        <KpiCard label="版本" value={system.version} />
+        <KpiCard label="环境" value={system.nodeEnv} />
       </div>
     </div>
-  );
-}
-
-function StatusCard({ label, ok, detail }: { label: string; ok: boolean; detail?: string }) {
-  return (
-    <Card padding="sm" className="flex items-center gap-3">
-      <span className={`w-2.5 h-2.5 rounded-full ${ok ? "bg-emerald-400" : "bg-red-400"}`} />
-      <div>
-        <p className="text-xs text-stone-500">{label}</p>
-        {detail && <p className="text-sm text-stone-700">{detail}</p>}
-        {!detail && <p className={`text-sm ${ok ? "text-emerald-600" : "text-red-600"}`}>{ok ? "正常" : "异常"}</p>}
-      </div>
-    </Card>
   );
 }

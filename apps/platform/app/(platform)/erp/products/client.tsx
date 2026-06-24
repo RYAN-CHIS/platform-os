@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { ActionBar } from '@/components/ActionBar';
+import { useRouter, useSearchParams } from 'next/navigation';
+import ErpToolbar from '@/components/ErpToolbar';
 import ErpCrudModal from '@/components/ErpCrudModal';
 import {
   createProduct, updateProduct, deleteProduct, toggleProductStatus,
@@ -20,6 +21,10 @@ export default function ProductsClient({
   const [skuModal, setSkuModal] = useState(false);
   const [editSku, setEditSku] = useState<Row | null>(null);
   const [parentProductId, setParentProductId] = useState<number>(0);
+  const [statusFilter, setStatusFilter] = useState('');
+
+  const router = useRouter();
+  const searchParams = useSearchParams();
 
   useEffect(() => { setData(initialData); }, [initialData]);
 
@@ -84,28 +89,62 @@ export default function ProductsClient({
     window.location.reload();
   }, []);
 
+  const handleSearch = (q: string) => {
+    const params = new URLSearchParams(Array.from(searchParams.entries()));
+    if (q) params.set('q', q);
+    else params.delete('q');
+    params.delete('page');
+    router.replace(`?${params.toString()}`);
+  };
+
+  const handleRefresh = () => { router.refresh(); };
+
+  const handleExport = () => {
+    const header = csvColumns.map((c: any) => `"${c.label}"`).join(',');
+    const body = csvData.map((row: any) =>
+      csvColumns.map((c: any) => {
+        const v = row[c.key];
+        if (v === null || v === undefined) return '';
+        return `"${String(v).replace(/"/g, '""')}"`;
+      }).join(',')
+    ).join('\n');
+    const csv = '\uFEFF' + header + '\n' + body;
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'erp-products.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const statusFilterOptions = [
+    { label: '全部', value: '' },
+    ...statusOptions.map(s => ({ label: s.label, value: s.value })),
+  ];
+
+  const filtered = statusFilter ? data.filter(d => d.status === statusFilter) : data;
+
   return (
     <div style={{ maxWidth: 1200, margin: '0 auto', padding: 24 }}>
-      <div style={{ marginBottom: 20 }}>
-        <h1 style={{ fontSize: 24, fontWeight: 300, letterSpacing: '0.1em', color: '#1c1917' }}>产品 / SKU</h1>
-        <p style={{ fontSize: 13, color: '#a8a29e', marginTop: 4 }}>
-          共 <strong style={{ color: '#78716c' }}>{data.length}</strong> 个产品
-        </p>
-      </div>
-
-      <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-        <ActionBar module="products" csvColumns={csvColumns} data={csvData}
-          searchPlaceholder="搜索编码 / 产品名…" searchParam="q" />
-        <button onClick={() => { setEditProduct(null); setProductModal(true); }} style={{
-          padding: '8px 16px', background: '#1c1917', color: '#fff', border: 'none',
-          borderRadius: 6, fontSize: 13, cursor: 'pointer', whiteSpace: 'nowrap',
-        }}>+ 新增产品</button>
-      </div>
+      <ErpToolbar
+        title="商品管理"
+        subtitle="成品 / SKU 管理"
+        total={data.length}
+        entityLabel="个产品"
+        searchPlaceholder="搜索编码 / 产品名…"
+        onSearch={handleSearch}
+        onRefresh={handleRefresh}
+        onExport={handleExport}
+        onAdd={() => { setEditProduct(null); setProductModal(true); }}
+        filterOptions={statusFilterOptions}
+        activeFilter={statusFilter}
+        onFilterChange={setStatusFilter}
+      />
 
       <div style={{ overflowX: 'auto', border: '1px solid #e7e5e4', borderRadius: 8, background: '#fff' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
           <thead>
-            <tr style={{ background: '#fafaf9', borderBottom: '2px solid #e7e5e4', textAlign: 'left', color: '#78716c', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            <tr style={{ background: '#fafaf9', borderBottom: '2px solid #e7e5e4', textAlign: 'left', color: '#57534e', fontSize: 12 }}>
               <th style={{ padding: '10px 14px', width: 30 }}></th>
               <th style={{ padding: '10px 14px' }}>编码</th>
               <th style={{ padding: '10px 14px' }}>产品名</th>
@@ -116,7 +155,7 @@ export default function ProductsClient({
             </tr>
           </thead>
           <tbody>
-            {data.map((p: any) => (
+            {filtered.map((p: any) => (
               <>
                 <tr key={p.id} style={{ borderBottom: '1px solid #f5f5f4' }}>
                   <td style={{ padding: '10px 14px', textAlign: 'center' }}>
@@ -181,6 +220,9 @@ export default function ProductsClient({
             ))}
           </tbody>
         </table>
+        {filtered.length === 0 && (
+          <div style={{ textAlign: 'center', padding: 40, color: '#a8a29e' }}>暂无产品</div>
+        )}
       </div>
 
       {productModal && (

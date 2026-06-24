@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { ActionBar } from '@/components/ActionBar';
-import { Card } from '@yunwu/ui';
+import { useRouter, useSearchParams } from 'next/navigation';
+import ErpToolbar from '@/components/ErpToolbar';
+import ErpDataTable, { type Column } from '@/components/ErpDataTable';
 import ErpCrudModal from '@/components/ErpCrudModal';
 import {
   createMaterial, updateMaterial, deleteMaterial, toggleMaterialStatus,
@@ -19,6 +20,9 @@ export default function MaterialsClient({
   const [modalOpen, setModalOpen] = useState(false);
   const [editItem, setEditItem] = useState<MaterialRow | null>(null);
   const [statusFilter, setStatusFilter] = useState('');
+
+  const router = useRouter();
+  const searchParams = useSearchParams();
 
   useEffect(() => { setData(initialData); }, [initialData]);
 
@@ -85,94 +89,96 @@ export default function MaterialsClient({
     setData(prev => prev.map(d => d.id === id ? { ...d, status } : d));
   }, []);
 
+  const handleSearch = (q: string) => {
+    const params = new URLSearchParams(Array.from(searchParams.entries()));
+    if (q) params.set('q', q);
+    else params.delete('q');
+    params.delete('page');
+    router.replace(`?${params.toString()}`);
+  };
+
+  const handleRefresh = () => { router.refresh(); };
+
+  const handleExport = () => {
+    const header = csvColumns.map((c: any) => `"${c.label}"`).join(',');
+    const body = csvData.map((row: any) =>
+      csvColumns.map((c: any) => {
+        const v = row[c.key];
+        if (v === null || v === undefined) return '';
+        return `"${String(v).replace(/"/g, '""')}"`;
+      }).join(',')
+    ).join('\n');
+    const csv = '\uFEFF' + header + '\n' + body;
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'erp-materials.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const filterOptions = [
+    { label: '全部', value: '' },
+    ...statusOptions.map(s => ({ label: s.label, value: s.value })),
+  ];
+
   const filtered = statusFilter ? data.filter(d => d.status === statusFilter) : data;
+
+  const columns: Column[] = [
+    { key: 'name', label: '名称', sortable: true, render: (v: any, row: any) => <span style={{ fontWeight: 500, color: '#1c1917' }}>{row.name || '—'}</span> },
+    { key: 'code', label: '编码', render: (v: any, row: any) => <code style={{ fontSize: 11, background: '#f5f5f4', padding: '2px 6px', borderRadius: 4 }}>{row.code || '—'}</code> },
+    { key: 'category', label: '分类' },
+    { key: 'inventoryUnit', label: '单位' },
+    { key: 'remaining', label: '库存', sortable: true, width: '80px', render: (v: any, row: any) => (
+      <span style={{ textAlign: 'right', display: 'block' }}>{row.remaining ?? 0} <span style={{ color: '#a8a29e' }}>{row.inventoryUnit || ''}</span></span>
+    ) },
+    { key: 'status', label: '状态', width: '100px', render: (v: any, row: any) => {
+      const sc = statusColors[row.status] || statusColors.DRAFT;
+      return (
+        <select value={row.status} onChange={e => handleToggleStatus(row.id, e.target.value)} style={{
+          background: sc.bg, color: sc.color, border: 'none', padding: '2px 8px', borderRadius: 4, fontSize: 11,
+        }}>
+          {statusOptions.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+        </select>
+      );
+    } },
+    { key: 'createdAt', label: '创建时间', sortable: true, render: (v: any) => v ? new Date(v).toISOString().slice(0, 10) : '—' },
+    { key: 'actions', label: '操作', width: '140px', render: (v: any, row: any) => (
+      <div style={{ textAlign: 'center' }}>
+        <button onClick={() => { setEditItem(row); setModalOpen(true); }} style={{
+          background: '#eff6ff', color: '#1d4ed8', border: 'none', padding: '3px 10px',
+          borderRadius: 4, cursor: 'pointer', fontSize: 12, marginRight: 6,
+        }}>编辑</button>
+        <button onClick={() => handleDelete(row.id)} style={{
+          background: '#fef2f2', color: '#dc2626', border: 'none', padding: '3px 10px',
+          borderRadius: 4, cursor: 'pointer', fontSize: 12,
+        }}>删除</button>
+      </div>
+    ) },
+  ];
 
   return (
     <div style={{ maxWidth: 1200, margin: '0 auto', padding: 24 }}>
-      <div style={{ marginBottom: 20 }}>
-        <h1 style={{ fontSize: 24, fontWeight: 300, letterSpacing: '0.1em', color: '#1c1917' }}>材料管理</h1>
-        <p style={{ fontSize: 13, color: '#a8a29e', marginTop: 4 }}>
-          共 <strong style={{ color: '#78716c' }}>{data.length}</strong> 条材料
-        </p>
-      </div>
+      <ErpToolbar
+        title="材料管理"
+        subtitle="原材料 / 半成品 / 包材"
+        total={data.length}
+        entityLabel="条材料"
+        searchPlaceholder="搜索编码 / 名称 / 分类…"
+        onSearch={handleSearch}
+        onRefresh={handleRefresh}
+        onExport={handleExport}
+        onAdd={() => { setEditItem(null); setModalOpen(true); }}
+        filterOptions={filterOptions}
+        activeFilter={statusFilter}
+        onFilterChange={setStatusFilter}
+      />
 
-      <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-        <ActionBar module="materials" csvColumns={csvColumns} data={csvData}
-          searchPlaceholder="搜索编码 / 名称 / 分类…" searchParam="q" />
-        <button onClick={() => { setEditItem(null); setModalOpen(true); }} style={{
-          padding: '8px 16px', background: '#1c1917', color: '#fff', border: 'none',
-          borderRadius: 6, fontSize: 13, cursor: 'pointer', whiteSpace: 'nowrap',
-        }}>+ 新增材料</button>
-        <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} style={{
-          padding: '8px 12px', border: '1px solid #e7e5e4', borderRadius: 6, fontSize: 13, background: '#fff',
-        }}>
-          <option value="">全部状态</option>
-          {statusOptions.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
-        </select>
-      </div>
-
-      <div style={{ overflowX: 'auto', border: '1px solid #e7e5e4', borderRadius: 8, background: '#fff' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-          <thead>
-            <tr style={{ background: '#fafaf9', borderBottom: '2px solid #e7e5e4', textAlign: 'left', color: '#78716c', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              <th style={{ padding: '10px 14px' }}>编码</th>
-              <th style={{ padding: '10px 14px' }}>名称</th>
-              <th style={{ padding: '10px 14px' }}>分类</th>
-              <th style={{ padding: '10px 14px' }}>类型</th>
-              <th style={{ padding: '10px 14px' }}>规格</th>
-              <th style={{ padding: '10px 14px', textAlign: 'right' }}>库存</th>
-              <th style={{ padding: '10px 14px', textAlign: 'right' }}>单价</th>
-              <th style={{ padding: '10px 14px' }}>状态</th>
-              <th style={{ padding: '10px 14px', textAlign: 'center', width: 160 }}>操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map((m: any) => {
-              const sc = statusColors[m.status] || statusColors.DRAFT;
-              return (
-                <tr key={m.id} style={{ borderBottom: '1px solid #f5f5f4' }}>
-                  <td style={{ padding: '10px 14px' }}>
-                    <code style={{ fontSize: 11, background: '#f5f5f4', padding: '2px 6px', borderRadius: 4 }}>{m.code || '—'}</code>
-                  </td>
-                  <td style={{ padding: '10px 14px', fontWeight: 500, color: '#1c1917' }}>{m.name || '—'}</td>
-                  <td style={{ padding: '10px 14px', color: '#78716c' }}>{m.category || '—'}</td>
-                  <td style={{ padding: '10px 14px', color: '#78716c' }}>{m.materialType || '—'}</td>
-                  <td style={{ padding: '10px 14px', color: '#a8a29e', fontSize: 12 }}>{m.specification || '—'}</td>
-                  <td style={{ padding: '10px 14px', textAlign: 'right' }}>
-                    {m.remaining ?? 0} <span style={{ color: '#a8a29e' }}>{m.inventoryUnit || ''}</span>
-                  </td>
-                  <td style={{ padding: '10px 14px', textAlign: 'right', color: '#78716c' }}>
-                    {m.unitCost ? `¥${Number(m.unitCost).toFixed(2)}` : '—'}
-                  </td>
-                  <td style={{ padding: '10px 14px' }}>
-                    <select value={m.status} onChange={e => handleToggleStatus(m.id, e.target.value)} style={{
-                      background: sc.bg, color: sc.color, border: 'none', padding: '2px 8px', borderRadius: 4, fontSize: 11,
-                    }}>
-                      {statusOptions.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
-                    </select>
-                  </td>
-                  <td style={{ padding: '10px 14px', textAlign: 'center' }}>
-                    <button onClick={() => { setEditItem(m); setModalOpen(true); }} style={{
-                      background: '#eff6ff', color: '#1d4ed8', border: 'none', padding: '3px 10px',
-                      borderRadius: 4, cursor: 'pointer', fontSize: 12, marginRight: 6,
-                    }}>编辑</button>
-                    <button onClick={() => handleDelete(m.id)} style={{
-                      background: '#fef2f2', color: '#dc2626', border: 'none', padding: '3px 10px',
-                      borderRadius: 4, cursor: 'pointer', fontSize: 12,
-                    }}>删除</button>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-        {filtered.length === 0 && (
-          <div style={{ textAlign: 'center', padding: 40, color: '#a8a29e' }}>
-            <p style={{ fontSize: 48, marginBottom: 8 }}>📦</p>
-            <p>暂无数据</p>
-          </div>
-        )}
-      </div>
+      <ErpDataTable
+        columns={columns}
+        rows={filtered}
+        emptyText="暂无材料"
+      />
 
       {modalOpen && (
         <ErpCrudModal

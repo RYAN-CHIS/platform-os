@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { ActionBar } from '@/components/ActionBar';
+import { useRouter, useSearchParams } from 'next/navigation';
+import ErpToolbar from '@/components/ErpToolbar';
 import ErpCrudModal from '@/components/ErpCrudModal';
 import { createBom, updateBom, deleteBom } from '@/modules/erp/bom/actions';
 
@@ -13,6 +14,9 @@ export default function BomClient({
   const [data, setData] = useState(initialData);
   const [modalOpen, setModalOpen] = useState(false);
   const [editItem, setEditItem] = useState<Row | null>(null);
+
+  const router = useRouter();
+  const searchParams = useSearchParams();
 
   useEffect(() => { setData(initialData); }, [initialData]);
 
@@ -44,6 +48,34 @@ export default function BomClient({
     setData(prev => prev.filter(d => d.id !== id));
   }, []);
 
+  const handleSearch = (q: string) => {
+    const params = new URLSearchParams(Array.from(searchParams.entries()));
+    if (q) params.set('q', q);
+    else params.delete('q');
+    params.delete('page');
+    router.replace(`?${params.toString()}`);
+  };
+
+  const handleRefresh = () => { router.refresh(); };
+
+  const handleExport = () => {
+    const header = csvColumns.map((c: any) => `"${c.label}"`).join(',');
+    const body = csvData.map((row: any) =>
+      csvColumns.map((c: any) => {
+        const v = row[c.key];
+        if (v === null || v === undefined) return '';
+        return `"${String(v).replace(/"/g, '""')}"`;
+      }).join(',')
+    ).join('\n');
+    const csv = '\uFEFF' + header + '\n' + body;
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'erp-bom.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   // Group by SKU
   const grouped: Record<string, Row[]> = {};
   data.forEach(b => {
@@ -54,21 +86,16 @@ export default function BomClient({
 
   return (
     <div style={{ maxWidth: 1200, margin: '0 auto', padding: 24 }}>
-      <div style={{ marginBottom: 20 }}>
-        <h1 style={{ fontSize: 24, fontWeight: 300, letterSpacing: '0.1em', color: '#1c1917' }}>BOM 物料清单</h1>
-        <p style={{ fontSize: 13, color: '#a8a29e', marginTop: 4 }}>
-          共 <strong style={{ color: '#78716c' }}>{data.length}</strong> 条 BOM
-        </p>
-      </div>
-
-      <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-        <ActionBar module="bom" csvColumns={csvColumns} data={csvData}
-          searchPlaceholder="搜索材料 / SKU编码…" searchParam="q" />
-        <button onClick={() => { setEditItem(null); setModalOpen(true); }} style={{
-          padding: '8px 16px', background: '#1c1917', color: '#fff', border: 'none',
-          borderRadius: 6, fontSize: 13, cursor: 'pointer', whiteSpace: 'nowrap',
-        }}>+ 新增 BOM</button>
-      </div>
+      <ErpToolbar
+        title="BOM 物料清单"
+        total={data.length}
+        entityLabel="条 BOM"
+        searchPlaceholder="搜索材料 / SKU编码…"
+        onSearch={handleSearch}
+        onRefresh={handleRefresh}
+        onExport={handleExport}
+        onAdd={() => { setEditItem(null); setModalOpen(true); }}
+      />
 
       {Object.entries(grouped).map(([skuKey, items]) => {
         const totalCost = items.reduce((s, b) => s + Number(b.lineCost || 0), 0);
@@ -83,7 +110,7 @@ export default function BomClient({
             </div>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
               <thead>
-                <tr style={{ borderBottom: '1px solid #e7e5e4', textAlign: 'left', color: '#78716c', fontSize: 11 }}>
+                <tr style={{ borderBottom: '1px solid #e7e5e4', textAlign: 'left', color: '#57534e', fontSize: 12 }}>
                   <th style={{ padding: '8px 14px' }}>材料</th>
                   <th style={{ padding: '8px 14px' }}>规格</th>
                   <th style={{ padding: '8px 14px', textAlign: 'right' }}>用量</th>
@@ -114,6 +141,10 @@ export default function BomClient({
           </div>
         );
       })}
+
+      {Object.keys(grouped).length === 0 && (
+        <div style={{ textAlign: 'center', padding: 40, color: '#a8a29e' }}>暂无 BOM 数据</div>
+      )}
 
       {modalOpen && (
         <ErpCrudModal

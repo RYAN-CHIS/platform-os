@@ -2,7 +2,7 @@
  * Platform OS — Brand Publishing Workflow Engine (WO-P13C)
  *
  * Unified state machine, versioning, scheduling, preview, SEO snapshots
- * for all Brand content types: products | series | journal | home
+ * for all Brand content types: products | series | journal | home | banners
  *
  * State machine:
  *   DRAFT → IN_REVIEW → APPROVED → SCHEDULED → PUBLISHED → ARCHIVED
@@ -28,7 +28,7 @@ export type PublishState =
   | "ARCHIVED"
   | "REJECTED";
 
-export type ContentType = "products" | "series" | "journal" | "home";
+export type ContentType = "products" | "series" | "journal" | "home" | "banners";
 
 export interface PublishAction {
   action: string;
@@ -69,6 +69,7 @@ function getTable(contentType: ContentType): string {
     case "series": return "series";
     case "journal": return "journal_posts";
     case "home": return "page_contents";
+    case "banners": return "banners";
     default: throw new Error(`Unknown content type: ${contentType}`);
   }
 }

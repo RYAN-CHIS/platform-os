@@ -1,7 +1,9 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { ActionBar } from '@/components/ActionBar';
+import { useRouter, useSearchParams } from 'next/navigation';
+import ErpToolbar from '@/components/ErpToolbar';
+import ErpDataTable, { type Column } from '@/components/ErpDataTable';
 import ErpCrudModal from '@/components/ErpCrudModal';
 import {
   createOrder, updateOrder, shipOrder, completeOrder, cancelOrder, deleteOrder,
@@ -15,6 +17,10 @@ export default function OrdersClient({
   const [data, setData] = useState(initialData);
   const [modalOpen, setModalOpen] = useState(false);
   const [editItem, setEditItem] = useState<Row | null>(null);
+  const [statusFilter, setStatusFilter] = useState('');
+
+  const router = useRouter();
+  const searchParams = useSearchParams();
 
   useEffect(() => { setData(initialData); }, [initialData]);
 
@@ -101,79 +107,107 @@ export default function OrdersClient({
     catch (e: any) { alert(e.message); }
   }, []);
 
+  const handleSearch = (q: string) => {
+    const params = new URLSearchParams(Array.from(searchParams.entries()));
+    if (q) params.set('q', q);
+    else params.delete('q');
+    params.delete('page');
+    router.replace(`?${params.toString()}`);
+  };
+
+  const handleRefresh = () => { router.refresh(); };
+
+  const handleExport = () => {
+    const header = csvColumns.map((c: any) => `"${c.label}"`).join(',');
+    const body = csvData.map((row: any) =>
+      csvColumns.map((c: any) => {
+        const v = row[c.key];
+        if (v === null || v === undefined) return '';
+        return `"${String(v).replace(/"/g, '""')}"`;
+      }).join(',')
+    ).join('\n');
+    const csv = '\uFEFF' + header + '\n' + body;
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'erp-orders.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const statusFilterOptions = [
+    { label: '全部', value: '' },
+    { label: '待确认', value: 'PENDING' },
+    { label: '已确认', value: 'CONFIRMED' },
+    { label: '已发货', value: 'SHIPPED' },
+    { label: '已完成', value: 'COMPLETED' },
+    { label: '已取消', value: 'CANCELLED' },
+  ];
+
+  const filtered = statusFilter ? data.filter(d => d.status === statusFilter) : data;
+
+  const columns: Column[] = [
+    { key: 'orderNo', label: '订单号', render: (v: any) => <code style={{ fontSize: 11, background: '#f5f5f4', padding: '2px 6px', borderRadius: 4 }}>{v || '—'}</code> },
+    { key: 'customer', label: '客户', render: (v: any, row: any) => <span style={{ fontWeight: 500, color: '#1c1917' }}>{row.customer?.name || '—'}</span> },
+    { key: 'status', label: '状态', render: (v: any) => {
+      const sc = statusColors[v] || { bg: '#f5f5f4', color: '#78716c' };
+      return <span style={{ background: sc.bg, color: sc.color, padding: '2px 8px', borderRadius: 4, fontSize: 11 }}>{v}</span>;
+    } },
+    { key: 'paymentStatus', label: '支付', render: (v: any) => {
+      const pc = payColors[v] || { bg: '#f5f5f4', color: '#78716c' };
+      return <span style={{ background: pc.bg, color: pc.color, padding: '2px 8px', borderRadius: 4, fontSize: 11 }}>{v}</span>;
+    } },
+    { key: 'totalAmount', label: '金额', sortable: true, render: (v: any) => <span style={{ fontWeight: 500, color: '#b45309' }}>¥{Number(v).toFixed(0)}</span> },
+    { key: 'orderDate', label: '日期', sortable: true, render: (v: any) => v ? new Date(v).toISOString().slice(0, 10) : '—' },
+    { key: 'actions', label: '操作', width: '280px', render: (v: any, row: any) => {
+      const canShip = row.status === 'PENDING' || row.status === 'CONFIRMED';
+      const canEdit = row.status === 'PENDING' || row.status === 'CONFIRMED';
+      return (
+        <div style={{ textAlign: 'center' }}>
+          {canEdit && (
+            <button onClick={() => { setEditItem(row); setModalOpen(true); }} style={{ background: '#eff6ff', color: '#1d4ed8', border: 'none', padding: '3px 10px', borderRadius: 4, cursor: 'pointer', fontSize: 12, marginRight: 4 }}>编辑</button>
+          )}
+          {canShip && (
+            <button onClick={() => handleShip(row.id)} style={{ background: '#dcfce7', color: '#16a34a', border: 'none', padding: '3px 10px', borderRadius: 4, cursor: 'pointer', fontSize: 12, marginRight: 4 }}>发货</button>
+          )}
+          {row.status === 'SHIPPED' && (
+            <button onClick={() => handleComplete(row.id)} style={{ background: '#d1fae5', color: '#059669', border: 'none', padding: '3px 10px', borderRadius: 4, cursor: 'pointer', fontSize: 12, marginRight: 4 }}>完成</button>
+          )}
+          {row.status !== 'SHIPPED' && row.status !== 'COMPLETED' && row.status !== 'CANCELLED' && (
+            <button onClick={() => handleCancel(row.id)} style={{ background: '#fef3c7', color: '#d97706', border: 'none', padding: '3px 10px', borderRadius: 4, cursor: 'pointer', fontSize: 12, marginRight: 4 }}>取消</button>
+          )}
+          {row.status !== 'SHIPPED' && row.status !== 'COMPLETED' && (
+            <button onClick={() => handleDelete(row.id, row.status)} style={{ background: '#fef2f2', color: '#dc2626', border: 'none', padding: '3px 10px', borderRadius: 4, cursor: 'pointer', fontSize: 12 }}>删除</button>
+          )}
+          {(row.status === 'COMPLETED' || row.status === 'CANCELLED') && (
+            <span style={{ color: '#a8a29e', fontSize: 12 }}>—</span>
+          )}
+        </div>
+      );
+    } },
+  ];
+
   return (
     <div style={{ maxWidth: 1200, margin: '0 auto', padding: 24 }}>
-      <div style={{ marginBottom: 20 }}>
-        <h1 style={{ fontSize: 24, fontWeight: 300, letterSpacing: '0.1em', color: '#1c1917' }}>销售管理</h1>
-        <p style={{ fontSize: 13, color: '#a8a29e', marginTop: 4 }}>
-          共 <strong style={{ color: '#78716c' }}>{data.length}</strong> 条订单
-        </p>
-      </div>
+      <ErpToolbar
+        title="订单管理"
+        total={data.length}
+        entityLabel="条订单"
+        searchPlaceholder="搜索订单号 / 客户名…"
+        onSearch={handleSearch}
+        onRefresh={handleRefresh}
+        onExport={handleExport}
+        onAdd={() => { setEditItem(null); setModalOpen(true); }}
+        filterOptions={statusFilterOptions}
+        activeFilter={statusFilter}
+        onFilterChange={setStatusFilter}
+      />
 
-      <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-        <ActionBar module="orders" csvColumns={csvColumns} data={csvData}
-          searchPlaceholder="搜索订单号 / 客户名…" searchParam="q" />
-        <button onClick={() => { setEditItem(null); setModalOpen(true); }} style={{
-          padding: '8px 16px', background: '#1c1917', color: '#fff', border: 'none',
-          borderRadius: 6, fontSize: 13, cursor: 'pointer', whiteSpace: 'nowrap',
-        }}>+ 新增订单</button>
-      </div>
-
-      <div style={{ overflowX: 'auto', border: '1px solid #e7e5e4', borderRadius: 8, background: '#fff' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-          <thead>
-            <tr style={{ background: '#fafaf9', borderBottom: '2px solid #e7e5e4', textAlign: 'left', color: '#78716c', fontSize: 11, textTransform: 'uppercase' }}>
-              <th style={{ padding: '10px 14px' }}>订单号</th>
-              <th style={{ padding: '10px 14px' }}>客户</th>
-              <th style={{ padding: '10px 14px' }}>渠道</th>
-              <th style={{ padding: '10px 14px' }}>状态</th>
-              <th style={{ padding: '10px 14px' }}>支付</th>
-              <th style={{ padding: '10px 14px', textAlign: 'right' }}>金额</th>
-              <th style={{ padding: '10px 14px' }}>日期</th>
-              <th style={{ padding: '10px 14px', textAlign: 'center', width: 300 }}>操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.map((o: any) => {
-              const sc = statusColors[o.status] || { bg: '#f5f5f4', color: '#78716c' };
-              const pc = payColors[o.paymentStatus] || { bg: '#f5f5f4', color: '#78716c' };
-              const canShip = o.status === 'PENDING' || o.status === 'CONFIRMED';
-              const canEdit = o.status === 'PENDING' || o.status === 'CONFIRMED';
-              return (
-                <tr key={o.id} style={{ borderBottom: '1px solid #f5f5f4' }}>
-                  <td style={{ padding: '10px 14px' }}><code style={{ fontSize: 11, background: '#f5f5f4', padding: '2px 6px', borderRadius: 4 }}>{o.orderNo}</code></td>
-                  <td style={{ padding: '10px 14px', fontWeight: 500, color: '#1c1917' }}>{o.customer?.name || '—'}</td>
-                  <td style={{ padding: '10px 14px', color: '#78716c', fontSize: 12 }}>{o.channel}</td>
-                  <td style={{ padding: '10px 14px' }}><span style={{ background: sc.bg, color: sc.color, padding: '2px 8px', borderRadius: 4, fontSize: 11 }}>{o.status}</span></td>
-                  <td style={{ padding: '10px 14px' }}><span style={{ background: pc.bg, color: pc.color, padding: '2px 8px', borderRadius: 4, fontSize: 11 }}>{o.paymentStatus}</span></td>
-                  <td style={{ padding: '10px 14px', textAlign: 'right', fontWeight: 500, color: '#b45309' }}>¥{Number(o.totalAmount).toFixed(0)}</td>
-                  <td style={{ padding: '10px 14px', fontSize: 11, color: '#a8a29e' }}>{o.orderDate ? new Date(o.orderDate).toISOString().slice(0, 10) : '—'}</td>
-                  <td style={{ padding: '10px 14px', textAlign: 'center' }}>
-                    {canEdit && (
-                      <button onClick={() => { setEditItem(o); setModalOpen(true); }} style={{ background: '#eff6ff', color: '#1d4ed8', border: 'none', padding: '3px 10px', borderRadius: 4, cursor: 'pointer', fontSize: 12, marginRight: 4 }}>编辑</button>
-                    )}
-                    {canShip && (
-                      <button onClick={() => handleShip(o.id)} style={{ background: '#dcfce7', color: '#16a34a', border: 'none', padding: '3px 10px', borderRadius: 4, cursor: 'pointer', fontSize: 12, marginRight: 4 }}>发货</button>
-                    )}
-                    {o.status === 'SHIPPED' && (
-                      <button onClick={() => handleComplete(o.id)} style={{ background: '#d1fae5', color: '#059669', border: 'none', padding: '3px 10px', borderRadius: 4, cursor: 'pointer', fontSize: 12, marginRight: 4 }}>完成</button>
-                    )}
-                    {o.status !== 'SHIPPED' && o.status !== 'COMPLETED' && o.status !== 'CANCELLED' && (
-                      <button onClick={() => handleCancel(o.id)} style={{ background: '#fef3c7', color: '#d97706', border: 'none', padding: '3px 10px', borderRadius: 4, cursor: 'pointer', fontSize: 12, marginRight: 4 }}>取消</button>
-                    )}
-                    {o.status !== 'SHIPPED' && o.status !== 'COMPLETED' && (
-                      <button onClick={() => handleDelete(o.id, o.status)} style={{ background: '#fef2f2', color: '#dc2626', border: 'none', padding: '3px 10px', borderRadius: 4, cursor: 'pointer', fontSize: 12 }}>删除</button>
-                    )}
-                    {(o.status === 'COMPLETED' || o.status === 'CANCELLED') && (
-                      <span style={{ color: '#a8a29e', fontSize: 12 }}>—</span>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+      <ErpDataTable
+        columns={columns}
+        rows={filtered}
+        emptyText="暂无订单"
+      />
 
       {modalOpen && (
         <ErpCrudModal title={editItem ? '编辑订单' : '新增订单'} fields={fields}

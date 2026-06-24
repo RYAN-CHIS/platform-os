@@ -82,7 +82,7 @@ export default function PermissionsClient({
 
   const csvColumns = [
     { key: "role", label: "角色" },
-    ...ALL_MODULES.map(m => ({ key: m.code, label: m.name })),
+    ...ALL_MODULES.map(m => ({ key: m.code, label: m.displayName })),
   ];
 
   return (
@@ -148,7 +148,7 @@ export default function PermissionsClient({
                 </tr>
                 {ALL_MODULES.filter(m => m.domain === domain).map(mod => (
                   <tr key={mod.code} className="border-b border-stone-100 hover:bg-stone-50/30">
-                    <td className="py-1.5 px-3 sticky left-0 bg-white font-mono text-stone-600">{mod.code}</td>
+                    <td className="py-1.5 px-3 sticky left-0 bg-white text-stone-600">{mod.displayName}</td>
                     {roles.filter(r => r.is_active).map(r => {
                       const checked = matrix[r.id]?.has(mod.code);
                       return (

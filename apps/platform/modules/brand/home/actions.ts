@@ -24,47 +24,31 @@ import {
 
 export async function getBrandStats() {
   try {
-    const [
-      seriesCount,
-      productCount,
-      journalCount,
-      materialCount,
-      mediaCount,
-      bannerCount,
-      orderCount,
-      contactCount,
-    ] = await Promise.all([
-      brandPrisma.brandSeries.count(),
-      brandPrisma.brandProduct.count(),
-      brandPrisma.journalPost.count(),
-      brandPrisma.brandMaterial.count(),
-      prisma.erpMediaAsset.count({ where: { category: "BRAND" } }),
-      prisma.erpBanner.count(),
-      brandPrisma.brandOrder.count(),
-      brandPrisma.contactLead.count(),
+    const [seriesCount, productCount, journalCount] = await Promise.all([
+      brandPrisma.$queryRawUnsafe<any[]>(`SELECT COUNT(*)::int as count FROM series`),
+      brandPrisma.$queryRawUnsafe<any[]>(`SELECT COUNT(*)::int as count FROM products`),
+      brandPrisma.$queryRawUnsafe<any[]>(`SELECT COUNT(*)::int as count FROM journal_posts`),
     ]);
     return {
-      seriesCount,
-      productCount,
-      journalCount,
-      materialCount,
-      mediaCount,
-      bannerCount,
-      orderCount,
-      contactCount,
-    };
-  } catch {
-    return {
-      seriesCount: 0,
-      productCount: 0,
-      journalCount: 0,
+      seriesCount: seriesCount[0]?.count || 0,
+      productCount: productCount[0]?.count || 0,
+      journalCount: journalCount[0]?.count || 0,
       materialCount: 0,
       mediaCount: 0,
-      bannerCount: 0,
+      bannerCount: await getBannerCount(),
       orderCount: 0,
       contactCount: 0,
     };
+  } catch {
+    return { seriesCount: 0, productCount: 0, journalCount: 0, materialCount: 0, mediaCount: 0, bannerCount: 0, orderCount: 0, contactCount: 0 };
   }
+}
+
+async function getBannerCount() {
+  try {
+    const rows = await brandPrisma.$queryRawUnsafe<any[]>(`SELECT COUNT(*)::int as count FROM banners`);
+    return rows[0]?.count || 0;
+  } catch { return 0; }
 }
 
 // ── Page Contents (Brand DB: page_contents) ──

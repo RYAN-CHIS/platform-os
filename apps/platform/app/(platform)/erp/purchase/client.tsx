@@ -1,9 +1,11 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { ActionBar } from '@/components/ActionBar';
+import { useRouter, useSearchParams } from 'next/navigation';
+import ErpToolbar from '@/components/ErpToolbar';
+import ErpDataTable, { type Column } from '@/components/ErpDataTable';
 import ErpCrudModal from '@/components/ErpCrudModal';
-import { createPurchase, updatePurchase, cancelPurchase, confirmReceive, deletePurchase, getMaterialsForSelect } from '@/modules/erp/purchase/actions';
+import { createPurchase, updatePurchase, cancelPurchase, confirmReceive, deletePurchase } from '@/modules/erp/purchase/actions';
 
 type Row = Record<string, any>;
 
@@ -14,6 +16,9 @@ export default function PurchaseClient({
   const [modalOpen, setModalOpen] = useState(false);
   const [editItem, setEditItem] = useState<Row | null>(null);
   const [statusFilter, setStatusFilter] = useState('');
+
+  const router = useRouter();
+  const searchParams = useSearchParams();
 
   useEffect(() => { setData(initialData); }, [initialData]);
 
@@ -77,95 +82,106 @@ export default function PurchaseClient({
     setData(prev => prev.filter(d => d.id !== id));
   }, []);
 
+  const handleSearch = (q: string) => {
+    const params = new URLSearchParams(Array.from(searchParams.entries()));
+    if (q) params.set('q', q);
+    else params.delete('q');
+    params.delete('page');
+    router.replace(`?${params.toString()}`);
+  };
+
+  const handleRefresh = () => { router.refresh(); };
+
+  const handleExport = () => {
+    const header = csvColumns.map((c: any) => `"${c.label}"`).join(',');
+    const body = csvData.map((row: any) =>
+      csvColumns.map((c: any) => {
+        const v = row[c.key];
+        if (v === null || v === undefined) return '';
+        return `"${String(v).replace(/"/g, '""')}"`;
+      }).join(',')
+    ).join('\n');
+    const csv = '\uFEFF' + header + '\n' + body;
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'erp-purchase.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const statusFilterOptions = [
+    { label: '全部', value: '' },
+    { label: '草稿', value: 'draft' },
+    { label: '已下单', value: 'ordered' },
+    { label: '已入库', value: 'received' },
+    { label: '已取消', value: 'cancelled' },
+  ];
+
   const filtered = statusFilter ? data.filter(d => d.status === statusFilter) : data;
+
+  const columns: Column[] = [
+    { key: 'material', label: '材料', render: (v: any, row: any) => <span style={{ fontWeight: 500, color: '#1c1917' }}>{row.material?.name || '—'}</span> },
+    { key: 'supplier', label: '供应商', sortable: true, render: (v: any) => v || '—' },
+    { key: 'purchaseQuantity', label: '数量', width: '100px', render: (v: any, row: any) => <span>{v} <span style={{ color: '#a8a29e' }}>{row.purchaseUnit}</span></span> },
+    { key: 'purchaseUnitPrice', label: '单价', width: '80px', render: (v: any) => v ? `¥${Number(v).toFixed(2)}` : '—' },
+    { key: 'purchasePrice', label: '总价', sortable: true, width: '80px', render: (v: any) => <span style={{ fontWeight: 500, color: '#b45309' }}>¥{Number(v).toFixed(2)}</span> },
+    { key: 'status', label: '状态', width: '80px', render: (v: any) => {
+      const sc = statusColors[v] || statusColors.ordered;
+      return <span style={{ background: sc.bg, color: sc.color, padding: '2px 8px', borderRadius: 4, fontSize: 11 }}>{v}</span>;
+    } },
+    { key: 'purchaseDate', label: '日期', sortable: true, width: '100px', render: (v: any) => v ? new Date(v).toISOString().slice(0, 10) : '—' },
+    { key: 'actions', label: '操作', width: '220px', render: (v: any, row: any) => (
+      <div style={{ textAlign: 'center' }}>
+        {row.status !== 'received' && row.status !== 'cancelled' && (
+          <button onClick={() => handleReceive(row.id)} style={{
+            background: '#dcfce7', color: '#16a34a', border: 'none', padding: '3px 10px',
+            borderRadius: 4, cursor: 'pointer', fontSize: 12, marginRight: 4,
+          }}>入库</button>
+        )}
+        {row.status === 'draft' && (
+          <button onClick={() => { setEditItem(row); setModalOpen(true); }} style={{
+            background: '#eff6ff', color: '#1d4ed8', border: 'none', padding: '3px 10px',
+            borderRadius: 4, cursor: 'pointer', fontSize: 12, marginRight: 4,
+          }}>编辑</button>
+        )}
+        {row.status !== 'received' && row.status !== 'cancelled' && (
+          <button onClick={() => handleCancel(row.id)} style={{
+            background: '#fef3c7', color: '#d97706', border: 'none', padding: '3px 10px',
+            borderRadius: 4, cursor: 'pointer', fontSize: 12, marginRight: 4,
+          }}>取消</button>
+        )}
+        {row.status !== 'received' && (
+          <button onClick={() => handleDelete(row.id, row.status)} style={{
+            background: '#fef2f2', color: '#dc2626', border: 'none', padding: '3px 10px',
+            borderRadius: 4, cursor: 'pointer', fontSize: 12,
+          }}>删除</button>
+        )}
+      </div>
+    ) },
+  ];
 
   return (
     <div style={{ maxWidth: 1200, margin: '0 auto', padding: 24 }}>
-      <div style={{ marginBottom: 20 }}>
-        <h1 style={{ fontSize: 24, fontWeight: 300, letterSpacing: '0.1em', color: '#1c1917' }}>采购管理</h1>
-        <p style={{ fontSize: 13, color: '#a8a29e', marginTop: 4 }}>
-          共 <strong style={{ color: '#78716c' }}>{data.length}</strong> 条采购记录
-        </p>
-      </div>
+      <ErpToolbar
+        title="采购管理"
+        total={data.length}
+        entityLabel="条采购记录"
+        searchPlaceholder="搜索供应商 / 材料名…"
+        onSearch={handleSearch}
+        onRefresh={handleRefresh}
+        onExport={handleExport}
+        onAdd={() => { setEditItem(null); setModalOpen(true); }}
+        filterOptions={statusFilterOptions}
+        activeFilter={statusFilter}
+        onFilterChange={setStatusFilter}
+      />
 
-      <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
-        <ActionBar module="purchase" csvColumns={csvColumns} data={csvData}
-          searchPlaceholder="搜索供应商 / 材料名…" searchParam="q" />
-        <button onClick={() => { setEditItem(null); setModalOpen(true); }} style={{
-          padding: '8px 16px', background: '#1c1917', color: '#fff', border: 'none',
-          borderRadius: 6, fontSize: 13, cursor: 'pointer', whiteSpace: 'nowrap',
-        }}>+ 新增采购</button>
-        <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} style={{
-          padding: '8px 12px', border: '1px solid #e7e5e4', borderRadius: 6, fontSize: 13, background: '#fff',
-        }}>
-          <option value="">全部状态</option>
-          <option value="draft">草稿</option>
-          <option value="ordered">已下单</option>
-          <option value="received">已入库</option>
-          <option value="cancelled">已取消</option>
-        </select>
-      </div>
-
-      <div style={{ overflowX: 'auto', border: '1px solid #e7e5e4', borderRadius: 8, background: '#fff' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-          <thead>
-            <tr style={{ background: '#fafaf9', borderBottom: '2px solid #e7e5e4', textAlign: 'left', color: '#78716c', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              <th style={{ padding: '10px 14px' }}>材料</th>
-              <th style={{ padding: '10px 14px' }}>供应商</th>
-              <th style={{ padding: '10px 14px', textAlign: 'right' }}>数量</th>
-              <th style={{ padding: '10px 14px', textAlign: 'right' }}>单价</th>
-              <th style={{ padding: '10px 14px', textAlign: 'right' }}>总价</th>
-              <th style={{ padding: '10px 14px' }}>状态</th>
-              <th style={{ padding: '10px 14px' }}>日期</th>
-              <th style={{ padding: '10px 14px', textAlign: 'center', width: 260 }}>操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map((r: any) => {
-              const sc = statusColors[r.status] || statusColors.ordered;
-              return (
-                <tr key={r.id} style={{ borderBottom: '1px solid #f5f5f4' }}>
-                  <td style={{ padding: '10px 14px', fontWeight: 500, color: '#1c1917' }}>{r.material?.name || '—'}</td>
-                  <td style={{ padding: '10px 14px', color: '#78716c' }}>{r.supplier || '—'}</td>
-                  <td style={{ padding: '10px 14px', textAlign: 'right' }}>{r.purchaseQuantity} <span style={{ color: '#a8a29e' }}>{r.purchaseUnit}</span></td>
-                  <td style={{ padding: '10px 14px', textAlign: 'right', color: '#78716c' }}>{r.purchaseUnitPrice ? `¥${Number(r.purchaseUnitPrice).toFixed(2)}` : '—'}</td>
-                  <td style={{ padding: '10px 14px', textAlign: 'right', fontWeight: 500, color: '#b45309' }}>¥{Number(r.purchasePrice).toFixed(2)}</td>
-                  <td style={{ padding: '10px 14px' }}>
-                    <span style={{ background: sc.bg, color: sc.color, padding: '2px 8px', borderRadius: 4, fontSize: 11 }}>{r.status}</span>
-                  </td>
-                  <td style={{ padding: '10px 14px', fontSize: 12, color: '#a8a29e' }}>{r.purchaseDate ? new Date(r.purchaseDate).toISOString().slice(0, 10) : '—'}</td>
-                  <td style={{ padding: '10px 14px', textAlign: 'center' }}>
-                    {r.status !== 'received' && r.status !== 'cancelled' && (
-                      <button onClick={() => handleReceive(r.id)} style={{
-                        background: '#dcfce7', color: '#16a34a', border: 'none', padding: '3px 10px',
-                        borderRadius: 4, cursor: 'pointer', fontSize: 12, marginRight: 4,
-                      }}>入库</button>
-                    )}
-                    {r.status === 'draft' && (
-                      <button onClick={() => { setEditItem(r); setModalOpen(true); }} style={{
-                        background: '#eff6ff', color: '#1d4ed8', border: 'none', padding: '3px 10px',
-                        borderRadius: 4, cursor: 'pointer', fontSize: 12, marginRight: 4,
-                      }}>编辑</button>
-                    )}
-                    {r.status !== 'received' && r.status !== 'cancelled' && (
-                      <button onClick={() => handleCancel(r.id)} style={{
-                        background: '#fef3c7', color: '#d97706', border: 'none', padding: '3px 10px',
-                        borderRadius: 4, cursor: 'pointer', fontSize: 12, marginRight: 4,
-                      }}>取消</button>
-                    )}
-                    {r.status !== 'received' && (
-                      <button onClick={() => handleDelete(r.id, r.status)} style={{
-                        background: '#fef2f2', color: '#dc2626', border: 'none', padding: '3px 10px',
-                        borderRadius: 4, cursor: 'pointer', fontSize: 12,
-                      }}>删除</button>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+      <ErpDataTable
+        columns={columns}
+        rows={filtered}
+        emptyText="暂无采购记录"
+      />
 
       {modalOpen && (
         <ErpCrudModal title={editItem ? '编辑采购单' : '新增采购单'} fields={fields}

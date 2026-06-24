@@ -85,11 +85,14 @@ export async function getBrandKpis() {
         seriesCount: 0,
         journalCount: 0,
         bannerCount: 0,
+        bannerTableExists: false,
+        bannerError: "BRAND_DATABASE_URL 未配置",
         seoCount: 0,
         pageContentCount: 0,
         mediaCount: 0,
+        publishJobCount: 0,
+        versionCount: 0,
         brandConnected: false,
-        brandError: "BRAND_DATABASE_URL 未配置",
       };
     }
 
@@ -109,6 +112,8 @@ export async function getBrandKpis() {
       seoCount,
       pageContentCount,
       mediaCount,
+      publishJobCount,
+      versionCount,
     ] = await Promise.all([
       brandPrisma.brandProduct.count().catch(() => 0),
       brandPrisma.brandSeries.count().catch(() => 0),
@@ -116,6 +121,8 @@ export async function getBrandKpis() {
       brandPrisma.brandSeoConfig.count().catch(() => 0),
       brandPrisma.brandPageContent.count().catch(() => 0),
       brandPrisma.brandMediaAsset.count().catch(() => 0),
+      prisma.publishJob.count({ where: { status: "pending" } }).catch(() => 0),
+      prisma.contentVersion.count().catch(() => 0),
     ]);
 
     return {
@@ -128,6 +135,8 @@ export async function getBrandKpis() {
       seoCount,
       pageContentCount,
       mediaCount,
+      publishJobCount,
+      versionCount,
       brandConnected: true,
     };
   } catch (e: any) {
@@ -141,6 +150,8 @@ export async function getBrandKpis() {
       seoCount: 0,
       pageContentCount: 0,
       mediaCount: 0,
+      publishJobCount: 0,
+      versionCount: 0,
       brandConnected: false,
       brandError: e.message,
     };
