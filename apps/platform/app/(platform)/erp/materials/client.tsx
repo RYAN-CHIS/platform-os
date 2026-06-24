@@ -53,16 +53,23 @@ export default function MaterialsClient({
     { value: 'ARCHIVED', label: '停用' },
   ];
 
-  const handleSave = useCallback(async (formData: any) => {
-    if (editItem) {
-      await updateMaterial(editItem.id, formData);
-    } else {
-      await createMaterial(formData);
+  const handleSave = useCallback(async (formData: any): Promise<{ ok: boolean; error?: string }> => {
+    try {
+      if (editItem) {
+        await updateMaterial(editItem.id, formData);
+      } else {
+        await createMaterial(formData);
+      }
+      // Save succeeded — close modal and refresh
+      setModalOpen(false);
+      setEditItem(null);
+      // Use router.refresh instead of full reload for better UX
+      router.refresh();
+      return { ok: true };
+    } catch (e: any) {
+      return { ok: false, error: e.message || "保存失败" };
     }
-    setModalOpen(false);
-    setEditItem(null);
-    window.location.reload();
-  }, [editItem]);
+  }, [editItem, router]);
 
   const handleDelete = useCallback(async (id: number) => {
     if (!confirm('确认删除此材料？如有 BOM 引用或库存记录则无法删除。')) return;

@@ -124,63 +124,57 @@ export default function MaterialFormModal({ mode, initialData, onSave, onClose }
     setError("");
     setSaving(true);
     try {
-      const data: Record<string, any> = {
-        code: f.code,
-        name: f.name,
-        category: f.category,
-        specification: f.specification,
-        shape: f.shape,
-        supplier: f.supplier,
-        purchaseMethod: f.purchaseMethod,
-        remark: f.remark,
-        status: f.status,
-        pricingMethod: f.pricingMode,
-        materialType: "BEAD",
-        inventoryUnit: getUsageUnit(),
-        usageUnit: getUsageUnit(),
-        // 计价 — only include non-empty values to avoid overwriting
-        ...(calc.singleCost > 0 || mode === "add" ? {
-          unitPrice: parseFloat(f.unitPrice || f.pricePerGram || 0),
-          purchaseQty: parseInt(f.purchaseQty || f.strandCount || 0),
-          strandCount: parseInt(f.strandCount || 0),
-          strandPrice: parseFloat(f.strandPrice || 0),
-          beadsPerStrand: parseInt(f.beadsPerStrand || 0),
-          weightPerStrand: parseFloat(f.weightPerStrand || 0),
-          totalWeightG: parseFloat(f.purchaseWeight || 0),
-          pricePerGram: parseFloat(f.pricePerGram || 0),
-          totalPieces: calc.totalPieces,
-          purchaseTotalPrice: calc.totalPrice,
-          costPerUsageUnit: calc.singleCost,
-          remaining: parseInt(f.remaining || 0),
-          safetyStock: parseInt(f.safetyStock || 0),
-        } : {}),
+      const baseData: Record<string, any> = {
+        code: f.code, name: f.name, category: f.category,
+        specification: f.specification, shape: f.shape, supplier: f.supplier,
+        purchaseMethod: f.purchaseMethod, remark: f.remark, status: f.status,
+        pricingMethod: f.pricingMode, materialType: "BEAD",
+        inventoryUnit: getUsageUnit(), usageUnit: getUsageUnit(),
       };
-      // In edit mode, only include fields that actually changed or have values
+      // Pricing fields
+      const pricing = {
+        unitPrice: parseFloat(f.unitPrice || f.pricePerGram || 0),
+        purchaseQty: parseInt(f.purchaseQty || f.strandCount || 0),
+        strandCount: parseInt(f.strandCount || 0),
+        strandPrice: parseFloat(f.strandPrice || 0),
+        beadsPerStrand: parseInt(f.beadsPerStrand || 0),
+        weightPerStrand: parseFloat(f.weightPerStrand || 0),
+        totalWeightG: parseFloat(f.purchaseWeight || 0),
+        pricePerGram: parseFloat(f.pricePerGram || 0),
+        totalPieces: calc.totalPieces,
+        purchaseTotalPrice: calc.totalPrice,
+        costPerUsageUnit: calc.singleCost,
+        remaining: parseInt(f.remaining || 0),
+        safetyStock: parseInt(f.safetyStock || 0),
+      };
+
+      let saveData: Record<string, any>;
       if (mode === "edit") {
+        // Only include changed fields
         const orig = normalizeMaterial(initialData);
-        const changed: Record<string, any> = {};
-        for (const [k, v] of Object.entries(data)) {
-          const origV = orig[k] !== undefined ? orig[k] : null;
-          const newV = v !== undefined ? v : null;
-          if (String(newV) !== String(origV)) {
-            changed[k] = v;
+        saveData = { ...baseData };  // Always include basics
+        for (const [k, v] of Object.entries(pricing)) {
+          const origV = orig[k] !== undefined ? String(orig[k]) : "";
+          if (v > 0 || calc.singleCost > 0) {
+            saveData[k] = v;
           }
         }
-        // Always include these for edit
-        changed.code = data.code;
-        changed.name = data.name;
-        changed.category = data.category;
-        changed.specification = data.specification;
-        changed.shape = data.shape;
-        changed.supplier = data.supplier;
-        await onSave(Object.keys(changed).length > 1 ? changed : { name: data.name });
       } else {
-        await onSave(data);
+        saveData = { ...baseData, ...pricing };
       }
+
+      const result = await onSave(saveData);
+      // onSave should return { ok: true } on success
+      if (result && (result as any).ok === false) {
+        setError((result as any).error || "保存失败");
+        setSaving(false);
+        return;
+      }
+      // Success — close modal; page refreshes via router.refresh() in parent
     } catch (e: any) {
       setError(e.message || "保存失败");
+      setSaving(false);
     }
-    setSaving(false);
   };
 
   // ── Styles ──

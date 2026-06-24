@@ -42,12 +42,17 @@ export function CrudModal({ mode, title, fields, initialData, onClose, onSubmit 
     setLoading(true);
     try {
       const result = await onSubmit(form);
-      if (result?.error) setError(result.error);
-      else onClose();
+      if (result?.error) {
+        setError(result.error);
+        setLoading(false);
+        return;
+      }
+      // Success — close modal, parent will refresh data
+      onClose();
     } catch (e: any) {
       setError(e.message || "提交失败");
+      setLoading(false);
     }
-    setLoading(false);
   }
 
   function setField(key: string, val: unknown) {
