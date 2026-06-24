@@ -196,15 +196,15 @@ export default function MaterialsClient({
     { key: 'name', label: '名称', sortable: true, render: (v: any, row: any) => <span style={{ fontWeight: 500, color: '#1c1917' }}>{row.name || '—'}</span> },
     { key: 'code', label: '编码', render: (v: any, row: any) => <code style={{ fontSize: 11, background: '#f5f5f4', padding: '2px 6px', borderRadius: 4 }}>{row.code || '—'}</code> },
     { key: 'category', label: '分类' },
-    { key: 'specification', label: '规格', render: (v: any, row: any) => <span>{row.specification || '—'}</span> },
-    { key: 'inventoryUnit', label: '单位' },
-    { key: 'remaining', label: '库存', sortable: true, width: '140px', render: (v: any, row: any) => (
-      <span style={{ textAlign: 'right', display: 'block' }}>{formatStock(row)}</span>
+    { key: 'specification', label: '规格' },
+    { key: 'inventoryUnit', label: '单位', align: 'center' },
+    { key: 'remaining', label: '库存', sortable: true, align: 'right', width: '160px', render: (v: any, row: any) => (
+      <span style={{ whiteSpace: 'nowrap' }}>{formatStock(row)}</span>
     ) },
-    { key: 'unitCost', label: '最小单位单价', width: '130px', render: (v: any, row: any) => (
-      <span style={{ color: '#16a34a', fontWeight: 500, textAlign: 'right', display: 'block' }}>{calcUnitPrice(row)}</span>
+    { key: 'unitCost', label: '最小单位单价', align: 'right', width: '140px', render: (v: any, row: any) => (
+      <span style={{ color: '#16a34a', fontWeight: 500, whiteSpace: 'nowrap' }}>{calcUnitPrice(row)}</span>
     ) },
-    { key: 'status', label: '状态', width: '100px', render: (v: any, row: any) => {
+    { key: 'status', label: '状态', align: 'center', width: '100px', render: (v: any, row: any) => {
       const sc = statusColors[row.status] || statusColors.DRAFT;
       return (
         <select value={row.status} onChange={e => handleToggleStatus(row.id, e.target.value)} style={{
@@ -214,8 +214,8 @@ export default function MaterialsClient({
         </select>
       );
     } },
-    { key: 'actions', label: '操作', width: '180px', render: (v: any, row: any) => (
-      <div style={{ textAlign: 'center', display: 'flex', gap: 4, justifyContent: 'center' }}>
+    { key: 'actions', label: '操作', align: 'right', width: '180px', render: (v: any, row: any) => (
+      <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
         <button onClick={() => toggleExpand(row.id)} style={{
           background: expandedRows.has(row.id) ? '#d6d3d1' : '#f5f5f4', color: '#57534e', border: 'none',
           padding: '3px 8px', borderRadius: 4, cursor: 'pointer', fontSize: 12,

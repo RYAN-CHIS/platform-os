@@ -7,6 +7,7 @@ export interface Column {
   label: string;
   sortable?: boolean;
   width?: string;
+  align?: "left" | "center" | "right";
   render?: (value: any, row: any) => React.ReactNode;
 }
 
@@ -75,7 +76,7 @@ export default function ErpDataTable({
                 onClick={() => col.sortable && handleSort(col.key)}
                 style={{
                   position:"sticky",top:0,zIndex:10,
-                  padding:"10px 12px",textAlign:"left",fontWeight:500,color:"#57534e",
+                  padding:"10px 12px",textAlign:col.align || "left",fontWeight:500,color:"#57534e",
                   background:"#fafaf9",borderBottom:"2px solid #d6d3d1",
                   whiteSpace:"nowrap",
                   cursor: col.sortable ? "pointer" : "default",
@@ -94,7 +95,7 @@ export default function ErpDataTable({
           {displayRows.map((row, i) => (
             <tr key={row.id || i} style={{borderBottom:"1px solid #f5f5f4"}}>
               {columns.map(col => (
-                <td key={col.key} style={{padding:"8px 12px",color:"#44403c",whiteSpace:"nowrap"}}>
+                <td key={col.key} style={{padding:"10px 12px",color:"#44403c",whiteSpace:"nowrap",textAlign:col.align||"left",verticalAlign:"middle",height:44}}>
                   {col.render ? col.render(row[col.key], row) : (row[col.key] ?? "—")}
                 </td>
               ))}
