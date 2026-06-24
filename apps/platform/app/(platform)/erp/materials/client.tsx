@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import ErpToolbar from '@/components/ErpToolbar';
 import ErpDataTable, { type Column } from '@/components/ErpDataTable';
-import ErpCrudModal from '@/components/ErpCrudModal';
+import MaterialFormModal from './MaterialFormModal';
 import {
   createMaterial, updateMaterial, deleteMaterial, toggleMaterialStatus,
 } from '@/modules/erp/materials/actions';
@@ -53,65 +53,11 @@ export default function MaterialsClient({
     { value: 'ARCHIVED', label: '停用' },
   ];
 
-  const pricingMethods = [
-    { value: 'by_piece', label: '按个计价' },
-    { value: 'by_weight', label: '按克计价' },
-    { value: 'by_strand', label: '按串计价' },
-  ];
-
-  const fields = [
-    { key: 'code', label: '编码', required: true, placeholder: '如 MAT-001' },
-    { key: 'name', label: '名称', required: true, placeholder: '材料名称' },
-    { key: 'category', label: '分类', placeholder: '如 天然水晶' },
-    { key: 'materialType', label: '类型', type: 'select' as const, options: materialTypes },
-    { key: 'specification', label: '规格', placeholder: '如 10mm / 8mm' },
-    { key: 'pricingMethod', label: '计价方式', type: 'select' as const, options: pricingMethods },
-    { key: 'usageUnit', label: 'BOM使用单位', placeholder: 'BOM使用的单位（默认 颗）' },
-    { key: 'totalWeightG', label: '总克重(g)', type: 'number' as const, placeholder: '仅按克计价时填写' },
-    { key: 'totalPieces', label: '总颗数', type: 'number' as const, placeholder: '从采购批次中获得的总颗数' },
-    { key: 'pricePerGram', label: '克单价(元/g)', type: 'number' as const, placeholder: '仅按克计价时填写' },
-    { key: 'purchasePrice', label: '采购总价', type: 'number' as const, placeholder: '实际采购总花费' },
-    { key: 'defaultPurchaseUnit', label: '采购单位', placeholder: '如 克/串/箱' },
-    { key: 'inventoryUnit', label: '库存单位', placeholder: '颗/个/克/米' },
-    { key: 'defaultConversionRate', label: '单位换算率', type: 'number' as const, placeholder: '1采购单位=多少库存单位' },
-    { key: 'conversionDescription', label: '换算说明', type: 'textarea' as const, placeholder: '如: 1卷=50米, 1包=100颗' },
-    { key: 'unitCost', label: '库存单价(备用)', type: 'number' as const, placeholder: '备用字段' },
-    { key: 'safetyStock', label: '安全库存', type: 'number' as const, placeholder: '0' },
-    { key: 'supplier', label: '供应商', placeholder: '供应商名称' },
-    { key: 'purchaseMethod', label: '采购方式', placeholder: '如 直接采购/定制/批发' },
-    { key: 'beadsPerStrand', label: '每串颗数', type: 'number' as const, placeholder: '0' },
-    { key: 'weightPerStrand', label: '每串重量(g)', type: 'number' as const, placeholder: '0' },
-    { key: 'remark', label: '备注', type: 'textarea' as const, placeholder: '备注信息' },
-  ];
-
   const handleSave = useCallback(async (formData: any) => {
-    const data = {
-      ...formData,
-      defaultConversionRate: parseFloat(formData.defaultConversionRate) || 1,
-      unitCost: parseFloat(formData.unitCost) || 0,
-      purchasePrice: parseFloat(formData.purchasePrice) || 0,
-      safetyStock: parseFloat(formData.safetyStock) || 0,
-      beadsPerStrand: formData.beadsPerStrand != null && formData.beadsPerStrand !== ''
-        ? parseInt(formData.beadsPerStrand) || 0
-        : undefined,
-      weightPerStrand: formData.weightPerStrand != null && formData.weightPerStrand !== ''
-        ? parseFloat(formData.weightPerStrand) || 0
-        : undefined,
-      totalWeightG: formData.totalWeightG != null && formData.totalWeightG !== ''
-        ? parseFloat(formData.totalWeightG) || 0
-        : 0,
-      totalPieces: formData.totalPieces != null && formData.totalPieces !== ''
-        ? parseInt(formData.totalPieces) || 0
-        : 0,
-      pricePerGram: formData.pricePerGram != null && formData.pricePerGram !== ''
-        ? parseFloat(formData.pricePerGram) || 0
-        : 0,
-      pricingMethod: formData.pricingMethod || 'by_piece',
-    };
     if (editItem) {
-      await updateMaterial(editItem.id, data);
+      await updateMaterial(editItem.id, formData);
     } else {
-      await createMaterial(data);
+      await createMaterial(formData);
     }
     setModalOpen(false);
     setEditItem(null);
@@ -368,9 +314,8 @@ export default function MaterialsClient({
       />
 
       {modalOpen && (
-        <ErpCrudModal
-          title={editItem ? '编辑材料' : '新增材料'}
-          fields={fields}
+        <MaterialFormModal
+          mode={editItem ? "edit" : "add"}
           initialData={editItem || undefined}
           onSave={handleSave}
           onClose={() => { setModalOpen(false); setEditItem(null); }}
