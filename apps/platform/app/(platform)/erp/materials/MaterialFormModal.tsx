@@ -112,31 +112,43 @@ export default function MaterialFormModal({ mode, initialData, onSave, onClose }
   }
 
   const handleSave = async () => {
-    // Validate
     if (!f.name?.trim()) { setError("请输入材料名称"); return; }
     if (!f.code?.trim()) { setError("请输入材料编码"); return; }
     setError("");
     setSaving(true);
     try {
       const data: Record<string, any> = {
-        ...f,
-        unitCost: f.unitPrice || 0,
+        // 基础
+        code: f.code,
+        name: f.name,
+        category: f.category,
+        specification: f.specification,
+        shape: f.shape,
+        supplier: f.supplier,
+        purchaseMethod: f.purchaseMethod,
+        remark: f.remark,
+        status: f.status,
+        // 计价
+        pricingMethod: f.pricingMode,
+        unitPrice: parseFloat(f.unitPrice || f.pricePerGram || 0),
+        purchaseQty: parseInt(f.purchaseQty || f.strandCount || 0),
+        strandCount: parseInt(f.strandCount || 0),
+        strandPrice: parseFloat(f.strandPrice || 0),
+        beadsPerStrand: parseInt(f.beadsPerStrand || 0),
+        weightPerStrand: parseFloat(f.weightPerStrand || 0),
+        // Excel对应字段
+        totalWeightG: parseFloat(f.purchaseWeight || 0),
+        pricePerGram: parseFloat(f.pricePerGram || 0),
+        totalPieces: calc.totalPieces,
+        purchaseTotalPrice: calc.totalPrice,
+        costPerUsageUnit: calc.singleCost,
+        // 库存
+        remaining: parseInt(f.remaining || 0),
+        safetyStock: parseInt(f.safetyStock || 0),
+        // 固定
         materialType: "BEAD",
         inventoryUnit: getUsageUnit(),
         usageUnit: getUsageUnit(),
-        pricingMethod: f.pricingMode,
-        totalWeightG: parseFloat(f.purchaseWeight) || 0,
-        pricePerGram: parseFloat(f.pricePerGram) || 0,
-        totalPieces: calc.totalPieces,
-        purchasePrice: calc.totalPrice,
-        costPerUsageUnit: calc.singleCost,
-        purchaseQty: parseInt(f.purchaseQty) || 0,
-        unitPrice: parseFloat(f.unitPrice) || 0,
-        beadsPerStrand: parseInt(f.beadsPerStrand) || 0,
-        strandCount: parseInt(f.strandCount) || 0,
-        strandPrice: parseFloat(f.strandPrice) || 0,
-        remaining: parseInt(f.remaining) || 0,
-        safetyStock: parseInt(f.safetyStock) || 0,
       };
       await onSave(data);
     } catch (e: any) {

@@ -4,51 +4,47 @@ import { prisma } from '@yunwu/db';
 import { revalidatePath } from 'next/cache';
 import { createCrudAudit, createStatusAudit } from '@/lib/audit';
 
-export async function createMaterial(data: {
-  code: string; name: string; category?: string; materialType?: string;
-  specification?: string; inventoryUnit?: string; unitCost?: number;
-  supplier?: string; purchaseMethod?: string; remark?: string;
-  defaultPurchaseUnit?: string; usageUnit?: string; defaultConversionRate?: number;
-  purchasePrice?: number; safetyStock?: number; conversionDescription?: string;
-  beadsPerStrand?: number; weightPerStrand?: number;
-  pricingMethod?: string; totalWeightG?: number; totalPieces?: number;
-  pricePerGram?: number; costPerUsageUnit?: number;
-}) {
-  // Auto-calculate costPerUsageUnit for by-weight pricing
+export async function createMaterial(data: Record<string, any>) {
+  // Compute fields
   let costPerUsageUnit = data.costPerUsageUnit ?? 0;
-  if (data.pricingMethod === 'by_weight' && data.totalPieces && data.totalPieces > 0) {
-    const totalPrice = data.totalWeightG && data.pricePerGram
-      ? data.totalWeightG * data.pricePerGram
-      : (data.purchasePrice || 0);
+  if (!costPerUsageUnit && data.totalPieces && data.totalPieces > 0) {
+    const totalPrice = data.purchaseTotalPrice || data.purchasePrice || 0;
     costPerUsageUnit = totalPrice / data.totalPieces;
-  } else if (!costPerUsageUnit && data.unitCost) {
-    costPerUsageUnit = data.unitCost;
   }
 
   const m = await prisma.erpMaterial.create({
     data: {
-      code: data.code,
-      name: data.name,
-      category: data.category || '',
-      materialType: (data.materialType as any) || 'OTHER',
-      specification: data.specification || '',
-      inventoryUnit: data.inventoryUnit || '颗',
-      unitCost: data.unitCost || 0,
-      supplier: data.supplier || '',
-      remark: data.remark || '',
-      defaultPurchaseUnit: data.defaultPurchaseUnit || null,
-      usageUnit: data.usageUnit || null,
-      defaultConversionRate: data.defaultConversionRate || null,
-      purchasePrice: data.purchasePrice || null,
-      safetyStock: data.safetyStock || 0,
-      conversionDescription: data.conversionDescription || null,
-      beadsPerStrand: data.beadsPerStrand || 0,
-      weightPerStrand: data.weightPerStrand || 0,
-      pricingMethod: data.pricingMethod || 'by_piece',
-      totalWeightG: data.totalWeightG || 0,
-      totalPieces: data.totalPieces || 0,
-      pricePerGram: data.pricePerGram || 0,
+      code: String(data.code || ''),
+      name: String(data.name || ''),
+      category: String(data.category || ''),
+      materialType: 'BEAD',
+      specification: String(data.specification || ''),
+      inventoryUnit: '颗',
+      unitCost: parseFloat(data.costPerUsageUnit || data.unitCost || 0),
+      status: data.status || 'ACTIVE',
+      shape: String(data.shape || ''),
+      beadsPerStrand: parseInt(data.beadsPerStrand || data.strandBeadCount || 0),
+      weightPerStrand: parseFloat(data.weightPerStrand || 0),
+      supplier: String(data.supplier || ''),
+      purchaseMethod: String(data.purchaseMethod || ''),
+      pricingMethod: String(data.pricingMethod || 'by_weight'),
+      purchaseQty: parseFloat(data.purchaseQty || 0),
+      unitPrice: parseFloat(data.unitPrice || data.pricePerGram || 0),
+      pricingUnit: String(data.pricingUnit || ''),
+      totalWeightG: parseFloat(data.totalWeightG || data.totalWeight || 0),
+      totalPieces: parseInt(data.totalPieces || data.beadCount || 0),
+      pricePerGram: parseFloat(data.pricePerGram || data.gramPrice || 0),
+      gramPrice: parseFloat(data.pricePerGram || data.gramPrice || 0),
       costPerUsageUnit: costPerUsageUnit || 0,
+      purchaseTotalPrice: parseFloat(data.purchaseTotalPrice || data.purchasePrice || 0),
+      beadCount: parseInt(data.totalPieces || data.beadCount || 0),
+      totalWeight: parseFloat(data.totalWeightG || data.totalWeight || 0),
+      strandCount: parseInt(data.strandCount || data.purchaseQty || 0),
+      strandPrice: parseFloat(data.strandPrice || 0),
+      purchasePrice: parseFloat(data.purchaseTotalPrice || data.purchasePrice || 0),
+      safetyStock: parseInt(data.safetyStock || 0),
+      remark: String(data.remark || ''),
+      usageUnit: String(data.usageUnit || '颗'),
     },
   });
 
@@ -58,59 +54,42 @@ export async function createMaterial(data: {
   return m;
 }
 
-export async function updateMaterial(id: number, data: {
-  code?: string; name?: string; category?: string; materialType?: string;
-  specification?: string; inventoryUnit?: string; unitCost?: number;
-  status?: string; supplier?: string; purchaseMethod?: string; remark?: string;
-  defaultPurchaseUnit?: string; usageUnit?: string; defaultConversionRate?: number;
-  purchasePrice?: number; safetyStock?: number; conversionDescription?: string;
-  beadsPerStrand?: number; weightPerStrand?: number;
-  pricingMethod?: string; totalWeightG?: number; totalPieces?: number;
-  pricePerGram?: number; costPerUsageUnit?: number;
-}) {
+export async function updateMaterial(id: number, data: Record<string, any>) {
   // Fetch before state
   const beforeRows = await prisma.$queryRawUnsafe<any[]>(`SELECT * FROM raw_materials WHERE id = $1`, id);
   const before = beforeRows[0] || null;
 
-  // Auto-calculate costPerUsageUnit
-  let computedCostPerUsageUnit: number | undefined;
-  if (data.pricingMethod === 'by_weight') {
-    if (data.totalPieces && data.totalPieces > 0) {
-      const totalWeight = data.totalWeightG ?? before?.total_weight_g ?? 0;
-      const pricePGram = data.pricePerGram ?? before?.price_per_gram ?? 0;
-      const totalPrice = totalWeight * pricePGram;
-      computedCostPerUsageUnit = totalPrice / data.totalPieces;
-    }
-  }
-
   const updateData: any = {};
-  if (data.code !== undefined) updateData.code = data.code;
-  if (data.name !== undefined) updateData.name = data.name;
-  if (data.category !== undefined) updateData.category = data.category;
+  const copyField = (key: string, dbKey?: string) => {
+    if (data[key] !== undefined) updateData[dbKey || key] = data[key];
+  };
+  copyField('code'); copyField('name'); copyField('category');
+  copyField('specification'); copyField('shape'); copyField('remark');
+  copyField('supplier'); copyField('purchaseMethod', 'purchase_method');
+  copyField('pricingMethod', 'pricing_method');
+  copyField('purchaseQty', 'purchase_qty');
+  copyField('unitPrice', 'unit_price');
+  copyField('pricingUnit', 'pricing_unit');
+  copyField('totalWeightG', 'total_weight_g');
+  copyField('totalPieces', 'total_pieces');
+  copyField('pricePerGram', 'price_per_gram');
+  copyField('gramPrice', 'gram_price');
+  copyField('purchaseTotalPrice', 'purchase_total_price');
+  copyField('beadCount', 'bead_count');
+  copyField('totalWeight', 'total_weight');
+  copyField('strandCount', 'strand_count');
+  copyField('strandPrice', 'strand_price');
+  copyField('usageUnit', 'usage_unit');
+  copyField('purchasePrice', 'purchase_price');
+  copyField('safetyStock', 'safety_stock');
+  copyField('unitCost', 'unit_cost');
+  copyField('inventoryUnit', 'inventory_unit');
+  copyField('beadsPerStrand', 'beads_per_strand');
+  copyField('weightPerStrand', 'weight_per_strand');
+  copyField('status');
+  copyField('costPerUsageUnit', 'cost_per_usage_unit');
+  // materialType
   if (data.materialType !== undefined) updateData.materialType = data.materialType;
-  if (data.specification !== undefined) updateData.specification = data.specification;
-  if (data.inventoryUnit !== undefined) updateData.inventoryUnit = data.inventoryUnit;
-  if (data.unitCost !== undefined) updateData.unitCost = data.unitCost;
-  if (data.status !== undefined) updateData.status = data.status;
-  if (data.supplier !== undefined) updateData.supplier = data.supplier;
-  if (data.remark !== undefined) updateData.remark = data.remark;
-  if (data.defaultPurchaseUnit !== undefined) updateData.defaultPurchaseUnit = data.defaultPurchaseUnit || null;
-  if (data.usageUnit !== undefined) updateData.usageUnit = data.usageUnit || null;
-  if (data.defaultConversionRate !== undefined) updateData.defaultConversionRate = data.defaultConversionRate || null;
-  if (data.purchasePrice !== undefined) updateData.purchasePrice = data.purchasePrice || null;
-  if (data.safetyStock !== undefined) updateData.safetyStock = data.safetyStock || 0;
-  if (data.conversionDescription !== undefined) updateData.conversionDescription = data.conversionDescription || null;
-  if (data.beadsPerStrand !== undefined) updateData.beadsPerStrand = data.beadsPerStrand || 0;
-  if (data.weightPerStrand !== undefined) updateData.weightPerStrand = data.weightPerStrand || 0;
-  if (data.pricingMethod !== undefined) updateData.pricingMethod = data.pricingMethod || 'by_piece';
-  if (data.totalWeightG !== undefined) updateData.totalWeightG = data.totalWeightG || 0;
-  if (data.totalPieces !== undefined) updateData.totalPieces = data.totalPieces || 0;
-  if (data.pricePerGram !== undefined) updateData.pricePerGram = data.pricePerGram || 0;
-  if (computedCostPerUsageUnit !== undefined) {
-    updateData.costPerUsageUnit = computedCostPerUsageUnit;
-  } else if (data.costPerUsageUnit !== undefined) {
-    updateData.costPerUsageUnit = data.costPerUsageUnit || 0;
-  }
 
   const m = await prisma.erpMaterial.update({ where: { id }, data: updateData });
 
