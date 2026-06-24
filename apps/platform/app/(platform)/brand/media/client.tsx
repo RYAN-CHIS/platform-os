@@ -18,6 +18,18 @@ function getMediaType(mime: string): string {
   return "DOCUMENT";
 }
 
+const MAX_UPLOAD_SIZE = 10 * 1024 * 1024;
+const ALLOWED_EXTENSIONS = new Set(["jpg", "jpeg", "png", "webp", "gif", "svg", "mp4", "mov", "webm", "pdf", "csv", "xlsx", "zip"]);
+const ALLOWED_MIME_PREFIXES = ["image/", "video/"];
+const ALLOWED_MIME_TYPES = new Set([
+  "application/pdf",
+  "text/csv",
+  "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/zip",
+  "application/x-zip-compressed",
+]);
+
 function formatSize(bytes: number): string {
   if (bytes >= 1024 * 1024) return (bytes / 1024 / 1024).toFixed(1) + " MB";
   if (bytes >= 1024) return (bytes / 1024).toFixed(1) + " KB";
@@ -45,6 +57,48 @@ function getTypeIcon(mimeType: string): string {
   return "📁";
 }
 
+function getFileExtension(name: string): string {
+  return name.split(".").pop()?.toLowerCase() || "";
+}
+
+function validateFile(file: File): string | null {
+  if (file.size <= 0) return "文件为空";
+  if (file.size > MAX_UPLOAD_SIZE) return "文件超过10MB";
+
+  const ext = getFileExtension(file.name);
+  const mime = file.type;
+  const mimeAllowed = ALLOWED_MIME_PREFIXES.some((prefix) => mime.startsWith(prefix)) || ALLOWED_MIME_TYPES.has(mime);
+  if (!mimeAllowed && !ALLOWED_EXTENSIONS.has(ext)) {
+    return `不支持 ${ext ? ext.toUpperCase() : mime || "未知"} 文件`;
+  }
+
+  return null;
+}
+
+async function parseUploadResponse(res: Response) {
+  const text = await res.text();
+  let body: any = null;
+  try {
+    body = text ? JSON.parse(text) : null;
+  } catch {
+    body = null;
+  }
+
+  if (!res.ok) {
+    throw new Error(body?.error || `上传接口 ${res.status}`);
+  }
+  if (!body) {
+    throw new Error("上传接口返回为空");
+  }
+  if (body.error) {
+    throw new Error(body.error);
+  }
+  if (!body.url || !body.filename || !body.originalName || !body.mimeType || !body.size) {
+    throw new Error("上传接口返回内容不完整");
+  }
+  return body;
+}
+
 export default function BrandMediaClient({ initialRows }: { initialRows: any[] }) {
   const [rows, setRows] = useState(initialRows);
   const [selected, setSelected] = useState<Set<number>>(new Set());
@@ -67,41 +121,51 @@ export default function BrandMediaClient({ initialRows }: { initialRows: any[] }
     if (uploadFiles.length === 0) return;
     setUploading(true);
     let success = 0;
-    let errors = 0;
+    const errors: string[] = [];
 
     for (const file of uploadFiles) {
+      const validationError = validateFile(file);
+      if (validationError) {
+        errors.push(`${file.name}: ${validationError}`);
+        continue;
+      }
+
       const formData = new FormData();
       formData.append("file", file);
 
       try {
         const res = await fetch("/api/media/upload", { method: "POST", body: formData });
-        const result = await res.json();
-        if (result.error) {
-          errors++;
-          setToast({ message: `${file.name}: ${result.error}`, type: "error" });
-        } else {
-          await createMediaAsset({
-            filename: result.filename,
-            originalName: result.originalName,
-            mimeType: result.mimeType,
-            size: result.size,
-            url: result.url,
-            mediaType: getMediaType(result.mimeType),
-            menuGroup: uploadMenuGroup,
-          });
-          success++;
+        const result = await parseUploadResponse(res);
+        const saved = await createMediaAsset({
+          filename: result.filename,
+          originalName: result.originalName,
+          mimeType: result.mimeType,
+          size: result.size,
+          url: result.url,
+          mediaType: getMediaType(result.mimeType),
+          menuGroup: uploadMenuGroup,
+        });
+        if (saved.error) {
+          throw new Error(saved.error);
         }
-      } catch {
-        errors++;
-        setToast({ message: `${file.name}: 上传失败`, type: "error" });
+        success++;
+      } catch (error) {
+        const reason = error instanceof Error ? error.message : "上传失败";
+        errors.push(`${file.name}: ${reason}`);
       }
     }
 
     setUploading(false);
-    setUploadOpen(false);
-    setUploadFiles([]);
-    refresh();
-    if (success > 0) setToast({ message: `成功上传 ${success} 个文件${errors > 0 ? `，${errors} 个失败` : ""}`, type: "success" });
+    if (success > 0) {
+      setUploadOpen(false);
+      setUploadFiles([]);
+    }
+    await refresh();
+    if (errors.length > 0) {
+      setToast({ message: `上传失败：${errors[0]}${errors.length > 1 ? `（另有 ${errors.length - 1} 个失败）` : ""}`, type: "error" });
+    } else if (success > 0) {
+      setToast({ message: `成功上传 ${success} 个文件`, type: "success" });
+    }
   };
 
   const handleDelete = async (id: number) => {
@@ -265,6 +329,10 @@ export default function BrandMediaClient({ initialRows }: { initialRows: any[] }
             <div
               onClick={() => fileInputRef.current?.click()}
               onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => {
+                e.preventDefault();
+                setUploadFiles(Array.from(e.dataTransfer.files || []));
+              }}
               style={{ border: "2px dashed #e7e5e4", borderRadius: 8, padding: 32, textAlign: "center", cursor: "pointer", marginBottom: 12, color: "#78716c", fontSize: 13 }}
             >
               {uploadFiles.length > 0 ? (

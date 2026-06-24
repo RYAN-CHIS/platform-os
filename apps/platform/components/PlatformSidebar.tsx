@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useMemo } from "react";
 import {
   LayoutDashboard,
   Package,
@@ -96,9 +96,7 @@ const COLORS = {
 export default function PlatformSidebar() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
-  const [expandedSections, setExpandedSections] = useState<Set<string>>(
-    new Set(["erp", "brand", "settings", "materials"])
-  );
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
 
   const { data: session } = useSession();
   const role = (session?.user as any)?.role || "viewer";
@@ -130,19 +128,6 @@ export default function PlatformSidebar() {
       })
       .filter(Boolean) as SidebarSection[];
   }, [enabledModules]);
-
-  // Auto-expand section containing active path (sections only, not items — items keep user toggle state)
-  useEffect(() => {
-    const active = findActiveItem(pathname, SIDEBAR_CONFIG);
-    if (active.sectionKey) {
-      setExpandedSections((prev) => {
-        if (prev.has(active.sectionKey!)) return prev;
-        const next = new Set(prev);
-        next.add(active.sectionKey!);
-        return next;
-      });
-    }
-  }, [pathname]);
 
   const toggleSection = (key: string) => {
     setExpandedSections((prev) => {

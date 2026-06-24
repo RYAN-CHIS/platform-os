@@ -96,6 +96,7 @@ export function middleware(request: NextRequest) {
     pathname === "/" ||
     pathname.startsWith("/login") ||
     pathname.startsWith("/api/auth") ||
+    pathname.startsWith("/api/media") ||
     pathname === "/settings" ||
     pathname.startsWith("/settings/")
   ) {

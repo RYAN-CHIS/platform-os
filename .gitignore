@@ -6,3 +6,4 @@ node_modules/
 .env.local
 .env.production
 .vercel
+apps/platform/public/uploads/
