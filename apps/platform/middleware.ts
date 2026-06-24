@@ -70,6 +70,7 @@ export function middleware(request: NextRequest) {
   const isPublicRoute =
     pathname === "/login" ||
     pathname.startsWith("/api/auth") ||
+    pathname.startsWith("/api/media") ||
     pathname.startsWith("/_next") ||
     pathname === "/favicon.ico";
 

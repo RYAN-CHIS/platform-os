@@ -2,7 +2,20 @@ import type { AuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { prisma } from "@yunwu/db";
+import { Prisma } from "@prisma/client";
 import type { SessionUser } from "./types";
+
+const BLOCKED_USER_STATUSES = new Set(["deleted", "disabled", "inactive", "suspended"]);
+
+type AuthUserRecord = {
+  id: number;
+  email: string;
+  password: string;
+  name: string | null;
+  role: string;
+  systems: string[] | null;
+  status: string;
+};
 
 export const authOptions: AuthOptions = {
   providers: [
@@ -15,10 +28,15 @@ export const authOptions: AuthOptions = {
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) return null;
 
-        const user = await prisma.user.findUnique({
-          where: { email: credentials.email },
-        });
+        const userRows = await prisma.$queryRaw<AuthUserRecord[]>(Prisma.sql`
+          SELECT id, email, password, name, role::text, systems, COALESCE(status, 'active') AS status
+          FROM users
+          WHERE lower(email) = lower(${credentials.email})
+          LIMIT 1
+        `);
+        const user = userRows[0] || null;
         if (!user) return null;
+        if (BLOCKED_USER_STATUSES.has(user.status)) return null;
 
         const valid = await bcrypt.compare(credentials.password, user.password);
         if (!valid) return null;
@@ -42,7 +60,7 @@ export const authOptions: AuthOptions = {
           email: user.email,
           name: user.name,
           role: user.role,
-          systems: user.systems,
+          systems: user.systems || [],
           permissions: Array.from(permSet),
         } as SessionUser & { id: string };
       },

@@ -15,7 +15,7 @@ import {
 } from "@/modules/settings/users/actions";
 
 const ROLE_OPTIONS = ["SUPER_ADMIN", "ERP_ADMIN", "BRAND_ADMIN", "WEB_ADMIN", "EDITOR", "OPERATOR", "VIEWER"];
-const STATUS_OPTIONS = ["active", "inactive", "suspended"];
+const STATUS_OPTIONS = ["active", "disabled", "inactive", "suspended"];
 
 const ROLE_COLORS: Record<string, string> = {
   SUPER_ADMIN: "bg-red-100 text-red-700",
@@ -29,6 +29,7 @@ const ROLE_COLORS: Record<string, string> = {
 
 const STATUS_COLORS: Record<string, string> = {
   active: "bg-emerald-100 text-emerald-700",
+  disabled: "bg-stone-100 text-stone-500",
   inactive: "bg-stone-100 text-stone-500",
   suspended: "bg-orange-100 text-orange-700",
 };
@@ -72,16 +73,16 @@ export default function UsersClient({ initialUsers }: { initialUsers: UserRow[] 
   };
 
   const handleToggle = async (u: UserRow) => {
-    const newStatus = u.status === "active" ? "inactive" : "active";
+    const newStatus = u.status === "active" ? "disabled" : "active";
     const r = await toggleUserStatus(u.id, newStatus);
     if (r.ok) { refresh(); setMsg(`用户已${newStatus === "active" ? "启用" : "禁用"}`); }
     else setMsg("错误: " + r.error);
   };
 
   const handleDelete = async (u: UserRow) => {
-    if (!confirm(`确定删除用户「${u.name || u.email}」？此操作不可撤销。`)) return;
+    if (!confirm(`确定删除用户「${u.name || u.email}」？账号会从列表隐藏，权限授权会被清理，审计记录会保留。`)) return;
     const r = await deleteUser(u.id);
-    if (r.ok) { refresh(); setMsg("用户已删除"); }
+    if (r.ok) { refresh(); setMsg(r.message || "用户已删除"); }
     else setMsg("错误: " + r.error);
   };
 
