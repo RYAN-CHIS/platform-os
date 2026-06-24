@@ -9,6 +9,15 @@ export interface RoleRow {
   is_active: boolean;
 }
 
+export interface PermissionItemRow {
+  id: number;
+  name: string;
+  code: string;
+  module: string;
+  type: string;
+  description: string;
+}
+
 export const ALL_MODULES = [
   { code: "erp.products", displayName: "商品管理", domain: "ERP" },
   { code: "erp.materials", displayName: "材料管理", domain: "ERP" },

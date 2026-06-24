@@ -5,12 +5,16 @@
 "use server";
 
 import { prisma } from "@yunwu/db";
-import type { RoleRow } from "./config";
+import type { RoleRow, PermissionItemRow } from "./config";
 import { ALL_MODULES } from "./config";
 import { createPermissionAudit } from "@/lib/audit";
 
 // ── Get matrix data ──
-export async function getPermissionMatrix(): Promise<{ roles: RoleRow[]; modules: typeof ALL_MODULES }> {
+export async function getPermissionMatrix(): Promise<{
+  roles: RoleRow[];
+  modules: typeof ALL_MODULES;
+  dynamicItems: PermissionItemRow[];
+}> {
   const rows = await prisma.$queryRawUnsafe<any[]>(
     `SELECT id, role_name, role_code, permissions::text as permissions, is_active FROM roles ORDER BY id ASC`
   );
@@ -18,7 +22,26 @@ export async function getPermissionMatrix(): Promise<{ roles: RoleRow[]; modules
     ...r,
     permissions: typeof r.permissions === 'string' ? JSON.parse(r.permissions) : (r.permissions || []),
   }));
-  return { roles, modules: ALL_MODULES };
+
+  // Fetch dynamic permission items
+  let dynamicItems: PermissionItemRow[] = [];
+  try {
+    const itemRows = await prisma.$queryRawUnsafe<any[]>(
+      `SELECT id, name, code, module, type, description FROM permission_items ORDER BY module ASC, id ASC`
+    );
+    dynamicItems = itemRows.map(r => ({
+      id: r.id,
+      name: r.name,
+      code: r.code,
+      module: r.module,
+      type: r.type,
+      description: r.description || '',
+    }));
+  } catch {
+    // Table may not exist yet
+  }
+
+  return { roles, modules: ALL_MODULES, dynamicItems };
 }
 
 // ── Save matrix ──

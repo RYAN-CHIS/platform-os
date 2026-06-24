@@ -30,6 +30,7 @@ export default function RolesClient({ initialRoles }: { initialRoles: RoleRow[] 
       roleName: fd.get("roleName") as string,
       roleCode: fd.get("roleCode") as string,
       description: fd.get("description") as string,
+      isActive: fd.get("isActive") === "true",
     });
     if (r.ok) { setModal(null); refresh(); setMsg("角色创建成功"); }
     else setMsg("错误: " + r.error);
@@ -95,6 +96,8 @@ export default function RolesClient({ initialRoles }: { initialRoles: RoleRow[] 
         csvColumns={csvColumns}
         data={roles.map(r => ({ ...r, is_active: r.is_active ? "是" : "否" }))}
         searchPlaceholder="搜索角色..."
+        addLabel="+ 新增角色"
+        onAdd={() => setModal({ type: "create" })}
       />
 
       <div className="border border-stone-200 rounded overflow-x-auto bg-white">
@@ -139,15 +142,6 @@ export default function RolesClient({ initialRoles }: { initialRoles: RoleRow[] 
         </table>
       </div>
 
-      <div className="flex justify-end mt-4">
-        <button
-          onClick={() => setModal({ type: "create" })}
-          style={{ height: 36, padding: "0 14px", borderRadius: 6, fontSize: 13, cursor: "pointer", background: "#1c1917", color: "#fff", border: "1px solid #1c1917", fontWeight: 400 }}
-        >
-          + 新增角色
-        </button>
-      </div>
-
       {/* Create Modal */}
       {modal?.type === "create" && (
         <Modal title="新增角色" onClose={() => setModal(null)}>
@@ -155,6 +149,13 @@ export default function RolesClient({ initialRoles }: { initialRoles: RoleRow[] 
             <Field label="角色名称" name="roleName" required />
             <Field label="角色代码" name="roleCode" required placeholder="如: Editor" />
             <Field label="描述" name="description" />
+            <div>
+              <label className="block text-xs text-stone-500 mb-1">状态</label>
+              <select name="isActive" defaultValue="true" className="w-full h-9 px-3 border border-stone-200 rounded text-sm outline-none focus:border-stone-400 bg-white">
+                <option value="true">启用</option>
+                <option value="false">禁用</option>
+              </select>
+            </div>
             <div className="text-xs text-stone-400">权限在「权限矩阵」页面中配置</div>
             <div className="flex gap-2 pt-2">
               <SubmitBtn>创建角色</SubmitBtn>

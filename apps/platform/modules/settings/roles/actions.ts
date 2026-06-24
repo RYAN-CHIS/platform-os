@@ -23,6 +23,7 @@ export interface CreateRoleInput {
   roleCode: string;
   description?: string;
   permissions?: string[];
+  isActive?: boolean;
 }
 
 export interface UpdateRoleInput {
@@ -63,8 +64,8 @@ export async function createRole(input: CreateRoleInput): Promise<{ ok: boolean;
 
     await prisma.$executeRawUnsafe(
       `INSERT INTO roles (role_name, role_code, description, permissions, is_active, created_at, updated_at)
-       VALUES ($1, $2, $3, $4::jsonb, true, NOW(), NOW())`,
-      input.roleName, input.roleCode, input.description || '', JSON.stringify(input.permissions || [])
+       VALUES ($1, $2, $3, $4::jsonb, $5, NOW(), NOW())`,
+      input.roleName, input.roleCode, input.description || '', JSON.stringify(input.permissions || []), input.isActive !== false
     );
 
     // Audit

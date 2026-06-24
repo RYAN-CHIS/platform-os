@@ -2,11 +2,20 @@ import { getPermissionMatrix } from "@/modules/settings/permissions/actions";
 import PermissionsClient from "./client";
 
 export default async function SettingsPermissionsPage() {
-  let matrix: Awaited<ReturnType<typeof getPermissionMatrix>> = { roles: [], modules: [] };
+  let matrix: Awaited<ReturnType<typeof getPermissionMatrix>> = {
+    roles: [],
+    modules: [],
+    dynamicItems: [],
+  };
 
   try {
     matrix = await getPermissionMatrix();
   } catch {}
 
-  return <PermissionsClient initialRoles={matrix.roles} modules={matrix.modules} />;
+  return (
+    <PermissionsClient
+      initialRoles={matrix.roles}
+      initialDynamicItems={matrix.dynamicItems}
+    />
+  );
 }
