@@ -10,6 +10,7 @@ export {
   PLATFORM_PERMISSIONS,
   DEFAULT_ENABLED_MODULES,
   MODULE_LABELS,
+  MATERIAL_CATEGORIES,
   flattenSidebarItems,
   findActiveItem,
 } from "./config/sidebar.config";
@@ -19,6 +20,7 @@ export type {
   SidebarChild,
   SidebarSection,
   SystemModule,
+  MaterialCategory,
 } from "./config/sidebar.config";
 
 export {

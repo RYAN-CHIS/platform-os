@@ -12,9 +12,9 @@ import {
 type MaterialRow = Record<string, any>;
 
 export default function MaterialsClient({
-  initialData, csvColumns, csvData,
+  initialData, csvColumns, csvData, category, title,
 }: {
-  initialData: MaterialRow[]; csvColumns: any[]; csvData: any[];
+  initialData: MaterialRow[]; csvColumns: any[]; csvData: any[]; category?: string; title?: string;
 }) {
   const [data, setData] = useState(initialData);
   const [modalOpen, setModalOpen] = useState(false);
@@ -189,8 +189,8 @@ export default function MaterialsClient({
   return (
     <div style={{ maxWidth: 1200, margin: '0 auto', padding: 24 }}>
       <ErpToolbar
-        title="材料管理"
-        subtitle="原材料 / 半成品 / 包材"
+        title={title || "材料管理"}
+        subtitle={category ? `${title} · 分类筛选` : "原材料 / 半成品 / 包材"}
         total={data.length}
         entityLabel="条材料"
         searchPlaceholder="搜索编码 / 名称 / 分类…"

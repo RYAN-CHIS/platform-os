@@ -11,6 +11,25 @@ import type { LucideIcon } from "lucide-react";
 import { PERMISSIONS } from "./permissions.config";
 
 // ════════════════════════════════════════════
+// Material Categories (可扩展的配置数组)
+// ════════════════════════════════════════════
+
+export interface MaterialCategory {
+  key: string;
+  label: string;
+  query: string;        // URL query parameter value
+  icon: string;         // Lucide icon name
+  permission?: string;  // 预留权限 key
+}
+
+export const MATERIAL_CATEGORIES: MaterialCategory[] = [
+  { key: "beads",       label: "珠子",   query: "beads",       icon: "Gem",      permission: "materials.beads.view" },
+  { key: "accessories", label: "配件",   query: "accessories", icon: "Link",      permission: "materials.accessories.view" },
+  { key: "ceramics",    label: "瓷器",   query: "ceramics",    icon: "FlaskConical", permission: "materials.ceramics.view" },
+  { key: "leather",     label: "皮具",   query: "leather",     icon: "PenTool",  permission: "materials.leather.view" },
+];
+
+// ════════════════════════════════════════════
 // Types
 // ════════════════════════════════════════════
 
@@ -98,9 +117,14 @@ export const SIDEBAR_CONFIG: SidebarSection[] = [
         key: "materials",
         label: "材料管理",
         icon: "Package",
-        href: "/erp/materials",
         permission: PERMISSIONS.MATERIAL_VIEW,
         module: "erp",
+        children: MATERIAL_CATEGORIES.map((cat) => ({
+          key: `materials-${cat.key}`,
+          label: cat.label,
+          href: `/erp/materials?category=${cat.query}`,
+          permission: cat.permission,
+        })),
       },
       {
         key: "products",
@@ -374,15 +398,17 @@ export function findActiveItem(
     for (const item of section.items) {
       // Check direct match
       if (item.href) {
+        const base = item.href.includes("?") ? item.href.split("?")[0] : item.href;
         const matches = item.href === "/"
           ? (pathname === "/" || pathname === "/platform")
-          : pathname.startsWith(item.href);
+          : pathname.startsWith(base);
         if (matches) return { sectionKey: section.key, itemKey: item.key };
       }
       // Check children
       if (item.children) {
         for (const child of item.children) {
-          if (pathname.startsWith(child.href)) {
+          const base = child.href.includes("?") ? child.href.split("?")[0] : child.href;
+          if (pathname.startsWith(base)) {
             return { sectionKey: section.key, itemKey: item.key };
           }
         }

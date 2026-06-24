@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
 import { useState, useEffect, useMemo } from "react";
 import {
@@ -109,6 +109,7 @@ export default function PlatformSidebar() {
 
   const { data: session } = useSession();
   const role = (session?.user as any)?.role || "viewer";
+  const searchParams = useSearchParams();
   const enabledModules: SystemModule[] = DEFAULT_ENABLED_MODULES;
 
   // WO-P8E: Temporarily disable permission filter — force show all menus
@@ -140,9 +141,10 @@ export default function PlatformSidebar() {
   // Auto-expand section containing active path
   useEffect(() => {
     const active = findActiveItem(pathname, SIDEBAR_CONFIG);
-    if (active.sectionKey) {
-      setExpandedSections((prev) => new Set(prev).add(active.sectionKey!));
-    }
+    const next = new Set(expandedSections);
+    if (active.sectionKey) next.add(active.sectionKey!);
+    if (active.itemKey) next.add(active.itemKey!);
+    setExpandedSections(next);
   }, [pathname]);
 
   const toggleSection = (key: string) => {
@@ -162,6 +164,16 @@ export default function PlatformSidebar() {
   const isItemActive = (href: string) => {
     // Root path only matches exact "/" (not everything)
     if (href === "/") return pathname === "/" || pathname === "/platform";
+    // If href contains query params, check both pathname and category param
+    if (href.includes("?")) {
+      const [base, query] = href.split("?");
+      if (!pathname.startsWith(base)) return false;
+      const params = new URLSearchParams(query);
+      for (const [k, v] of params.entries()) {
+        if (searchParams.get(k) !== v) return false;
+      }
+      return true;
+    }
     return pathname.startsWith(href);
   };
 

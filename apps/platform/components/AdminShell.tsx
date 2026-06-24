@@ -1,6 +1,6 @@
 "use client";
 
-import { ReactNode } from "react";
+import { ReactNode, Suspense } from "react";
 import PlatformSidebar from "./PlatformSidebar";
 
 interface AdminShellProps {
@@ -17,7 +17,11 @@ export default function AdminShell({ children }: AdminShellProps) {
   return (
     <div className="flex min-h-screen bg-[#f8f4ef]">
       {/* Sidebar — fixed, handles its own responsive behavior */}
-      <PlatformSidebar />
+      <Suspense fallback={
+        <aside className="w-60 min-h-screen bg-stone-900" />
+      }>
+        <PlatformSidebar />
+      </Suspense>
 
       {/* Main content area */}
       <main className="flex-1 lg:pl-60 min-h-screen">
