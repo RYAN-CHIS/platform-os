@@ -239,8 +239,21 @@ export default function PlatformSidebar() {
                 fontFamily: "var(--font-serif-zh), serif",
               }}
             >
-              允物 Platform
+              允物
             </h1>
+            <p
+              style={{
+                margin: "2px 0 0",
+                fontSize: "0.7rem",
+                fontWeight: 400,
+                color: COLORS.text,
+                letterSpacing: "0.23em",
+                opacity: 0.75,
+                fontFamily: "var(--font-serif-zh), serif",
+              }}
+            >
+              让物归物，让心归心
+            </p>
           </Link>
         </div>
 
