@@ -37,6 +37,7 @@ type ActionResult = {
   ok: boolean;
   error?: string;
   message?: string;
+  tempPassword?: string;
   cleanup?: {
     userPermissions: number;
     temporaryPermissions: number;
@@ -381,11 +382,21 @@ export async function resetUserPassword(id: number): Promise<ActionResult> {
         module: "users",
         targetId: id,
         before: { email: user.email, name: user.name },
-        description: `Password reset requested for user ${user.email}`,
+        description: `Password reset for user ${user.email}`,
       });
     } catch {}
 
-    return { ok: false, error: "密码重置功能将在下一版本中接入" };
+    // Generate temporary password and hash it
+    const crypto = await import("crypto");
+    const bcrypt = await import("bcryptjs");
+    const tempPassword = crypto.randomBytes(4).toString("hex"); // 8-char hex
+    const hash = await bcrypt.hash(tempPassword, 10);
+
+    await prisma.$executeRaw(Prisma.sql`
+      UPDATE users SET password = ${hash}, updated_at = NOW() WHERE id = ${id}
+    `);
+
+    return { ok: true, tempPassword };
   } catch (e) {
     return { ok: false, error: formatError(e) };
   }

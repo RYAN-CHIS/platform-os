@@ -17,12 +17,23 @@ import { ROLE_OPTIONS, ROLE_COLORS, getRoleLabel } from "@/modules/settings/user
 
 const STATUS_OPTIONS = ["active", "disabled", "inactive", "suspended"];
 
+const STATUS_LABEL_MAP: Record<string, string> = {
+  active: "正常",
+  disabled: "已禁用",
+  deleted: "已删除",
+  inactive: "未激活",
+  suspended: "已暂停",
+};
+
 const STATUS_COLORS: Record<string, string> = {
   active: "bg-emerald-100 text-emerald-700",
   disabled: "bg-stone-100 text-stone-500",
   inactive: "bg-stone-100 text-stone-500",
   suspended: "bg-orange-100 text-orange-700",
+  deleted: "bg-red-100 text-red-500",
 };
+
+function getStatusLabel(s: string) { return STATUS_LABEL_MAP[s] || s; }
 
 export default function UsersClient({ initialUsers }: { initialUsers: UserRow[] }) {
   const router = useRouter();
@@ -77,8 +88,13 @@ export default function UsersClient({ initialUsers }: { initialUsers: UserRow[] 
   };
 
   const handleResetPwd = async (u: UserRow) => {
+    if (!confirm(`确定重置「${u.name || u.email}」的密码？系统将生成临时密码。`)) return;
     const r = await resetUserPassword(u.id);
-    setMsg(r.error || "密码重置链接已发送");
+    if (r.ok && r.tempPassword) {
+      setMsg(`✅ 密码已重置！临时密码: ${r.tempPassword}（请立即告知用户修改）`);
+    } else {
+      setMsg(r.error || "重置失败");
+    }
   };
 
   const csvColumns = [
@@ -94,7 +110,15 @@ export default function UsersClient({ initialUsers }: { initialUsers: UserRow[] 
     <div className="max-w-6xl mx-auto">
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-2xl font-light tracking-[0.1em] text-stone-800">用户管理</h1>
-        <span className="text-sm text-stone-500">共 {users.length} 人</span>
+        <div style={{display:"flex",alignItems:"center",gap:12}}>
+          <span className="text-sm text-stone-500">共 {users.length} 人</span>
+          <button
+            onClick={() => setModal({ type: "create" })}
+            style={{ height: 36, padding: "0 16px", borderRadius: 6, fontSize: 13, cursor: "pointer", background: "#1c1917", color: "#fff", border: "1px solid #1c1917", fontWeight: 400 }}
+          >
+            + 新增用户
+          </button>
+        </div>
       </div>
 
       {msg && (
@@ -138,7 +162,7 @@ export default function UsersClient({ initialUsers }: { initialUsers: UserRow[] 
                 </td>
                 <td className="py-2 px-3">
                   <span className={`px-2 py-0.5 rounded text-xs ${STATUS_COLORS[u.status] || "bg-stone-100 text-stone-600"}`}>
-                    {u.status}
+                    {getStatusLabel(u.status)}
                   </span>
                 </td>
                 <td className="py-2 px-3 text-stone-500 text-xs">
@@ -172,7 +196,7 @@ export default function UsersClient({ initialUsers }: { initialUsers: UserRow[] 
                 <option key={r.value} value={r.value}>{r.label}</option>
               ))}
             </select>
-            <Select label="状态" name="status" options={STATUS_OPTIONS} defaultValue="active" />
+            <Select label="状态" name="status" options={STATUS_OPTIONS} defaultValue="active" labelMap={STATUS_LABEL_MAP} />
             <div className="flex gap-2 pt-2">
               <SubmitBtn>创建用户</SubmitBtn>
               <CancelBtn onClick={() => setModal(null)} />
@@ -192,7 +216,7 @@ export default function UsersClient({ initialUsers }: { initialUsers: UserRow[] 
                 <option key={r.value} value={r.value}>{r.label}</option>
               ))}
             </select>
-            <Select label="状态" name="status" options={STATUS_OPTIONS} defaultValue={modal.user.status} />
+            <Select label="状态" name="status" options={STATUS_OPTIONS} defaultValue={modal.user.status} labelMap={STATUS_LABEL_MAP} />
             <div className="flex gap-2 pt-2">
               <SubmitBtn>保存更改</SubmitBtn>
               <CancelBtn onClick={() => setModal(null)} />
@@ -200,16 +224,6 @@ export default function UsersClient({ initialUsers }: { initialUsers: UserRow[] 
           </form>
         </Modal>
       )}
-
-      {/* Add button (placed below ActionBar, above table, via manual render) */}
-      <div className="flex justify-end mb-4">
-        <button
-          onClick={() => setModal({ type: "create" })}
-          style={{ height: 36, padding: "0 14px", borderRadius: 6, fontSize: 13, cursor: "pointer", background: "#1c1917", color: "#fff", border: "1px solid #1c1917", fontWeight: 400 }}
-        >
-          + 新增用户
-        </button>
-      </div>
     </div>
   );
 }
@@ -238,12 +252,12 @@ function Field({ label, name, type = "text", defaultValue = "", required = false
   );
 }
 
-function Select({ label, name, options, defaultValue }: { label: string; name: string; options: string[]; defaultValue?: string }) {
+function Select({ label, name, options, defaultValue, labelMap }: { label: string; name: string; options: string[]; defaultValue?: string; labelMap?: Record<string, string> }) {
   return (
     <div>
       <label className="block text-xs text-stone-500 mb-1">{label}</label>
       <select name={name} defaultValue={defaultValue} className="w-full h-9 px-3 border border-stone-200 rounded text-sm outline-none focus:border-stone-400 bg-white">
-        {options.map(o => <option key={o} value={o}>{o}</option>)}
+        {options.map(o => <option key={o} value={o}>{labelMap ? (labelMap[o] || o) : o}</option>)}
       </select>
     </div>
   );
