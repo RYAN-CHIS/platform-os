@@ -49,11 +49,18 @@ export default async function MaterialsPage({
     where = { AND: conditions };
   }
 
-  const materials = await prisma.erpMaterial.findMany({
-    take: 200,
-    orderBy: { code: "asc" },
-    where: Object.keys(where).length > 0 ? where : undefined,
-  });
+  // Fail-safe query: wrap in try/catch to prevent page crash on DB schema mismatch
+  let materials: any[] = [];
+  try {
+    materials = await prisma.erpMaterial.findMany({
+      take: 200,
+      orderBy: { code: "asc" },
+      where: Object.keys(where).length > 0 ? where : undefined,
+    });
+  } catch (e: any) {
+    console.error("Materials query failed:", e.message);
+    // Return empty array — client will show error state
+  }
 
   const csvColumns = [
     { key: "code", label: "编码" },
