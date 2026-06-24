@@ -510,23 +510,32 @@ export default function PlatformSidebar() {
               </button>
 
               {userMenuOpen && (
-                <div style={{ position: "absolute", bottom: "100%", left: 0, right: 0, marginBottom: 4, background: COLORS.sidebarBg, border: `1px solid ${COLORS.border}`, borderRadius: 8, overflow: "hidden", boxShadow: "0 4px 16px rgba(0,0,0,0.3)" }}>
+                <div style={{
+                  position: "absolute", bottom: "100%", left: 8, right: 8, marginBottom: 4,
+                  background: "#263f52",
+                  border: "1px solid rgba(255,255,255,0.12)",
+                  borderRadius: 12,
+                  padding: 6,
+                  boxShadow: "0 8px 24px rgba(0,0,0,0.24)",
+                  zIndex: 100,
+                }}>
                   <Link href="/settings/profile" onClick={() => setUserMenuOpen(false)}
-                    style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", fontSize: "0.82rem", color: COLORS.text, textDecoration: "none", transition: "0.15s" }}
-                    onMouseEnter={e => (e.currentTarget.style.background = COLORS.bgHover)}
+                    style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", borderRadius: 8, fontSize: "0.82rem", color: COLORS.text, textDecoration: "none", transition: "0.15s" }}
+                    onMouseEnter={e => (e.currentTarget.style.background = "#3D5A72")}
                     onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
                     <UserCog size={14} /> 个人信息
                   </Link>
                   <Link href="/settings/profile?tab=password" onClick={() => setUserMenuOpen(false)}
-                    style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", fontSize: "0.82rem", color: COLORS.text, textDecoration: "none", transition: "0.15s" }}
-                    onMouseEnter={e => (e.currentTarget.style.background = COLORS.bgHover)}
+                    style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", borderRadius: 8, fontSize: "0.82rem", color: COLORS.text, textDecoration: "none", transition: "0.15s" }}
+                    onMouseEnter={e => (e.currentTarget.style.background = "#3D5A72")}
                     onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
                     <Shield size={14} /> 修改密码
                   </Link>
+                  <div style={{ height: 1, background: "rgba(255,255,255,0.08)", margin: "4px 8px" }} />
                   <button
                     onClick={() => signOut({ callbackUrl: "/login" })}
-                    style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "10px 14px", fontSize: "0.82rem", color: "#ef4444", background: "none", border: "none", cursor: "pointer", textAlign: "left", borderTop: `1px solid ${COLORS.border}` }}
-                    onMouseEnter={e => (e.currentTarget.style.background = COLORS.bgHover)}
+                    style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "8px 12px", borderRadius: 8, fontSize: "0.82rem", color: "#ef4444", background: "none", border: "none", cursor: "pointer", textAlign: "left" }}
+                    onMouseEnter={e => (e.currentTarget.style.background = "#3D5A72")}
                     onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
                     <LogOut size={14} /> 退出登录
                   </button>
