@@ -30,6 +30,8 @@ import {
   FlaskConical,
   BarChart3,
   UserCog,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -105,7 +107,9 @@ const ROLE_LABELS: Record<string, string> = {
 export default function PlatformSidebar() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
-  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(
+    new Set(["erp", "brand", "settings"])
+  );
 
   const { data: session } = useSession();
   const role = (session?.user as any)?.role || "viewer";
@@ -249,29 +253,38 @@ export default function PlatformSidebar() {
 
             return (
               <div key={section.key} className="mb-1">
-                {/* Section label */}
+                {/* Section header — clickable toggle */}
                 {section.label && (
-                  <p
+                  <button
+                    onClick={() => toggleSection(section.key)}
                     style={{
-                      padding: "6px 14px 2px",
-                      fontSize: "0.65rem",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 6,
+                      width: "100%",
+                      padding: "10px 14px 6px",
+                      fontSize: "0.82rem",
                       fontWeight: 600,
-                      color: COLORS.textDim,
-                      textTransform: "uppercase",
-                      letterSpacing: "0.1em",
+                      color: sectionActive ? COLORS.activeText : COLORS.textMuted,
+                      letterSpacing: "0.06em",
+                      background: "transparent",
+                      border: "none",
+                      cursor: "pointer",
+                      transition: "color 0.15s",
                     }}
                   >
+                    {isExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
                     {section.label}
                     {section.badge && (
-                      <span className="ml-2 px-1.5 py-0.5 text-[0.55rem] rounded bg-amber-500/20 text-amber-400">
+                      <span className="ml-1 px-1.5 py-0.5 text-[0.55rem] rounded bg-amber-500/20 text-amber-400">
                         {section.badge.text}
                       </span>
                     )}
-                  </p>
+                  </button>
                 )}
 
-                {/* Items */}
-                {section.items.map((item) => {
+                {/* Items — visible when section is expanded */}
+                {isExpanded && section.items.map((item) => {
                   const hasChildren = item.children && item.children.length > 0;
                   const itemActive = !hasChildren && item.href ? isItemActive(item.href) : false;
                   const childActive = hasChildren && item.children!.some((c) => isItemActive(c.href));
