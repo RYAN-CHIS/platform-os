@@ -108,7 +108,7 @@ export default function PlatformSidebar() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
-    new Set(["erp", "brand", "settings"])
+    new Set(["erp", "brand", "settings", "materials"])
   );
 
   const { data: session } = useSession();
@@ -142,13 +142,17 @@ export default function PlatformSidebar() {
       .filter(Boolean) as SidebarSection[];
   }, [enabledModules]);
 
-  // Auto-expand section containing active path
+  // Auto-expand section containing active path (sections only, not items — items keep user toggle state)
   useEffect(() => {
     const active = findActiveItem(pathname, SIDEBAR_CONFIG);
-    const next = new Set(expandedSections);
-    if (active.sectionKey) next.add(active.sectionKey!);
-    if (active.itemKey) next.add(active.itemKey!);
-    setExpandedSections(next);
+    if (active.sectionKey) {
+      setExpandedSections((prev) => {
+        if (prev.has(active.sectionKey!)) return prev;
+        const next = new Set(prev);
+        next.add(active.sectionKey!);
+        return next;
+      });
+    }
   }, [pathname]);
 
   const toggleSection = (key: string) => {
@@ -288,7 +292,7 @@ export default function PlatformSidebar() {
                   const hasChildren = item.children && item.children.length > 0;
                   const itemActive = !hasChildren && item.href ? isItemActive(item.href) : false;
                   const childActive = hasChildren && item.children!.some((c) => isItemActive(c.href));
-                  const showChildren = hasChildren && (isExpanded || childActive);
+                  const showChildren = hasChildren && isExpanded && (expandedSections.has(item.key) || childActive);
 
                   // Get icon
                   const IconComponent = ICON_MAP[item.icon] || Layers;
@@ -418,7 +422,7 @@ export default function PlatformSidebar() {
                           strokeLinecap="round"
                           strokeLinejoin="round"
                           style={{
-                            transform: isExpanded ? "rotate(90deg)" : "rotate(0deg)",
+                            transform: expandedSections.has(item.key) ? "rotate(90deg)" : "rotate(0deg)",
                             transition: "transform 0.25s ease",
                             opacity: 0.4,
                             flexShrink: 0,
