@@ -1,8 +1,6 @@
 {
-  "buildCommand": "npx prisma generate && next build",
-  "devCommand": "next dev",
-  "installCommand": "npm install",
+  "buildCommand": "cd ../.. && pnpm install --no-frozen-lockfile && npx prisma generate && next build",
   "framework": "nextjs",
   "outputDirectory": ".next",
-  "regions": ["hkg1"]
+  "ignoreCommand": "node -e \"process.exit(process.env.VERCEL_GIT_COMMIT_REF === 'main' ? 0 : 1)\""
 }
