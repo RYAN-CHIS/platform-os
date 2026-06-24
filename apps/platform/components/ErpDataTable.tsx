@@ -18,11 +18,13 @@ interface ErpDataTableProps {
   sortOrder?: string;
   emptyText?: string;
   loading?: boolean;
+  expandedRows?: Set<any>;
+  renderExpanded?: (row: any) => React.ReactNode;
 }
 
 export default function ErpDataTable({
   columns, rows, onSort, sortKey, sortOrder,
-  emptyText = "暂无数据", loading
+  emptyText = "暂无数据", loading, expandedRows, renderExpanded,
 }: ErpDataTableProps) {
   const [localSortKey, setLocalSortKey] = useState<string | null>(null);
   const [localSortOrder, setLocalSortOrder] = useState<"asc" | "desc">("asc");
@@ -63,7 +65,7 @@ export default function ErpDataTable({
   }
 
   return (
-    <div style={{overflowX:"auto",border:"1px solid #e7e5e4",borderRadius:8}}>
+    <div style={{overflowX:"auto",overflowY:"auto",maxHeight:"calc(100vh - 200px)",border:"1px solid #e7e5e4",borderRadius:8}}>
       <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
         <thead>
           <tr style={{background:"#fafaf9"}}>
@@ -72,9 +74,10 @@ export default function ErpDataTable({
                 key={col.key}
                 onClick={() => col.sortable && handleSort(col.key)}
                 style={{
-                  position:"sticky",top:0,background:"#fafaf9",zIndex:10,
+                  position:"sticky",top:0,zIndex:10,
                   padding:"10px 12px",textAlign:"left",fontWeight:500,color:"#57534e",
-                  borderBottom:"1px solid #e7e5e4",whiteSpace:"nowrap",
+                  background:"#fafaf9",borderBottom:"2px solid #d6d3d1",
+                  whiteSpace:"nowrap",
                   cursor: col.sortable ? "pointer" : "default",
                   width: col.width,
                 }}
@@ -97,6 +100,17 @@ export default function ErpDataTable({
               ))}
             </tr>
           ))}
+          {expandedRows && renderExpanded && displayRows.map((row, i) => {
+            const id = row.id || i;
+            if (!expandedRows.has(id)) return null;
+            return (
+              <tr key={`expanded-${id}`} style={{background:"#fafaf9",borderBottom:"2px solid #e7e5e4"}}>
+                <td colSpan={columns.length} style={{padding:"0 12px 12px"}}>
+                  {renderExpanded(row)}
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>

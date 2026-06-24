@@ -153,6 +153,32 @@ export default function MaterialsClient({
     return `${qty} ${stockUnit}`;
   }
 
+  function calcUnitPrice(row: any): string {
+    const unitCost = row.unitCost;
+    if (unitCost != null && unitCost > 0) {
+      return `¥${Number(unitCost).toFixed(2)} / ${row.inventoryUnit || '单位'}`;
+    }
+    const purchasePrice = row.purchasePrice;
+    const rate = row.defaultConversionRate || 1;
+    if (purchasePrice != null && purchasePrice > 0 && rate > 0) {
+      const unitPrice = purchasePrice / rate;
+      return `¥${unitPrice.toFixed(2)} / ${row.inventoryUnit || '单位'}`;
+    }
+    return "—";
+  }
+
+  const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
+
+  const toggleExpand = (id: number) => {
+    setExpandedRows(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const formatDate = (v: any) => v ? new Date(v).toLocaleString("zh-CN") : "—";
+
   const columns: Column[] = [
     { key: 'name', label: '名称', sortable: true, render: (v: any, row: any) => <span style={{ fontWeight: 500, color: '#1c1917' }}>{row.name || '—'}</span> },
     { key: 'code', label: '编码', render: (v: any, row: any) => <code style={{ fontSize: 11, background: '#f5f5f4', padding: '2px 6px', borderRadius: 4 }}>{row.code || '—'}</code> },
@@ -160,6 +186,9 @@ export default function MaterialsClient({
     { key: 'inventoryUnit', label: '单位' },
     { key: 'remaining', label: '库存', sortable: true, width: '120px', render: (v: any, row: any) => (
       <span style={{ textAlign: 'right', display: 'block' }}>{formatStock(row)}</span>
+    ) },
+    { key: 'unitCost', label: '最小单位单价', width: '120px', render: (v: any, row: any) => (
+      <span style={{ color: '#16a34a', fontWeight: 500, textAlign: 'right', display: 'block' }}>{calcUnitPrice(row)}</span>
     ) },
     { key: 'status', label: '状态', width: '100px', render: (v: any, row: any) => {
       const sc = statusColors[row.status] || statusColors.DRAFT;
@@ -171,15 +200,18 @@ export default function MaterialsClient({
         </select>
       );
     } },
-    { key: 'createdAt', label: '创建时间', sortable: true, render: (v: any) => v ? new Date(v).toISOString().slice(0, 10) : '—' },
-    { key: 'actions', label: '操作', width: '140px', render: (v: any, row: any) => (
-      <div style={{ textAlign: 'center' }}>
+    { key: 'actions', label: '操作', width: '180px', render: (v: any, row: any) => (
+      <div style={{ textAlign: 'center', display: 'flex', gap: 4, justifyContent: 'center' }}>
+        <button onClick={() => toggleExpand(row.id)} style={{
+          background: expandedRows.has(row.id) ? '#d6d3d1' : '#f5f5f4', color: '#57534e', border: 'none',
+          padding: '3px 8px', borderRadius: 4, cursor: 'pointer', fontSize: 12,
+        }}>{expandedRows.has(row.id) ? '收起' : '详情'}</button>
         <button onClick={() => { setEditItem(row); setModalOpen(true); }} style={{
-          background: '#eff6ff', color: '#1d4ed8', border: 'none', padding: '3px 10px',
-          borderRadius: 4, cursor: 'pointer', fontSize: 12, marginRight: 6,
+          background: '#eff6ff', color: '#1d4ed8', border: 'none', padding: '3px 8px',
+          borderRadius: 4, cursor: 'pointer', fontSize: 12,
         }}>编辑</button>
         <button onClick={() => handleDelete(row.id)} style={{
-          background: '#fef2f2', color: '#dc2626', border: 'none', padding: '3px 10px',
+          background: '#fef2f2', color: '#dc2626', border: 'none', padding: '3px 8px',
           borderRadius: 4, cursor: 'pointer', fontSize: 12,
         }}>删除</button>
       </div>
@@ -207,6 +239,20 @@ export default function MaterialsClient({
         columns={columns}
         rows={filtered}
         emptyText="暂无材料"
+        expandedRows={expandedRows}
+        renderExpanded={(row: any) => (
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:"4px 16px",fontSize:12,color:"#57534e",padding:"8px 0"}}>
+            <div><span style={{color:"#a8a29e"}}>创建时间:</span> {formatDate(row.createdAt)}</div>
+            <div><span style={{color:"#a8a29e"}}>更新时间:</span> {formatDate(row.updatedAt)}</div>
+            <div><span style={{color:"#a8a29e"}}>供应商:</span> {row.supplier || "—"}</div>
+            <div><span style={{color:"#a8a29e"}}>采购单位:</span> {row.defaultPurchaseUnit || "—"}</div>
+            <div><span style={{color:"#a8a29e"}}>库存单位:</span> {row.inventoryUnit || "—"}</div>
+            <div><span style={{color:"#a8a29e"}}>使用单位:</span> {row.usageUnit || "—"}</div>
+            <div><span style={{color:"#a8a29e"}}>换算关系:</span> {row.conversionDescription || (row.defaultConversionRate ? `1${row.defaultPurchaseUnit || '采购单位'} = ${row.defaultConversionRate}${row.inventoryUnit || '库存单位'}` : "—")}</div>
+            <div><span style={{color:"#a8a29e"}}>采购单价:</span> {row.purchasePrice != null ? `¥${Number(row.purchasePrice).toFixed(2)}` : "—"}</div>
+            <div><span style={{color:"#a8a29e"}}>备注:</span> {row.remark || "—"}</div>
+          </div>
+        )}
       />
 
       {modalOpen && (
