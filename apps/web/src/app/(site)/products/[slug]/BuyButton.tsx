@@ -9,7 +9,7 @@ interface Props {
 }
 
 export default function BuyButton({ productSlug, productName, price }: Props) {
-  const handleBuy = () => {
+  const handleAddToCart = () => {
     // 保存到 localStorage 作为简易购物车
     const cart = JSON.parse(localStorage.getItem('yunwu_cart') || '[]');
     cart.push({ slug: productSlug, name: productName, price, quantity: 1 });
@@ -21,14 +21,17 @@ export default function BuyButton({ productSlug, productName, price }: Props) {
 
   return (
     <>
-      <button onClick={handleBuy} className="btn-primary w-full text-center">
-        获取此作品
+      <button 
+        onClick={handleAddToCart} 
+        className="w-full text-center bg-[var(--yun-ink)] text-[var(--yun-xuan)] py-3 px-6 text-sm font-light tracking-wider rounded-[var(--yun-radius)] hover:bg-[var(--yun-ink)]/90 transition-colors duration-[var(--yun-duration-read)]"
+      >
+        结缘此物
       </button>
       <Link
         href="/checkout"
-        className="block text-center text-xs text-yun-accent/60 hover:text-yun-accent tracking-wider mt-3 transition-colors"
+        className="block text-center text-xs text-[var(--yun-earth)]/60 hover:text-[var(--yun-earth)] tracking-wider mt-3 transition-colors duration-[var(--yun-duration-read)]"
       >
-        查看购物袋
+        查看六会
       </Link>
     </>
   );

@@ -15,12 +15,13 @@ export default function Tag({
   className = '',
   onClick,
 }: TagProps) {
+  /* V2.1：2px圆角，hover仅颜色/透明度 */
   const baseClasses =
-    'inline-block px-4 py-1.5 text-xs tracking-[0.08em] rounded-full transition-all duration-300 cursor-pointer border';
+    'inline-block px-4 py-1.5 text-xs tracking-[0.08em] rounded-[var(--yun-radius)] transition-colors duration-[280ms] ease-[var(--yun-ease-gentle)] cursor-pointer border';
 
   const activeClasses = active
     ? 'bg-[var(--yun-ink)] text-[var(--yun-paper)] border-[var(--yun-ink)]'
-    : 'bg-transparent text-[var(--yun-gray)] border-[var(--yun-border)] hover:bg-[var(--yun-ink)] hover:text-[var(--yun-paper)] hover:border-[var(--yun-ink)]';
+    : 'bg-transparent text-[var(--yun-ink-muted)] border-[var(--yun-border-medium)] hover:text-[var(--yun-earth)] hover:border-[var(--yun-earth)]';
 
   const classes = `${baseClasses} ${activeClasses} ${className}`;
 

@@ -1,101 +1,103 @@
-@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&family=Noto+Serif+SC:wght@300;400;500;600;700&display=swap');
+/* ══════════════════════════════════════════
+   允物 · 数字化器物空间 · 全局样式 V2.1
+   ══════════════════════════════════════════ */
 
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+/* 此文件仅保留与 tokens.css 不重复的补充样式。
+   tokens.css 已包含完整令牌体系和组件基础。 */
 
-/* ── 品牌基础样式（与 ERP 小程序色系保持一致） ── */
-:root {
-  /* 页面背景 — ERP: --color-bg */
-  --yun-bg:       #F6F2ED;
-  /* 卡片/侧边栏背景 — ERP: --color-bg-card */
-  --yun-white:    #FFFBEB;
-  /* 边框色 — ERP: --color-border */
-  --yun-line:     #E8D9B5;
-  /* 主文字（墨色）— ERP: --color-text / --color-accent */
-  --yun-text:     #3A2A1A;
-  /* 次要文字 — ERP: --color-text-secondary */
-  --yun-subtext:  #8C7660;
-  /* 弱化文字 — ERP: --color-text-muted */
-  --yun-muted:    #B8A898;
-  /* 强调色（暖金）— ERP: --color-gold / --color-accent-light */
-  --yun-accent:   #C8A972;
-  /* 深色（active 文字/深色背景） */
-  --yun-dark:     #3A2A1A;
+/* ── 品牌色 Tailwind 映射（兼容旧类名） ── */
+.bg-yun-white   { background-color: var(--yun-paper-warm); }
+.bg-yun-bg      { background-color: var(--yun-paper); }
+.bg-yun-dark    { background-color: var(--yun-ink); }
+.bg-yun-accent  { background-color: var(--yun-earth); }
+
+.text-yun-text    { color: var(--yun-ink); }
+.text-yun-accent  { color: var(--yun-earth); }
+.text-yun-subtext { color: var(--yun-ink-muted); }
+.text-yun-muted   { color: var(--yun-ink-faded); }
+
+.border-yun       { border-color: var(--yun-border-medium); }
+.border-yun-line  { border-color: var(--yun-border-medium); }
+
+/* ── Vessel 系统（替代 Card） ── */
+/* Task 03：作品容器 */
+.yun-vessel {
+  border-top: 1px solid var(--yun-border);
+  border-left: none;
+  border-right: none;
+  border-bottom: none;
+  border-radius: var(--yun-radius);
+  background: transparent;
+  padding: var(--yun-space-8) 0;
+  transition: color var(--yun-duration-read) var(--yun-ease-gentle),
+              opacity var(--yun-duration-read) var(--yun-ease-gentle);
 }
 
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
+.yun-vessel:hover {
+  /* Task 04：仅允许颜色/透明度变化 */
 }
 
-body {
-  font-family: 'Noto Serif SC', 'Source Han Serif SC', 'STSong', 'SimSun', serif;
-  color: var(--yun-text);
-  background-color: var(--yun-bg);
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  line-height: 1.8;
-  letter-spacing: 0.02em;
+.yun-vessel-title {
+  font-family: var(--yun-font-serif);
+  font-weight: var(--yun-weight-normal);
+  color: var(--yun-ink);
+  transition: color var(--yun-duration-read) var(--yun-ease-gentle);
 }
 
-/* ── 品牌色工具类 ── */
-.bg-yun-white   { background-color: var(--yun-white); }
-.bg-yun-bg      { background-color: var(--yun-bg); }
-.bg-yun-dark    { background-color: var(--yun-dark); }
-.bg-yun-accent  { background-color: var(--yun-accent); }
-
-.text-yun-text    { color: var(--yun-text); }
-.text-yun-accent  { color: var(--yun-accent); }
-.text-yun-subtext { color: var(--yun-subtext); }
-.text-yun-muted  { color: var(--yun-muted); }
-
-.border-yun       { border-color: var(--yun-line); }
-.border-yun-line  { border-color: var(--yun-line); }
-
-/* ── 按钮 ── */
-.btn-primary {
-  background-color: var(--yun-dark);
-  color: var(--yun-white);
-  border: none;
-  padding: 0.5rem 1.25rem;
-  border-radius: 0.25rem;
-  font-size: 0.875rem;
-  cursor: pointer;
-  transition: opacity 0.2s;
+.yun-vessel:hover .yun-vessel-title {
+  color: var(--yun-earth);
 }
-.btn-primary:hover { opacity: 0.85; }
 
-.btn-outline {
-  background-color: transparent;
-  color: var(--yun-text);
-  border: 1px solid var(--yun-line);
-  padding: 0.5rem 1.25rem;
-  border-radius: 0.25rem;
-  font-size: 0.875rem;
-  cursor: pointer;
-  transition: border-color 0.2s;
+/* ── 器物履历 ── */
+.yun-provenance {
+  border-top: 1px solid var(--yun-border-strong);
+  padding: var(--yun-space-8) 0 var(--yun-space-6);
 }
-.btn-outline:hover { border-color: var(--yun-accent); }
 
-/* ── 表单 ── */
-input[type="text"],
-input[type="email"],
-input[type="password"],
-input[type="number"],
-textarea,
-select {
-  font-family: inherit;
-  font-size: 0.875rem;
-  padding: 0.5rem 0.75rem;
-  border: 1px solid var(--yun-line);
-  border-radius: 0.25rem;
-  color: var(--yun-text);
-  background: var(--yun-white);
-  outline: none;
-  transition: border-color 0.2s;
+.yun-provenance-row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--yun-space-4);
+  padding: var(--yun-space-2) 0;
+  border-top: 1px solid var(--yun-border);
 }
-input:focus, textarea:focus, select:focus {
-  border-color: var(--yun-accent);
+
+.yun-provenance-key {
+  font-size: var(--yun-text-note);
+  color: var(--yun-ink-faded);
+  letter-spacing: var(--yun-spacing-caption);
+  min-width: 60px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.yun-provenance-val {
+  font-size: var(--yun-text-caption);
+  color: var(--yun-ink-muted);
+}
+
+/* ── 时间性 UI ── */
+.yun-temporal {
+  font-size: var(--yun-text-note);
+  color: var(--yun-ink-faded);
+  letter-spacing: var(--yun-spacing-caption);
+  border-top: 1px solid var(--yun-border-medium);
+  padding-top: var(--yun-space-3);
+}
+
+/* ── Container ── */
+.container-brand {
+  width: 100%;
+  max-width: 1024px;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: var(--yun-space-4);
+  padding-right: var(--yun-space-4);
+}
+
+@media (min-width: 1024px) {
+  .container-brand {
+    padding-left: var(--yun-space-8);
+    padding-right: var(--yun-space-8);
+  }
 }

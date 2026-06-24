@@ -37,11 +37,11 @@ function Navbar() {
   ];
 
   return (
-    <nav className="fixed top-0 left-0 right-0 z-50 bg-yun-white/95 backdrop-blur-sm border-b border-yun">
+    <nav className="fixed top-0 left-0 right-0 z-50 bg-[rgba(248,245,238,0.96)] border-b border-[var(--yun-border)]">
       <div className="container-brand flex items-center justify-between h-16">
         <Link href="/" className="flex items-center gap-3 group">
           <img src="/logo-icon.png" alt="允物" className="h-8 w-auto opacity-90 group-hover:opacity-100 transition-opacity" />
-          <span className="text-2xl font-light tracking-[0.25em] text-yun-text">允物</span>
+          <span className="text-2xl font-light tracking-[0.25em] text-[var(--yun-ink)]">允物</span>
         </Link>
 
         <div className="hidden md:flex items-center gap-10">
@@ -49,16 +49,16 @@ function Navbar() {
             <Link
               key={l.href}
               href={l.href}
-              className="text-sm text-yun-text/70 hover:text-yun-text tracking-wider transition-colors"
+              className="text-sm text-[var(--yun-ink-muted)] hover:text-[var(--yun-ink)] tracking-wider transition-colors"
             >
               {l.label}
             </Link>
           ))}
         </div>
 
-        {/* 移动端汉堡菜单占位 */}
+        {/* 移动端汉堡菜单 */}
         <div className="md:hidden flex items-center">
-          <button className="text-yun-text/70 hover:text-yun-text transition-colors">
+          <button className="text-[var(--yun-ink-muted)] hover:text-[var(--yun-ink)] transition-colors">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
               <path d="M3 12h18M3 6h18M3 18h18" />
             </svg>

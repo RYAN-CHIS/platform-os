@@ -18,12 +18,13 @@ type ButtonAsLink = ButtonBaseProps &
 
 type ButtonProps = ButtonAsButton | ButtonAsLink;
 
+/* V2.1：2px 圆角（器物边缘），hover 仅颜色/透明度变化 */
 const variantClasses: Record<ButtonVariant, string> = {
   primary:
-    'bg-[var(--yun-ink)] text-[var(--yun-paper)] border border-[var(--yun-ink)] hover:bg-[var(--yun-jade)] hover:border-[var(--yun-jade)]',
+    'bg-[var(--yun-ink)] text-[var(--yun-paper)] border-none hover:bg-[var(--yun-ink-light)]',
   ghost:
-    'bg-transparent text-[var(--yun-ink)] border border-[var(--yun-ink)] hover:bg-[var(--yun-ink)] hover:text-[var(--yun-paper)]',
-  text: 'bg-transparent text-[var(--yun-ink)] border border-transparent hover:text-[var(--yun-jade)]',
+    'bg-transparent text-[var(--yun-ink-muted)] border border-[var(--yun-earth-faded)] hover:text-[var(--yun-earth)] hover:border-[var(--yun-earth)]',
+  text: 'bg-transparent text-[var(--yun-ink-muted)] border-none hover:text-[var(--yun-earth)]',
 };
 
 const sizeClasses: Record<string, string> = {
@@ -32,8 +33,9 @@ const sizeClasses: Record<string, string> = {
   lg: 'px-10 py-4 text-lg',
 };
 
+/* V2.1：border-radius 2px，禁止 translateY/shadow/scale */
 const baseClasses =
-  'inline-flex items-center justify-center gap-2 rounded-full font-serif font-light tracking-[0.05em] transition-all duration-300 cursor-pointer no-underline whitespace-nowrap';
+  'inline-flex items-center justify-center gap-2 rounded-[var(--yun-radius)] font-serif font-normal tracking-[0.05em] transition-colors duration-[280ms] ease-[var(--yun-ease-gentle)] cursor-pointer no-underline whitespace-nowrap';
 
 export default function Button({
   variant = 'primary',

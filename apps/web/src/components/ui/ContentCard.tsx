@@ -33,9 +33,9 @@ export default function ContentCard({
   return (
     <Link
       href={`/journal/${slug}`}
-      className={`group block rounded-[var(--yun-radius)] overflow-hidden bg-[var(--yun-paper)] border border-[var(--yun-border)]/30 transition-all duration-300 hover:-translate-y-1 hover:shadow-[var(--yun-shadow-hover)] ${className}`}
+      className={`yun-vessel group block ${className}`}
     >
-      {/* 封面图 */}
+      {/* 封面图 — Vessel 无圆角 */}
       {coverImage && (
         <div className="relative aspect-[16/10] overflow-hidden">
           <Image
@@ -43,37 +43,39 @@ export default function ContentCard({
             alt={title}
             fill
             sizes="(max-width: 640px) 100vw, 50vw"
-            className="object-cover transition-transform duration-700 group-hover:scale-105"
+            className="object-cover"
+            style={{ filter: 'saturate(0.85)' }}
+            /* 禁止：scale transform on hover */
           />
         </div>
       )}
 
-      {/* 信息区 */}
-      <div className="p-6 space-y-3">
+      {/* 信息区 — Vessel 样式 */}
+      <div className="space-y-3" style={{ padding: 'var(--yun-space-6) 0' }}>
         <div className="flex items-center gap-3">
           {categoryLabel && (
-            <span className="inline-block px-3 py-0.5 text-xs tracking-[0.1em] text-[var(--yun-jade)] bg-[var(--yun-jade)]/5 rounded-full">
+            <span className="inline-block px-3 py-0.5 text-xs tracking-[var(--yun-spacing-caption)] text-[var(--yun-earth)]" style={{ border: '1px solid var(--yun-border-medium)', borderRadius: 'var(--yun-radius)' }}>
               {categoryLabel}
             </span>
           )}
           {dateStr && (
-            <span className="text-xs text-[var(--yun-gray)] tracking-[0.05em]">
+            <span className="text-xs text-[var(--yun-ink-faded)] tracking-[0.05em]">
               {dateStr}
             </span>
           )}
         </div>
 
-        <h3 className="text-lg font-serif font-light tracking-[0.06em] text-[var(--yun-ink)] leading-snug group-hover:text-[var(--yun-jade)] transition-colors">
+        <h3 className="yun-vessel-title text-lg tracking-wider leading-snug">
           {title}
         </h3>
 
         {excerpt && (
-          <p className="text-sm text-[var(--yun-gray)] leading-relaxed line-clamp-2">
+          <p className="text-sm text-[var(--yun-ink-muted)] leading-relaxed line-clamp-2">
             {excerpt}
           </p>
         )}
 
-        <span className="inline-block text-xs tracking-[0.1em] text-[var(--yun-ink)]/50 group-hover:text-[var(--yun-jade)] transition-colors">
+        <span className="inline-block text-xs tracking-[var(--yun-spacing-caption)] text-[var(--yun-ink-faded)] group-hover:text-[var(--yun-earth)] transition-colors">
           阅读全文 →
         </span>
       </div>
