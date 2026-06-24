@@ -97,6 +97,8 @@ export default function PlatformSidebar() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
+  // Track manual collapses separately from auto-expand (for route-based auto-open)
+  const [manuallyCollapsed, setManuallyCollapsed] = useState<Set<string>>(new Set());
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
 
@@ -144,8 +146,15 @@ export default function PlatformSidebar() {
   const toggleSection = (key: string) => {
     setExpandedSections((prev) => {
       const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
+      if (next.has(key)) {
+        next.delete(key);
+        // Track that user manually collapsed this section
+        setManuallyCollapsed((mc) => new Set(mc).add(key));
+      } else {
+        next.add(key);
+        // User explicitly opened, clear manual collapse flag
+        setManuallyCollapsed((mc) => { const m = new Set(mc); m.delete(key); return m; });
+      }
       return next;
     });
   };
@@ -278,7 +287,14 @@ export default function PlatformSidebar() {
                   const hasChildren = item.children && item.children.length > 0;
                   const itemActive = !hasChildren && item.href ? isItemActive(item.href) : false;
                   const childActive = hasChildren && item.children!.some((c) => isItemActive(c.href));
-                  const showChildren = hasChildren && isExpanded && (expandedSections.has(item.key) || childActive);
+                  // If user manually collapsed this item, respect that — hide children even if a child is active
+                  const itemManuallyCollapsed = manuallyCollapsed.has(item.key);
+                  // Auto-expand when navigating to a child route (unless user previously collapsed)
+                  const shouldAutoExpand = childActive && !itemManuallyCollapsed;
+                  if (shouldAutoExpand && !expandedSections.has(item.key)) {
+                    expandedSections.add(item.key);
+                  }
+                  const showChildren = hasChildren && isExpanded && expandedSections.has(item.key);
 
                   // Get icon
                   const IconComponent = ICON_MAP[item.icon] || Layers;
