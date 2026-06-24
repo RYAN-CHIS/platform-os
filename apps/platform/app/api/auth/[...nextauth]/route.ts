@@ -39,6 +39,14 @@ const handler = NextAuth({
           return null;
         }
 
+        // Block deleted/disabled/inactive/suspended users
+        const blockedStatuses = ["deleted", "disabled", "inactive", "suspended"];
+        const userStatus = (user.status || "active").toLowerCase();
+        if (blockedStatuses.includes(userStatus)) {
+          try { await createAuthAudit({ action: "LOGIN_FAILED", email: credentials?.email as string, userId: user.id, reason: `user_${userStatus}` }); } catch {}
+          return null;
+        }
+
         const isValid = await bcrypt.compare(credentials.password, user.password);
         if (!isValid) {
           try { await createAuthAudit({ action: "LOGIN_FAILED", email: credentials?.email as string, userId: user.id, reason: "wrong_password" }); } catch {}
