@@ -7,20 +7,17 @@ import { useState, useTransition, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 export interface ActionBarProps {
-  /** 页面标识，用于 CSV 文件名 */
   module: string;
-  /** CSV 导出的列定义 */
   csvColumns: { key: string; label: string }[];
-  /** 当前表格数据（用于导出） */
   data: Record<string, unknown>[];
-  /** 搜索占位符 */
   searchPlaceholder?: string;
-  /** 搜索参数名（URL param） */
   searchParam?: string;
-  /** 新增弹窗内容（可选） */
   addModalContent?: React.ReactNode;
-  /** 筛选弹窗内容（可选） */
   filterModalContent?: React.ReactNode;
+  /** 外部新增处理函数 — 提供时替换默认「+ 新增」Modal */
+  onAdd?: () => void;
+  /** 新增按钮文案 */
+  addLabel?: string;
 }
 
 function exportToCsv(filename: string, columns: { key: string; label: string }[], rows: Record<string, unknown>[]) {
@@ -44,13 +41,10 @@ function exportToCsv(filename: string, columns: { key: string; label: string }[]
 }
 
 export function ActionBar({
-  module,
-  csvColumns,
-  data,
-  searchPlaceholder = "搜索...",
-  searchParam = "q",
-  addModalContent,
-  filterModalContent,
+  module, csvColumns, data,
+  searchPlaceholder = "搜索...", searchParam = "q",
+  addModalContent, filterModalContent,
+  onAdd, addLabel,
 }: ActionBarProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -157,24 +151,20 @@ export function ActionBar({
 
         {/* 新增按钮 */}
         <button
-          onClick={() => setAddOpen(true)}
+          onClick={() => onAdd ? onAdd() : setAddOpen(true)}
           style={btnStyle("primary")}
         >
-          + 新增
+          {addLabel || "+ 新增"}
         </button>
       </div>
 
-      {/* ── 新增 Modal ── */}
-      {addOpen && (
+      {/* ── 新增 Modal (only when onAdd not provided) ── */}
+      {!onAdd && addOpen && (
         <Modal title="新增" onClose={() => setAddOpen(false)}>
           {addModalContent || (
             <div style={{ padding: "24px 0", textAlign: "center" }}>
               <p style={{ fontSize: 32, marginBottom: 12 }}>🚧</p>
               <p style={{ fontWeight: 500, color: "#44403c", marginBottom: 8 }}>新增功能建设中</p>
-              <p style={{ fontSize: 13, color: "#a8a29e" }}>
-                保存逻辑将在下一工单（WO-P13A）接入。<br />
-                当前页面已接通数据库，数据真实展示。
-              </p>
             </div>
           )}
         </Modal>

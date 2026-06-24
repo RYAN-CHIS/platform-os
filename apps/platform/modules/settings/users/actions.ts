@@ -172,11 +172,11 @@ export async function createUser(input: CreateUserInput): Promise<ActionResult> 
       const existing = await tx.$queryRaw<{ id: number; status: string }[]>(Prisma.sql`
         SELECT id, COALESCE(status, ${ACTIVE_STATUS}) AS status
         FROM users
-        WHERE lower(email) = lower(${email})
+        WHERE lower(email) = lower(${email}) AND COALESCE(status, ${ACTIVE_STATUS}) <> ${DELETED_STATUS}
         LIMIT 1
       `);
       if (existing.length > 0) {
-        throw new Error(existing[0].status === DELETED_STATUS ? "邮箱已存在于已删除用户，请先恢复或更换邮箱" : "邮箱已存在");
+        throw new Error("邮箱已存在");
       }
 
       await tx.$executeRaw(Prisma.sql`
@@ -273,7 +273,8 @@ export async function deleteUser(id: number): Promise<ActionResult> {
 
       await tx.$executeRaw(Prisma.sql`
         UPDATE users
-        SET status = ${DELETED_STATUS},
+        SET email = CONCAT(email, ${"__deleted__" + new Date().toISOString().slice(0, 10)}),
+            status = ${DELETED_STATUS},
             reset_token = NULL,
             reset_token_expiry = NULL,
             updated_at = NOW()

@@ -110,15 +110,7 @@ export default function UsersClient({ initialUsers }: { initialUsers: UserRow[] 
     <div className="max-w-6xl mx-auto">
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-2xl font-light tracking-[0.1em] text-stone-800">用户管理</h1>
-        <div style={{display:"flex",alignItems:"center",gap:12}}>
-          <span className="text-sm text-stone-500">共 {users.length} 人</span>
-          <button
-            onClick={() => setModal({ type: "create" })}
-            style={{ height: 36, padding: "0 16px", borderRadius: 6, fontSize: 13, cursor: "pointer", background: "#1c1917", color: "#fff", border: "1px solid #1c1917", fontWeight: 400 }}
-          >
-            + 新增用户
-          </button>
-        </div>
+        <span className="text-sm text-stone-500">共 {users.length} 人</span>
       </div>
 
       {msg && (
@@ -133,6 +125,8 @@ export default function UsersClient({ initialUsers }: { initialUsers: UserRow[] 
         csvColumns={csvColumns}
         data={users.map(u => ({ ...u }))}
         searchPlaceholder="搜索用户（邮箱/姓名）..."
+        onAdd={() => setModal({ type: "create" })}
+        addLabel="+ 新增用户"
       />
 
       {/* Users Table */}
