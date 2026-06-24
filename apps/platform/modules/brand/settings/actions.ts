@@ -2,7 +2,7 @@
 
 import { prisma } from "@yunwu/db";
 import { createAuditLog } from "@/lib/audit";
-import { SETTING_SECTIONS } from "./config";
+import { SETTING_SECTIONS, BRAND_DEFAULTS } from "./config";
 
 export async function listSiteSettings() {
   try {
@@ -16,7 +16,7 @@ export async function listSiteSettings() {
       icon: section.icon,
       fields: section.keys.map(k => ({
         ...k,
-        value: valueMap.get(k.key) || "",
+        value: valueMap.get(k.key) || BRAND_DEFAULTS[k.key] || "",
       }))
     }));
 
@@ -26,7 +26,7 @@ export async function listSiteSettings() {
       key: sectionKey,
       label: section.label,
       icon: section.icon,
-      fields: section.keys.map(k => ({ ...k, value: "" }))
+      fields: section.keys.map(k => ({ ...k, value: BRAND_DEFAULTS[k.key] || "" }))
     }));
     return { sections, error: null };
   }
