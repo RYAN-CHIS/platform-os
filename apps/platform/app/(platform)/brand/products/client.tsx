@@ -6,7 +6,19 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ActionBar } from "@/components/ActionBar";
-import { CrudModal, ConfirmModal, FormField } from "@/components/BrandCrudModal";
+import { ConfirmModal } from "@/components/BrandCrudModal";
+import {
+  BrandFormModal,
+  BrandFormSection,
+  BrandFormRow,
+  BrandField,
+  BrandInput,
+  BrandTextarea,
+  BrandSelect,
+  BrandNumberInput,
+  BrandMediaPicker,
+  BrandFormFooter,
+} from "@/components/brand";
 import {
   createProduct,
   updateProduct,
@@ -26,34 +38,12 @@ import {
 } from "@/modules/brand/products/actions";
 import { toast } from "@/components/toast";
 
-const PRODUCT_FIELDS: FormField[] = [
-  { key: "sku", label: "SKU", type: "text", required: true, placeholder: "PROD-001" },
-  { key: "name", label: "名称", type: "text", required: true, placeholder: "产品名称" },
-  { key: "slug", label: "Slug", type: "text", required: true, placeholder: "product-slug" },
-  { key: "series_id", label: "系列 ID", type: "number", placeholder: "关联系列 ID" },
-  { key: "sale_price", label: "售价", type: "number", placeholder: "399" },
-  { key: "cost_price", label: "成本价", type: "number", placeholder: "0" },
-  { key: "cover_image", label: "封面图 URL", type: "text", placeholder: "/images/..." },
-  { key: "stock", label: "库存", type: "number", placeholder: "0" },
-  { key: "object_category", label: "器物分类", type: "select", options: [
-    { label: "手串 (BRACELET)", value: "BRACELET" },
-    { label: "挂件 (PENDANT)", value: "PENDANT" },
-    { label: "摆件 (ORNAMENT)", value: "ORNAMENT" },
-    { label: "配饰 (ACCESSORY)", value: "ACCESSORY" },
-    { label: "其他 (OTHER)", value: "OTHER" },
-  ]},
-  { key: "status", label: "状态", type: "select", options: [
-    { label: "草稿 (DRAFT)", value: "DRAFT" },
-    { label: "审核中 (IN_REVIEW)", value: "IN_REVIEW" },
-    { label: "已通过 (APPROVED)", value: "APPROVED" },
-    { label: "已定时 (SCHEDULED)", value: "SCHEDULED" },
-    { label: "已发布 (PUBLISHED)", value: "PUBLISHED" },
-    { label: "已下架 (UNPUBLISHED)", value: "UNPUBLISHED" },
-    { label: "已归档 (ARCHIVED)", value: "ARCHIVED" },
-    { label: "已驳回 (REJECTED)", value: "REJECTED" },
-  ]},
-  { key: "story", label: "故事/描述", type: "textarea", placeholder: "产品故事..." },
-  { key: "theme", label: "主题", type: "text", placeholder: "见己 / 留痕 / 栖居 / 随行 / 传藏" },
+const OBJECT_CATEGORIES = [
+  { label: "手串", value: "BRACELET" },
+  { label: "挂件", value: "PENDANT" },
+  { label: "摆件", value: "ORNAMENT" },
+  { label: "配饰", value: "ACCESSORY" },
+  { label: "其他", value: "OTHER" },
 ];
 
 const CSV_COLUMNS = [
@@ -90,60 +80,147 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-// ── Add Form ──
-function AddProductForm({ onSuccess }: { onSuccess: () => void }) {
-  const [form, setForm] = useState<Record<string, unknown>>(() => {
-    const init: Record<string, unknown> = {};
-    PRODUCT_FIELDS.forEach((f) => { init[f.key] = f.defaultValue ?? ""; });
-    return init;
-  });
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const router = useRouter();
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setError("");
-    setLoading(true);
-    const r = await createProduct(form);
-    setLoading(false);
-    if (r.error) { setError(r.error); return; }
-    onSuccess();
-    router.refresh();
-  }
-
-  function setField(k: string, v: unknown) { setForm((p) => ({ ...p, [k]: v })); }
-
+// ── Product Form Content (shared by add & edit) ──
+function ProductFormContent({
+  form, setField, errors,
+}: {
+  form: Record<string, unknown>;
+  setField: (k: string, v: unknown) => void;
+  errors: Record<string, string>;
+}) {
   return (
-    <form onSubmit={handleSubmit} style={{ padding: "4px 0" }}>
-      {PRODUCT_FIELDS.map((f) => (
-        <div key={f.key} style={{ marginBottom: 12 }}>
-          <label style={{ display: "block", fontSize: 13, color: "#57534e", marginBottom: 4 }}>
-            {f.label}{f.required && <span style={{ color: "#dc2626" }}> *</span>}
-          </label>
-          {f.type === "textarea" ? (
-            <textarea value={String(form[f.key] ?? "")} onChange={(e) => setField(f.key, e.target.value)}
-              placeholder={f.placeholder} required={f.required} rows={3} style={inputStyle} />
-          ) : f.type === "select" && f.options ? (
-            <select value={String(form[f.key] ?? f.options[0].value)} onChange={(e) => setField(f.key, e.target.value)} style={inputStyle}>
-              {f.options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-            </select>
-          ) : (
-            <input type={f.type === "number" ? "number" : "text"} value={String(form[f.key] ?? "")}
-              onChange={(e) => setField(f.key, f.type === "number" ? Number(e.target.value) : e.target.value)}
-              placeholder={f.placeholder} required={f.required} step={f.type === "number" ? "0.01" : undefined} style={inputStyle} />
-          )}
-        </div>
-      ))}
-      {error && <div style={{ padding: "8px 12px", background: "#fef2f2", borderRadius: 6, marginBottom: 12, fontSize: 13, color: "#dc2626" }}>{error}</div>}
-      <button type="submit" disabled={loading} style={{ height: 36, padding: "0 16px", borderRadius: 6, fontSize: 13, cursor: "pointer", background: "#1c1917", color: "#fff", border: "1px solid #1c1917" }}>
-        {loading ? "创建中…" : "创建"}
-      </button>
-    </form>
+    <>
+      {/* 基础信息 */}
+      <BrandFormSection title="基础信息" description="产品核心标识与分类">
+        <BrandField label="SKU" required error={errors.sku}>
+          <BrandInput value={String(form.sku ?? "")} onChange={(e) => setField("sku", e.target.value)} placeholder="PROD-001" />
+        </BrandField>
+        <BrandField label="名称" required error={errors.name}>
+          <BrandInput value={String(form.name ?? "")} onChange={(e) => setField("name", e.target.value)} placeholder="产品名称" />
+        </BrandField>
+        <BrandField label="Slug" required error={errors.slug}>
+          <BrandInput value={String(form.slug ?? "")} onChange={(e) => setField("slug", e.target.value)} placeholder="product-slug" />
+        </BrandField>
+        <BrandField label="器物分类">
+          <BrandSelect value={String(form.object_category ?? "BRACELET")} onChange={(e) => setField("object_category", e.target.value)} options={OBJECT_CATEGORIES} />
+        </BrandField>
+        <BrandField label="主题">
+          <BrandInput value={String(form.theme ?? "")} onChange={(e) => setField("theme", e.target.value)} placeholder="见己 / 留痕 / 栖居 / 随行 / 传藏" />
+        </BrandField>
+        <BrandField label="系列 ID">
+          <BrandNumberInput value={String(form.series_id ?? "")} onChange={(e) => setField("series_id", e.target.value ? Number(e.target.value) : "")} placeholder="关联系列 ID" />
+        </BrandField>
+      </BrandFormSection>
+
+      {/* 价格库存 */}
+      <BrandFormSection title="价格与库存" description="定价与库存管理">
+        <BrandField label="售价">
+          <BrandNumberInput value={String(form.sale_price ?? "")} onChange={(e) => setField("sale_price", e.target.value ? Number(e.target.value) : 0)} placeholder="399" />
+        </BrandField>
+        <BrandField label="成本价">
+          <BrandNumberInput value={String(form.cost_price ?? "")} onChange={(e) => setField("cost_price", e.target.value ? Number(e.target.value) : 0)} placeholder="0" />
+        </BrandField>
+        <BrandField label="库存">
+          <BrandNumberInput value={String(form.stock ?? "")} onChange={(e) => setField("stock", e.target.value ? Number(e.target.value) : 0)} placeholder="0" />
+        </BrandField>
+      </BrandFormSection>
+
+      {/* 图片媒体 */}
+      <BrandFormSection title="图片媒体" description="产品封面与展示图片">
+        <BrandFormRow>
+          <BrandField label="封面图">
+            <BrandMediaPicker value={String(form.cover_image ?? "")} onChange={(v) => setField("cover_image", v)} />
+          </BrandField>
+        </BrandFormRow>
+      </BrandFormSection>
+
+      {/* 产品故事 */}
+      <BrandFormSection title="产品故事" description="品牌文化与作品寓意">
+        <BrandFormRow>
+          <BrandField label="故事/描述">
+            <BrandTextarea value={String(form.story ?? "")} onChange={(e) => setField("story", e.target.value)} placeholder="产品故事..." rows={4} />
+          </BrandField>
+        </BrandFormRow>
+      </BrandFormSection>
+
+      {/* SEO */}
+      <BrandFormSection title="SEO 信息" description="搜索引擎优化">
+        <BrandField label="状态">
+          <BrandSelect value={String(form.status ?? "DRAFT")} onChange={(e) => setField("status", e.target.value)} options={[
+            { label: "草稿", value: "DRAFT" },
+            { label: "审核中", value: "IN_REVIEW" },
+            { label: "已通过", value: "APPROVED" },
+            { label: "已定时", value: "SCHEDULED" },
+            { label: "已发布", value: "PUBLISHED" },
+            { label: "已下架", value: "UNPUBLISHED" },
+            { label: "已归档", value: "ARCHIVED" },
+            { label: "已驳回", value: "REJECTED" },
+          ]} />
+        </BrandField>
+      </BrandFormSection>
+    </>
   );
 }
 
-const inputStyle: React.CSSProperties = { width: "100%", padding: "6px 10px", border: "1px solid #e7e5e4", borderRadius: 6, fontSize: 13, outline: "none", background: "#fff", boxSizing: "border-box", fontFamily: "inherit" };
+// ── Unified Product Modal (add & edit) ──
+function ProductFormModal({
+  mode, initialData, onClose,
+}: {
+  mode: "add" | "edit";
+  initialData?: Record<string, unknown>;
+  onClose: () => void;
+}) {
+  const [form, setForm] = useState<Record<string, unknown>>(() => ({
+    sku: initialData?.sku ?? "", name: initialData?.name ?? "", slug: initialData?.slug ?? "",
+    series_id: initialData?.series_id ?? "", sale_price: initialData?.sale_price ?? 0,
+    cost_price: initialData?.cost_price ?? 0, cover_image: initialData?.cover_image ?? "",
+    stock: initialData?.stock ?? 0, object_category: initialData?.object_category ?? "BRACELET",
+    status: initialData?.status ?? "DRAFT", story: initialData?.story ?? "", theme: initialData?.theme ?? "",
+  }));
+  const [saving, setSaving] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const router = useRouter();
+
+  function setField(k: string, v: unknown) { setForm((p) => ({ ...p, [k]: v })); }
+
+  const handleSave = async () => {
+    const newErrors: Record<string, string> = {};
+    if (!form.sku) newErrors.sku = "请输入 SKU";
+    if (!form.name) newErrors.name = "请输入名称";
+    if (!form.slug) newErrors.slug = "请输入 Slug";
+    if (Object.keys(newErrors).length > 0) { setErrors(newErrors); return; }
+    setErrors({});
+    setSaving(true);
+    const id = initialData?.id as number | undefined;
+    const r = id
+      ? await updateProduct(id, form)
+      : await createProduct(form);
+    setSaving(false);
+    if (r.error) { toast({ message: r.error, type: "error" }); return; }
+    toast({ message: id ? "已保存" : "已创建", type: "success" });
+    onClose();
+    router.refresh();
+  };
+
+  return (
+    <BrandFormModal
+      open
+      title={mode === "add" ? "新增产品" : "编辑产品"}
+      onClose={onClose}
+      width={960}
+      footer={
+        <BrandFormFooter
+          onCancel={onClose}
+          onSave={handleSave}
+          saving={saving}
+          saveLabel={mode === "add" ? "创建" : "保存"}
+        />
+      }
+    >
+      <ProductFormContent form={form} setField={setField} errors={errors} />
+    </BrandFormModal>
+  );
+}
 
 // ── Workflow action buttons per status ──
 function WorkflowButtons({ row, onRefresh }: { row: any; onRefresh: () => void }) {
@@ -239,7 +316,7 @@ export function BrandProductsClient({ rows, error: serverError, searchQ }: {
   rows: any[]; error: string | null; searchQ: string;
 }) {
   const router = useRouter();
-  const [addRefreshKey, setAddRefreshKey] = useState(0);
+  const [showAddModal, setShowAddModal] = useState(false);
   const [editRow, setEditRow] = useState<any>(null);
   const [deleteRow, setDeleteRow] = useState<any>(null);
 
@@ -252,12 +329,6 @@ export function BrandProductsClient({ rows, error: serverError, searchQ }: {
   const [scheduleLoading, setScheduleLoading] = useState(false);
 
   function refresh() { router.refresh(); }
-
-  async function handleUpdate(id: number, data: Record<string, unknown>) {
-    const r = await updateProduct(id, data);
-    if (!r.error) { setEditRow(null); refresh(); }
-    return r;
-  }
 
   async function handleDelete() {
     if (!deleteRow) return;
@@ -322,7 +393,8 @@ export function BrandProductsClient({ rows, error: serverError, searchQ }: {
         data={rows || []}
         searchPlaceholder="搜索产品名称或 SKU..."
         searchParam="q"
-        addModalContent={<AddProductForm key={addRefreshKey} onSuccess={() => setAddRefreshKey((k) => k + 1)} />}
+        addLabel="+ 新增产品"
+        onAdd={() => setShowAddModal(true)}
       />
 
       {serverError && <div style={{ padding: 12, background: "#fef2f2", borderRadius: 6, marginBottom: 16, fontSize: 13, color: "#dc2626" }}>{serverError}</div>}
@@ -381,18 +453,16 @@ export function BrandProductsClient({ rows, error: serverError, searchQ }: {
         </div>
       )}
 
+      {/* Add Modal */}
+      {showAddModal && <ProductFormModal mode="add" onClose={() => setShowAddModal(false)} />}
+
       {/* Edit Modal */}
       {editRow && (
-        <CrudModal mode="edit" title="编辑产品" fields={PRODUCT_FIELDS}
-          initialData={{
-            sku: editRow.sku, name: editRow.name, slug: editRow.slug,
-            series_id: editRow.series_id ?? "", sale_price: String(editRow.sale_price ?? 0),
-            cost_price: String(editRow.cost_price ?? 0), cover_image: editRow.cover_image ?? "",
-            stock: String(editRow.stock ?? 0), object_category: editRow.object_category ?? "BRACELET",
-            status: editRow.status ?? "DRAFT", story: editRow.story ?? "", theme: editRow.theme ?? "",
-          }}
-          onSubmit={(data) => handleUpdate(editRow.id, data)}
-          onClose={() => setEditRow(null)} />
+        <ProductFormModal
+          mode="edit"
+          initialData={{ ...editRow, id: editRow.id }}
+          onClose={() => setEditRow(null)}
+        />
       )}
 
       {/* Delete Confirm Modal */}

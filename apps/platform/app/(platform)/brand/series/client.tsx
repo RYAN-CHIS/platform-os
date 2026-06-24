@@ -5,7 +5,20 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { ActionBar } from "@/components/ActionBar";
-import { CrudModal, ConfirmModal, FormField } from "@/components/BrandCrudModal";
+import { ConfirmModal } from "@/components/BrandCrudModal";
+import {
+  BrandFormModal,
+  BrandFormSection,
+  BrandFormRow,
+  BrandField,
+  BrandInput,
+  BrandTextarea,
+  BrandSelect,
+  BrandNumberInput,
+  BrandMediaPicker,
+  BrandFormFooter,
+} from "@/components/brand";
+import { toast } from "@/components/toast";
 import {
   createSeries,
   updateSeries,
@@ -22,18 +35,6 @@ import {
   rollbackSeries,
   getSeriesPreviewToken,
 } from "@/modules/brand/series/actions";
-
-const SERIES_FIELDS: FormField[] = [
-  { key: "name", label: "系列名称", type: "text", required: true, placeholder: "见己" },
-  { key: "slug", label: "Slug", type: "text", required: true, placeholder: "jian-ji" },
-  { key: "description", label: "简述", type: "text", required: true, placeholder: "一段简介..." },
-  { key: "coverImage", label: "封面图 URL", type: "text", placeholder: "/images/series/..." },
-  { key: "heroText", label: "Hero 文案", type: "text", placeholder: "主标题文案" },
-  { key: "short_desc", label: "短描述", type: "textarea", placeholder: "用于卡片展示的简短描述..." },
-  { key: "long_desc", label: "长描述", type: "textarea", placeholder: "详情页长描述..." },
-  { key: "sort_order", label: "排序权重", type: "number", placeholder: "0" },
-  { key: "is_active", label: "启用状态", type: "select", options: [{ label: "启用", value: "true" }, { label: "禁用", value: "false" }], defaultValue: "true" },
-];
 
 const CSV_COLUMNS = [
   { key: "name", label: "系列名称" },
@@ -373,47 +374,95 @@ function RejectDialog({ id, name, onClose, onRejected }: {
   );
 }
 
-// ── Add Series Form ──
+// ── Series Form Content (shared by add & edit) ──
+function SeriesFormContent({ form, setField, errors }: {
+  form: Record<string, unknown>; setField: (k: string, v: unknown) => void; errors: Record<string, string>;
+}) {
+  return (
+    <>
+      <BrandFormSection title="系列名称" description="系列核心信息">
+        <BrandField label="系列名称" required error={errors.name}>
+          <BrandInput value={String(form.name ?? "")} onChange={(e) => setField("name", e.target.value)} placeholder="见己" />
+        </BrandField>
+        <BrandField label="系列编码 (Slug)" required error={errors.slug}>
+          <BrandInput value={String(form.slug ?? "")} onChange={(e) => setField("slug", e.target.value)} placeholder="jian-ji" />
+        </BrandField>
+        <BrandField label="简述" required error={errors.description}>
+          <BrandInput value={String(form.description ?? "")} onChange={(e) => setField("description", e.target.value)} placeholder="一段简介..." />
+        </BrandField>
+        <BrandField label="Hero 文案">
+          <BrandInput value={String(form.heroText ?? "")} onChange={(e) => setField("heroText", e.target.value)} placeholder="主标题文案" />
+        </BrandField>
+        <BrandField label="排序权重">
+          <BrandNumberInput value={String(form.sort_order ?? "0")} onChange={(e) => setField("sort_order", Number(e.target.value))} placeholder="0" />
+        </BrandField>
+        <BrandField label="启用状态">
+          <BrandSelect value={String(form.is_active ?? "true")} onChange={(e) => setField("is_active", e.target.value)} options={[{ label: "启用", value: "true" }, { label: "禁用", value: "false" }]} />
+        </BrandField>
+      </BrandFormSection>
 
-function AddSeriesForm({ onSuccess }: { onSuccess: () => void }) {
-  const [form, setForm] = useState<Record<string, unknown>>(() => {
-    const init: Record<string, unknown> = {};
-    SERIES_FIELDS.forEach((f) => { init[f.key] = f.defaultValue ?? ""; });
-    return init;
-  });
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+      <BrandFormSection title="系列故事" description="品牌文化与系列叙事">
+        <BrandField label="短描述">
+          <BrandTextarea value={String(form.short_desc ?? "")} onChange={(e) => setField("short_desc", e.target.value)} placeholder="用于卡片展示的简短描述..." rows={3} />
+        </BrandField>
+        <BrandFormRow>
+          <BrandField label="长描述">
+            <BrandTextarea value={String(form.long_desc ?? "")} onChange={(e) => setField("long_desc", e.target.value)} placeholder="详情页长描述..." rows={4} />
+          </BrandField>
+        </BrandFormRow>
+      </BrandFormSection>
+
+      <BrandFormSection title="封面图" description="系列展示封面">
+        <BrandFormRow>
+          <BrandField label="封面图">
+            <BrandMediaPicker value={String(form.coverImage ?? "")} onChange={(v) => setField("coverImage", v)} />
+          </BrandField>
+        </BrandFormRow>
+      </BrandFormSection>
+    </>
+  );
+}
+
+// ── Unified Series Modal (add & edit) ──
+function SeriesFormModal({ mode, initialData, onClose }: {
+  mode: "add" | "edit"; initialData?: Record<string, unknown>; onClose: () => void;
+}) {
+  const [form, setForm] = useState<Record<string, unknown>>(() => ({
+    name: initialData?.name ?? "", slug: initialData?.slug ?? "",
+    description: initialData?.description ?? "", coverImage: initialData?.coverImage ?? "",
+    heroText: initialData?.heroText ?? "", short_desc: initialData?.short_desc ?? "",
+    long_desc: initialData?.long_desc ?? "", sort_order: initialData?.sort_order ?? 0,
+    is_active: initialData?.is_active ?? "true",
+  }));
+  const [saving, setSaving] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
   const router = useRouter();
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setError(""); setLoading(true);
-    const r = await createSeries(form);
-    setLoading(false);
-    if (r.error) { setError(r.error); return; }
-    onSuccess(); router.refresh();
-  }
   function setField(k: string, v: unknown) { setForm((p) => ({ ...p, [k]: v })); }
 
+  const handleSave = async () => {
+    const newErrors: Record<string, string> = {};
+    if (!form.name) newErrors.name = "请输入系列名称";
+    if (!form.slug) newErrors.slug = "请输入 Slug";
+    if (!form.description) newErrors.description = "请输入简述";
+    if (Object.keys(newErrors).length > 0) { setErrors(newErrors); return; }
+    setErrors({});
+    setSaving(true);
+    const id = initialData?.id as number | undefined;
+    const r = id ? await updateSeries(id, form) : await createSeries(form);
+    setSaving(false);
+    if (r.error) { toast({ message: r.error, type: "error" }); return; }
+    toast({ message: id ? "已保存" : "已创建", type: "success" });
+    onClose();
+    router.refresh();
+  };
+
   return (
-    <form onSubmit={handleSubmit} style={{ padding: "4px 0" }}>
-      {SERIES_FIELDS.map((f) => (
-        <div key={f.key} style={{ marginBottom: 12 }}>
-          <label style={{ display: "block", fontSize: 13, color: "#57534e", marginBottom: 4 }}>{f.label}{f.required && <span style={{ color: "#dc2626" }}> *</span>}</label>
-          {f.type === "textarea" ? (
-            <textarea value={String(form[f.key] ?? "")} onChange={(e) => setField(f.key, e.target.value)} placeholder={f.placeholder} required={f.required} rows={3} style={inputStyle} />
-          ) : f.type === "select" && f.options ? (
-            <select value={String(form[f.key] ?? f.options[0].value)} onChange={(e) => setField(f.key, e.target.value)} style={inputStyle}>
-              {f.options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-            </select>
-          ) : (
-            <input type={f.type === "number" ? "number" : "text"} value={String(form[f.key] ?? "")} onChange={(e) => setField(f.key, f.type === "number" ? Number(e.target.value) : e.target.value)} placeholder={f.placeholder} required={f.required} style={inputStyle} />
-          )}
-        </div>
-      ))}
-      {error && <div style={{ padding: "8px 12px", background: "#fef2f2", borderRadius: 6, marginBottom: 12, fontSize: 13, color: "#dc2626" }}>{error}</div>}
-      <button type="submit" disabled={loading} style={{ height: 36, padding: "0 16px", borderRadius: 6, fontSize: 13, cursor: "pointer", background: "#1c1917", color: "#fff", border: "1px solid #1c1917" }}>{loading ? "创建中…" : "创建"}</button>
-    </form>
+    <BrandFormModal open title={mode === "add" ? "新增系列" : "编辑系列"} onClose={onClose} width={960}
+      footer={<BrandFormFooter onCancel={onClose} onSave={handleSave} saving={saving} saveLabel={mode === "add" ? "创建" : "保存"} />}
+    >
+      <SeriesFormContent form={form} setField={setField} errors={errors} />
+    </BrandFormModal>
   );
 }
 
@@ -421,7 +470,7 @@ function AddSeriesForm({ onSuccess }: { onSuccess: () => void }) {
 
 export function BrandSeriesClient({ rows, error: serverError, searchQ }: { rows: any[]; error: string | null; searchQ: string; }) {
   const router = useRouter();
-  const [addKey, setAddKey] = useState(0);
+  const [showAddModal, setShowAddModal] = useState(false);
   const [editRow, setEditRow] = useState<any>(null);
   const [deleteRow, setDeleteRow] = useState<any>(null);
   const [versionRow, setVersionRow] = useState<any>(null);
@@ -430,11 +479,6 @@ export function BrandSeriesClient({ rows, error: serverError, searchQ }: { rows:
   const [actionError, setActionError] = useState("");
   const [busyId, setBusyId] = useState<number | null>(null);
 
-  async function handleUpdate(id: number, data: Record<string, unknown>) {
-    const r = await updateSeries(id, data);
-    if (!r.error) { setEditRow(null); router.refresh(); }
-    return r;
-  }
   async function handleDelete() {
     if (!deleteRow) return;
     await deleteSeries(deleteRow.id);
@@ -501,7 +545,7 @@ export function BrandSeriesClient({ rows, error: serverError, searchQ }: { rows:
         <Kpi label="审核中" value={rows?.filter((r: any) => r.status === "IN_REVIEW").length || 0} />
       </div>
       <ActionBar module="brand-series" csvColumns={CSV_COLUMNS} data={rows || []} searchPlaceholder="搜索系列名称或 Slug..." searchParam="q"
-        addModalContent={<AddSeriesForm key={addKey} onSuccess={() => setAddKey((k) => k + 1)} />} />
+        addLabel="+ 新增系列" onAdd={() => setShowAddModal(true)} />
       {serverError && <div style={{ padding: 12, background: "#fef2f2", borderRadius: 6, marginBottom: 16, fontSize: 13, color: "#dc2626" }}>{serverError}</div>}
       {actionError && (
         <div style={{ padding: "10px 12px", background: "#fef2f2", borderRadius: 6, marginBottom: 16, fontSize: 13, color: "#dc2626", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -552,9 +596,8 @@ export function BrandSeriesClient({ rows, error: serverError, searchQ }: { rows:
       ) : (
         <div style={{ textAlign: "center", padding: "60px 20px", color: "#a8a29e" }}><div style={{ fontSize: 40, marginBottom: 12 }}>🌊</div><p style={{ fontSize: 15, color: "#57534e", marginBottom: 4 }}>暂无系列</p></div>
       )}
-      {editRow && <CrudModal mode="edit" title="编辑系列" fields={SERIES_FIELDS}
-        initialData={{ name: editRow.name || "", slug: editRow.slug || "", description: editRow.description || "", coverImage: editRow.coverImage || "", heroText: editRow.heroText || "", short_desc: editRow.short_desc || "", long_desc: editRow.long_desc || "", sort_order: String(editRow.sort_order ?? 0), is_active: (editRow.is_active === true || editRow.is_active === "true") ? "true" : "false" }}
-        onSubmit={(data) => handleUpdate(editRow.id, data)} onClose={() => setEditRow(null)} />}
+      {showAddModal && <SeriesFormModal mode="add" onClose={() => setShowAddModal(false)} />}
+      {editRow && <SeriesFormModal mode="edit" initialData={{ ...editRow, id: editRow.id }} onClose={() => setEditRow(null)} />}
       {deleteRow && <ConfirmModal title="删除系列" message={`确定要删除「${deleteRow.name}」吗？`} onConfirm={handleDelete} onClose={() => setDeleteRow(null)} />}
       {versionRow && (
         <VersionHistoryModal

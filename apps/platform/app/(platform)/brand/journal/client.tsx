@@ -5,7 +5,19 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ActionBar } from "@/components/ActionBar";
-import { CrudModal, ConfirmModal, FormField } from "@/components/BrandCrudModal";
+import { ConfirmModal } from "@/components/BrandCrudModal";
+import {
+  BrandFormModal,
+  BrandFormSection,
+  BrandFormRow,
+  BrandField,
+  BrandInput,
+  BrandTextarea,
+  BrandSelect,
+  BrandMediaPicker,
+  BrandFormFooter,
+} from "@/components/brand";
+import { toast } from "@/components/toast";
 import {
   createPost, updatePost, deletePost, togglePostStatus, movePost,
   submitPostForReview, approvePost, rejectPost, publishPostNow,
@@ -72,16 +84,12 @@ const WORKFLOW_ACTIONS: Record<string, { label: string; action: string; style?: 
   ],
 };
 
-const POST_FIELDS: FormField[] = [
-  { key: "title", label: "标题", type: "text", required: true, placeholder: "文章标题" },
-  { key: "slug", label: "Slug", type: "text", required: true, placeholder: "article-slug" },
-  { key: "category", label: "分类", type: "select", required: true, options: [{ label: "器物志", value: "ARTIFACT" }, { label: "品牌志", value: "BRAND" }, { label: "同行者说", value: "TRAVELER" }, { label: "工艺", value: "CRAFT" }, { label: "其他", value: "OTHER" }]},
-  { key: "excerpt", label: "摘要", type: "textarea", placeholder: "文章摘要..." },
-  { key: "content", label: "正文", type: "textarea", placeholder: "文章正文内容..." },
-  { key: "cover_image", label: "封面图 URL", type: "text", placeholder: "/images/journal/..." },
-  { key: "status", label: "发布状态", type: "select", options: ALL_STATUSES, defaultValue: "DRAFT" },
-  { key: "seo_title", label: "SEO 标题", type: "text", placeholder: "SEO 优化标题" },
-  { key: "seo_description", label: "SEO 描述", type: "textarea", placeholder: "SEO 优化描述..." },
+const CATEGORY_OPTIONS = [
+  { label: "器物志", value: "ARTIFACT" },
+  { label: "品牌志", value: "BRAND" },
+  { label: "同行者说", value: "TRAVELER" },
+  { label: "工艺", value: "CRAFT" },
+  { label: "其他", value: "OTHER" },
 ];
 
 const CSV_COLUMNS = [
@@ -89,11 +97,6 @@ const CSV_COLUMNS = [
   { key: "status", label: "状态" }, { key: "published_at", label: "发布日期" }, { key: "sort_order", label: "排序" },
 ];
 
-// ── Styles ──
-
-const inputStyle: React.CSSProperties = { width: "100%", padding: "6px 10px", border: "1px solid #e7e5e4", borderRadius: 6, fontSize: 13, outline: "none", background: "#fff", boxSizing: "border-box", fontFamily: "inherit" };
-const modalOverlay: React.CSSProperties = { position: "fixed", inset: 0, background: "rgba(0,0,0,0.3)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 };
-const modalBox: React.CSSProperties = { background: "#fff", borderRadius: 12, padding: 24, minWidth: 400, maxWidth: 600, maxHeight: "80vh", overflow: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.15)" };
 const wfBtnBase: React.CSSProperties = { padding: "2px 8px", borderRadius: 4, fontSize: 11, border: "1px solid #e7e5e4", cursor: "pointer", background: "#fff", color: "#44403c", fontFamily: "inherit", whiteSpace: "nowrap" };
 
 // ── Status Badge ──
@@ -234,44 +237,97 @@ function VersionHistoryModal({ row, onClose }: { row: any; onClose: () => void }
   );
 }
 
-// ── Add Post Form ──
-
-function AddPostForm({ onSuccess }: { onSuccess: () => void }) {
-  const [form, setForm] = useState<Record<string, unknown>>(() => {
-    const init: Record<string, unknown> = {};
-    POST_FIELDS.forEach((f) => { init[f.key] = f.defaultValue ?? ""; });
-    return init;
-  });
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const router = useRouter();
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault(); setError(""); setLoading(true);
-    const r = await createPost(form);
-    setLoading(false);
-    if (r.error) { setError(r.error); return; }
-    onSuccess(); router.refresh();
-  }
-  function setField(k: string, v: unknown) { setForm((p) => ({ ...p, [k]: v })); }
+// ── Journal Form Content (shared by add & edit) ──
+function PostFormContent({ form, setField, errors }: {
+  form: Record<string, unknown>; setField: (k: string, v: unknown) => void; errors: Record<string, string>;
+}) {
   return (
-    <form onSubmit={handleSubmit} style={{ padding: "4px 0" }}>
-      {POST_FIELDS.map((f) => (
-        <div key={f.key} style={{ marginBottom: 12 }}>
-          <label style={{ display: "block", fontSize: 13, color: "#57534e", marginBottom: 4 }}>{f.label}{f.required && <span style={{ color: "#dc2626" }}> *</span>}</label>
-          {f.type === "textarea" ? (
-            <textarea value={String(form[f.key] ?? "")} onChange={(e) => setField(f.key, e.target.value)} placeholder={f.placeholder} required={f.required} rows={3} style={inputStyle} />
-          ) : f.type === "select" && f.options ? (
-            <select value={String(form[f.key] ?? f.options[0].value)} onChange={(e) => setField(f.key, e.target.value)} style={inputStyle}>
-              {f.options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-            </select>
-          ) : (
-            <input type={f.type === "number" ? "number" : "text"} value={String(form[f.key] ?? "")} onChange={(e) => setField(f.key, f.type === "number" ? Number(e.target.value) : e.target.value)} placeholder={f.placeholder} required={f.required} style={inputStyle} />
-          )}
-        </div>
-      ))}
-      {error && <div style={{ padding: "8px 12px", background: "#fef2f2", borderRadius: 6, marginBottom: 12, fontSize: 13, color: "#dc2626" }}>{error}</div>}
-      <button type="submit" disabled={loading} style={{ height: 36, padding: "0 16px", borderRadius: 6, fontSize: 13, cursor: "pointer", background: "#1c1917", color: "#fff", border: "1px solid #1c1917" }}>{loading ? "创建中…" : "创建"}</button>
-    </form>
+    <>
+      <BrandFormSection title="基础信息" description="文章标题与分类">
+        <BrandField label="标题" required error={errors.title}>
+          <BrandInput value={String(form.title ?? "")} onChange={(e) => setField("title", e.target.value)} placeholder="文章标题" />
+        </BrandField>
+        <BrandField label="Slug" required error={errors.slug}>
+          <BrandInput value={String(form.slug ?? "")} onChange={(e) => setField("slug", e.target.value)} placeholder="article-slug" />
+        </BrandField>
+        <BrandField label="分类" required>
+          <BrandSelect value={String(form.category ?? "ARTIFACT")} onChange={(e) => setField("category", e.target.value)} options={CATEGORY_OPTIONS} />
+        </BrandField>
+      </BrandFormSection>
+
+      <BrandFormSection title="封面图" description="文章封面图片">
+        <BrandFormRow>
+          <BrandField label="封面图">
+            <BrandMediaPicker value={String(form.cover_image ?? "")} onChange={(v) => setField("cover_image", v)} />
+          </BrandField>
+        </BrandFormRow>
+      </BrandFormSection>
+
+      <BrandFormSection title="正文内容" description="文章主体">
+        <BrandField label="摘要">
+          <BrandTextarea value={String(form.excerpt ?? "")} onChange={(e) => setField("excerpt", e.target.value)} placeholder="文章摘要..." rows={3} />
+        </BrandField>
+        <BrandFormRow>
+          <BrandField label="正文">
+            <BrandTextarea value={String(form.content ?? "")} onChange={(e) => setField("content", e.target.value)} placeholder="文章正文内容..." rows={8} />
+          </BrandField>
+        </BrandFormRow>
+      </BrandFormSection>
+
+      <BrandFormSection title="SEO 信息" description="搜索引擎优化">
+        <BrandField label="SEO 标题">
+          <BrandInput value={String(form.seo_title ?? "")} onChange={(e) => setField("seo_title", e.target.value)} placeholder="SEO 优化标题" />
+        </BrandField>
+        <BrandFormRow>
+          <BrandField label="SEO 描述">
+            <BrandTextarea value={String(form.seo_description ?? "")} onChange={(e) => setField("seo_description", e.target.value)} placeholder="SEO 优化描述..." rows={3} />
+          </BrandField>
+        </BrandFormRow>
+      </BrandFormSection>
+    </>
+  );
+}
+
+// ── Unified Journal Modal (add & edit) ──
+function PostFormModal({ mode, initialData, onClose }: {
+  mode: "add" | "edit"; initialData?: Record<string, unknown>; onClose: () => void;
+}) {
+  const [form, setForm] = useState<Record<string, unknown>>(() => ({
+    title: initialData?.title ?? "", slug: initialData?.slug ?? "",
+    category: initialData?.category ?? "ARTIFACT", excerpt: initialData?.excerpt ?? "",
+    content: initialData?.content ?? "", cover_image: initialData?.cover_image ?? "",
+    status: initialData?.status ?? "DRAFT", seo_title: initialData?.seo_title ?? "",
+    seo_description: initialData?.seo_description ?? "",
+  }));
+  const [saving, setSaving] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const router = useRouter();
+
+  function setField(k: string, v: unknown) { setForm((p) => ({ ...p, [k]: v })); }
+
+  const handleSave = async () => {
+    const newErrors: Record<string, string> = {};
+    if (!form.title) newErrors.title = "请输入标题";
+    if (!form.slug) newErrors.slug = "请输入 Slug";
+    if (!form.category) newErrors.category = "请选择分类";
+    if (Object.keys(newErrors).length > 0) { setErrors(newErrors); return; }
+    setErrors({});
+    setSaving(true);
+    const id = initialData?.id as string | undefined;
+    const r = id ? await updatePost(id, form) : await createPost(form);
+    setSaving(false);
+    if (r.error) { toast({ message: r.error, type: "error" }); return; }
+    toast({ message: id ? "已保存" : "已创建", type: "success" });
+    onClose();
+    router.refresh();
+  };
+
+  return (
+    <BrandFormModal open title={mode === "add" ? "新增文章" : "编辑文章"} onClose={onClose} width={960}
+      footer={<BrandFormFooter onCancel={onClose} onSave={handleSave} saving={saving} saveLabel={mode === "add" ? "创建" : "保存"} />}
+    >
+      <PostFormContent form={form} setField={setField} errors={errors} />
+    </BrandFormModal>
   );
 }
 
@@ -315,7 +371,7 @@ function RejectDialog({ row, onClose, onSuccess }: { row: any; onClose: () => vo
 
 export function BrandJournalClient({ rows, error: serverError, searchQ }: { rows: any[]; error: string | null; searchQ: string; }) {
   const router = useRouter();
-  const [addKey, setAddKey] = useState(0);
+  const [showAddModal, setShowAddModal] = useState(false);
   const [editRow, setEditRow] = useState<any>(null);
   const [deleteRow, setDeleteRow] = useState<any>(null);
   const [scheduleRow, setScheduleRow] = useState<any>(null);
@@ -326,11 +382,6 @@ export function BrandJournalClient({ rows, error: serverError, searchQ }: { rows
   const [previewLoading, setPreviewLoading] = useState(false);
   const [actionError, setActionError] = useState("");
 
-  async function handleUpdate(cuid: string, data: Record<string, unknown>) {
-    const r = await updatePost(cuid, data);
-    if (!r.error) { setEditRow(null); router.refresh(); }
-    return r;
-  }
   async function handleDelete() { if (!deleteRow) return; await deletePost(deleteRow.id); setDeleteRow(null); router.refresh(); }
   async function handleMove(id: string, dir: "up" | "down") { await movePost(id, dir); router.refresh(); }
 
@@ -431,7 +482,7 @@ export function BrandJournalClient({ rows, error: serverError, searchQ }: { rows
       </div>
 
       <ActionBar module="brand-journal" csvColumns={CSV_COLUMNS} data={rows || []} searchPlaceholder="搜索文章标题或摘要..." searchParam="q"
-        addModalContent={<AddPostForm key={addKey} onSuccess={() => setAddKey((k) => k + 1)} />} />
+        addLabel="+ 新增文章" onAdd={() => setShowAddModal(true)} />
 
       {serverError && <div style={{ padding: 12, background: "#fef2f2", borderRadius: 6, marginBottom: 16, fontSize: 13, color: "#dc2626" }}>{serverError}</div>}
       {actionError && <div style={{ padding: 8, background: actionError.includes("已保存") ? "#f0fdf4" : "#fef2f2", borderRadius: 6, marginBottom: 12, fontSize: 13, color: actionError.includes("已保存") ? "#16a34a" : "#dc2626" }}>{actionError}</div>}
@@ -482,13 +533,8 @@ export function BrandJournalClient({ rows, error: serverError, searchQ }: { rows
       )}
 
       {/* Edit Modal */}
-      {editRow && <CrudModal mode="edit" title="编辑文章" fields={POST_FIELDS}
-        initialData={{
-          title: editRow.title || "", slug: editRow.slug || "", category: editRow.category || "BRAND",
-          excerpt: editRow.excerpt || "", content: editRow.content || "", cover_image: editRow.cover_image || "",
-          status: editRow.status || "DRAFT", seo_title: editRow.seo_title || "", seo_description: editRow.seo_description || "",
-        }}
-        onSubmit={(data) => handleUpdate(editRow.id, data)} onClose={() => setEditRow(null)} />}
+      {showAddModal && <PostFormModal mode="add" onClose={() => setShowAddModal(false)} />}
+      {editRow && <PostFormModal mode="edit" initialData={{ ...editRow, id: editRow.id }} onClose={() => setEditRow(null)} />}
 
       {/* Delete Confirm */}
       {deleteRow && <ConfirmModal title="删除文章" message={`确定要删除「${deleteRow.title}」吗？`} onConfirm={handleDelete} onClose={() => setDeleteRow(null)} />}
