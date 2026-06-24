@@ -13,19 +13,9 @@ import {
   toggleUserStatus,
   resetUserPassword,
 } from "@/modules/settings/users/actions";
+import { ROLE_OPTIONS, ROLE_COLORS, getRoleLabel } from "@/modules/settings/users/role-labels";
 
-const ROLE_OPTIONS = ["SUPER_ADMIN", "ERP_ADMIN", "BRAND_ADMIN", "WEB_ADMIN", "EDITOR", "OPERATOR", "VIEWER"];
 const STATUS_OPTIONS = ["active", "disabled", "inactive", "suspended"];
-
-const ROLE_COLORS: Record<string, string> = {
-  SUPER_ADMIN: "bg-red-100 text-red-700",
-  ERP_ADMIN: "bg-blue-100 text-blue-700",
-  BRAND_ADMIN: "bg-green-100 text-green-700",
-  WEB_ADMIN: "bg-purple-100 text-purple-700",
-  EDITOR: "bg-amber-100 text-amber-700",
-  OPERATOR: "bg-cyan-100 text-cyan-700",
-  VIEWER: "bg-stone-100 text-stone-600",
-};
 
 const STATUS_COLORS: Record<string, string> = {
   active: "bg-emerald-100 text-emerald-700",
@@ -143,7 +133,7 @@ export default function UsersClient({ initialUsers }: { initialUsers: UserRow[] 
                 <td className="py-2 px-3">{u.email}</td>
                 <td className="py-2 px-3">
                   <span className={`px-2 py-0.5 rounded text-xs ${ROLE_COLORS[u.role] || "bg-stone-100 text-stone-600"}`}>
-                    {u.role}
+                    {getRoleLabel(u.role)}
                   </span>
                 </td>
                 <td className="py-2 px-3">
@@ -177,7 +167,11 @@ export default function UsersClient({ initialUsers }: { initialUsers: UserRow[] 
             <Field label="邮箱" name="email" type="email" required />
             <Field label="姓名" name="name" required />
             <Field label="密码" name="password" type="password" required />
-            <Select label="角色" name="role" options={ROLE_OPTIONS} defaultValue="VIEWER" />
+            <select name="role" defaultValue="VIEWER" className="w-full px-3 py-2 border border-stone-200 rounded-md text-sm">
+              {ROLE_OPTIONS.map(r => (
+                <option key={r.value} value={r.value}>{r.label}</option>
+              ))}
+            </select>
             <Select label="状态" name="status" options={STATUS_OPTIONS} defaultValue="active" />
             <div className="flex gap-2 pt-2">
               <SubmitBtn>创建用户</SubmitBtn>
@@ -193,7 +187,11 @@ export default function UsersClient({ initialUsers }: { initialUsers: UserRow[] 
           <form onSubmit={handleEdit} className="space-y-3">
             <Field label="姓名" name="name" defaultValue={modal.user.name || ""} />
             <Field label="邮箱" name="email" type="email" defaultValue={modal.user.email} required />
-            <Select label="角色" name="role" options={ROLE_OPTIONS} defaultValue={modal.user.role} />
+            <select name="role" defaultValue={modal.user.role} className="w-full px-3 py-2 border border-stone-200 rounded-md text-sm">
+              {ROLE_OPTIONS.map(r => (
+                <option key={r.value} value={r.value}>{r.label}</option>
+              ))}
+            </select>
             <Select label="状态" name="status" options={STATUS_OPTIONS} defaultValue={modal.user.status} />
             <div className="flex gap-2 pt-2">
               <SubmitBtn>保存更改</SubmitBtn>

@@ -39,9 +39,7 @@ import {
   DEFAULT_ENABLED_MODULES,
   findActiveItem,
 } from "@yunwu/platform-core";
-import type { SidebarSection, SystemModule } from "@yunwu/platform-core";
-
-// ─── Icon map ───
+import { getRoleLabel } from "@/modules/settings/users/role-labels";
 const ICON_MAP: Record<string, React.ComponentType<any>> = {
   LayoutDashboard,
   Package,
@@ -95,15 +93,6 @@ const COLORS = {
   submenuHover: colors.sidebar.text,
   expandArrow: colors.sidebar.textDim,
 };
-
-const ROLE_LABELS: Record<string, string> = {
-  admin: "管理员",
-  super_admin: "超级管理员",
-  operator: "运营",
-  viewer: "访客",
-  editor: "编辑",
-};
-
 export default function PlatformSidebar() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
@@ -542,7 +531,7 @@ export default function PlatformSidebar() {
                   {session.user.name || session.user.email}
                 </p>
                 <p style={{ margin: "1px 0 0 0", fontSize: "0.6rem", color: COLORS.userRoleText, lineHeight: 1.2 }}>
-                  {ROLE_LABELS[role] || role}
+                  {getRoleLabel(role)}
                 </p>
               </div>
             </>
