@@ -199,7 +199,7 @@ export default function PlatformSidebar() {
       >
         {/* Logo */}
         <div style={{ padding: "22px 18px 16px", borderBottom: `1px solid ${COLORS.border}` }}>
-          <Link href="/" className="flex flex-col items-center gap-1.5" onClick={() => setOpen(false)}>
+          <Link href="/erp/dashboard" className="flex flex-col items-center gap-1.5" onClick={() => setOpen(false)}>
             <div
               style={{
                 width: 64,
