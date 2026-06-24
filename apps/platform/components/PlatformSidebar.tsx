@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import {
   LayoutDashboard,
   Package,
@@ -97,6 +97,18 @@ export default function PlatformSidebar() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const userMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
+        setUserMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
 
   const { data: session } = useSession();
   const role = (session?.user as any)?.role || "viewer";
@@ -459,93 +471,69 @@ export default function PlatformSidebar() {
             display: "flex",
             alignItems: "center",
             gap: 8,
+            position: "relative" as const,
           }}
         >
           {session?.user && (
-            <>
-              <div
-                style={{
-                  width: 30,
-                  height: 30,
-                  borderRadius: 9,
-                  overflow: "hidden",
-                  flexShrink: 0,
-                  background: "rgba(255,255,255,0.10)",
-                  border: `1px solid ${COLORS.avatarBorder}`,
-                }}
+            <div ref={userMenuRef} style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, minWidth: 0, cursor: "pointer" }}>
+              <button
+                onClick={() => setUserMenuOpen(!userMenuOpen)}
+                style={{ display: "flex", alignItems: "center", gap: 8, background: "none", border: "none", padding: 0, cursor: "pointer", flex: 1, minWidth: 0 }}
               >
-                {(session.user as any).avatar ? (
-                  <img
-                    src={(session.user as any).avatar}
-                    alt="头像"
-                    style={{ width: 30, height: 30, objectFit: "cover" }}
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).style.display = "none";
-                    }}
-                  />
-                ) : (
-                  <div
-                    style={{
-                      width: "100%",
-                      height: "100%",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontSize: "0.75rem",
-                      fontWeight: 600,
-                      color: COLORS.text,
-                    }}
-                  >
-                    {(session.user.name || session.user.email || "A").charAt(0).toUpperCase()}
-                  </div>
-                )}
-              </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <p
+                <div
                   style={{
-                    margin: 0,
-                    fontSize: "0.78rem",
-                    fontWeight: 500,
-                    color: COLORS.text,
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                    lineHeight: 1.2,
+                    width: 30, height: 30, borderRadius: 9, overflow: "hidden", flexShrink: 0,
+                    background: "rgba(255,255,255,0.10)", border: `1px solid ${COLORS.avatarBorder}`,
                   }}
                 >
-                  {session.user.name || session.user.email}
-                </p>
-                <p style={{ margin: "1px 0 0 0", fontSize: "0.6rem", color: COLORS.userRoleText, lineHeight: 1.2 }}>
-                  {getRoleLabel(role)}
-                </p>
-              </div>
-            </>
+                  {(session.user as any).avatar ? (
+                    <img src={(session.user as any).avatar} alt="头像"
+                      style={{ width: 30, height: 30, objectFit: "cover" }}
+                      onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+                  ) : (
+                    <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.75rem", fontWeight: 600, color: COLORS.text }}>
+                      {(session.user.name || session.user.email || "A").charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p style={{ margin: 0, fontSize: "0.78rem", fontWeight: 500, color: COLORS.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", lineHeight: 1.2 }}>
+                    {session.user.name || session.user.email}
+                  </p>
+                  <p style={{ margin: "1px 0 0 0", fontSize: "0.6rem", color: COLORS.userRoleText, lineHeight: 1.2 }}>
+                    {getRoleLabel(role)}
+                  </p>
+                </div>
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={COLORS.textDim} strokeWidth="2.5" style={{ transform: userMenuOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "0.2s" }}>
+                  <polyline points="6 9 12 15 18 9" />
+                </svg>
+              </button>
+
+              {userMenuOpen && (
+                <div style={{ position: "absolute", bottom: "100%", left: 0, right: 0, marginBottom: 4, background: COLORS.sidebarBg, border: `1px solid ${COLORS.border}`, borderRadius: 8, overflow: "hidden", boxShadow: "0 4px 16px rgba(0,0,0,0.3)" }}>
+                  <Link href="/settings/profile" onClick={() => setUserMenuOpen(false)}
+                    style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", fontSize: "0.82rem", color: COLORS.text, textDecoration: "none", transition: "0.15s" }}
+                    onMouseEnter={e => (e.currentTarget.style.background = COLORS.bgHover)}
+                    onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
+                    <UserCog size={14} /> 个人信息
+                  </Link>
+                  <Link href="/settings/profile?tab=password" onClick={() => setUserMenuOpen(false)}
+                    style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", fontSize: "0.82rem", color: COLORS.text, textDecoration: "none", transition: "0.15s" }}
+                    onMouseEnter={e => (e.currentTarget.style.background = COLORS.bgHover)}
+                    onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
+                    <Shield size={14} /> 修改密码
+                  </Link>
+                  <button
+                    onClick={() => signOut({ callbackUrl: "/login" })}
+                    style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "10px 14px", fontSize: "0.82rem", color: "#ef4444", background: "none", border: "none", cursor: "pointer", textAlign: "left", borderTop: `1px solid ${COLORS.border}` }}
+                    onMouseEnter={e => (e.currentTarget.style.background = COLORS.bgHover)}
+                    onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
+                    <LogOut size={14} /> 退出登录
+                  </button>
+                </div>
+              )}
+            </div>
           )}
-          <button
-            onClick={() => signOut({ callbackUrl: "/login" })}
-            title="退出登录"
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              width: 30,
-              height: 30,
-              borderRadius: 8,
-              background: "transparent",
-              border: "none",
-              cursor: "pointer",
-              flexShrink: 0,
-              transition: "all 0.2s ease",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = COLORS.logoutHoverBg;
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = "transparent";
-            }}
-          >
-            <LogOut size={14} style={{ color: COLORS.logoutText }} />
-          </button>
         </div>
 
         <div
