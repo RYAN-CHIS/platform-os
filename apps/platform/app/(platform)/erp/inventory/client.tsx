@@ -136,14 +136,14 @@ export default function InventoryClient({
 
       {stockView ? (
         /* Stock overview */
-        <div style={{ border: '1px solid #e7e5e4', borderRadius: 8, background: '#fff', overflow: 'hidden' }}>
+        <div style={{ border: '1px solid #e7e5e4', borderRadius: 8, background: '#fff', overflow: 'hidden', overflowY: 'auto', maxHeight: 'calc(100vh - 200px)' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
-              <tr style={{ background: '#fafaf9', borderBottom: '2px solid #e7e5e4', textAlign: 'left', color: '#57534e', fontSize: 12 }}>
-                <th style={{ padding: '10px 14px' }}>编码</th>
-                <th style={{ padding: '10px 14px' }}>名称</th>
-                <th style={{ padding: '10px 14px', textAlign: 'right' }}>库存</th>
-                <th style={{ padding: '10px 14px' }}>状态</th>
+              <tr style={{ background: '#fafaf9', borderBottom: '2px solid #d6d3d1', textAlign: 'left', color: '#57534e', fontSize: 12 }}>
+                <th style={{ position: 'sticky', top: 0, zIndex: 10, background: '#fafaf9', padding: '10px 14px' }}>编码</th>
+                <th style={{ position: 'sticky', top: 0, zIndex: 10, background: '#fafaf9', padding: '10px 14px' }}>名称</th>
+                <th style={{ position: 'sticky', top: 0, zIndex: 10, background: '#fafaf9', padding: '10px 14px', textAlign: 'right' }}>库存</th>
+                <th style={{ position: 'sticky', top: 0, zIndex: 10, background: '#fafaf9', padding: '10px 14px' }}>状态</th>
               </tr>
             </thead>
             <tbody>

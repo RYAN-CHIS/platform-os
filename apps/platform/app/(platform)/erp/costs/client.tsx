@@ -126,19 +126,19 @@ export default function CostsClient({
         </div>
       )}
 
-      <div style={{ overflowX: 'auto', border: '1px solid #e7e5e4', borderRadius: 8, background: '#fff' }}>
+      <div style={{ overflowX: 'auto', overflowY: 'auto', maxHeight: 'calc(100vh - 200px)', border: '1px solid #e7e5e4', borderRadius: 8, background: '#fff' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
           <thead>
-            <tr style={{ background: '#fafaf9', borderBottom: '2px solid #e7e5e4', textAlign: 'left', color: '#57534e', fontSize: 12 }}>
-              <th style={{ padding: '10px 14px' }}>SKU</th>
-              <th style={{ padding: '10px 14px' }}>产品</th>
-              <th style={{ padding: '10px 14px', textAlign: 'right' }}>材料</th>
-              <th style={{ padding: '10px 14px', textAlign: 'right' }}>人工</th>
-              <th style={{ padding: '10px 14px', textAlign: 'right' }}>包装</th>
-              <th style={{ padding: '10px 14px', textAlign: 'right' }}>总成本</th>
-              <th style={{ padding: '10px 14px', textAlign: 'right' }}>售价</th>
-              <th style={{ padding: '10px 14px', textAlign: 'right' }}>利润率</th>
-              <th style={{ padding: '10px 14px' }}>更新</th>
+            <tr style={{ background: '#fafaf9', borderBottom: '2px solid #d6d3d1', textAlign: 'left', color: '#57534e', fontSize: 12 }}>
+              <th style={{ position: 'sticky', top: 0, zIndex: 10, background: '#fafaf9', padding: '10px 14px' }}>SKU</th>
+              <th style={{ position: 'sticky', top: 0, zIndex: 10, background: '#fafaf9', padding: '10px 14px' }}>产品</th>
+              <th style={{ position: 'sticky', top: 0, zIndex: 10, background: '#fafaf9', padding: '10px 14px', textAlign: 'right' }}>材料</th>
+              <th style={{ position: 'sticky', top: 0, zIndex: 10, background: '#fafaf9', padding: '10px 14px', textAlign: 'right' }}>人工</th>
+              <th style={{ position: 'sticky', top: 0, zIndex: 10, background: '#fafaf9', padding: '10px 14px', textAlign: 'right' }}>包装</th>
+              <th style={{ position: 'sticky', top: 0, zIndex: 10, background: '#fafaf9', padding: '10px 14px', textAlign: 'right' }}>总成本</th>
+              <th style={{ position: 'sticky', top: 0, zIndex: 10, background: '#fafaf9', padding: '10px 14px', textAlign: 'right' }}>售价</th>
+              <th style={{ position: 'sticky', top: 0, zIndex: 10, background: '#fafaf9', padding: '10px 14px', textAlign: 'right' }}>利润率</th>
+              <th style={{ position: 'sticky', top: 0, zIndex: 10, background: '#fafaf9', padding: '10px 14px' }}>更新</th>
             </tr>
           </thead>
           <tbody>
