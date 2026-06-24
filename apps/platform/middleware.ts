@@ -71,6 +71,7 @@ export function middleware(request: NextRequest) {
     pathname === "/login" ||
     pathname.startsWith("/api/auth") ||
     pathname.startsWith("/api/media") ||
+    pathname.startsWith("/api/seed-roles") ||
     pathname.startsWith("/_next") ||
     pathname === "/favicon.ico";
 
@@ -146,6 +147,14 @@ export function middleware(request: NextRequest) {
   // API proxy
   // ══════════════════════════════════════
   if (pathname.startsWith("/api/")) {
+    // Platform-native API routes — serve directly
+    if (
+      pathname.startsWith("/api/seed-roles") ||
+      pathname.startsWith("/api/auth")
+    ) {
+      return NextResponse.next();
+    }
+
     // Brand OS APIs
     if (
       pathname.startsWith("/api/posts") ||
