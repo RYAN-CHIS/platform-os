@@ -160,6 +160,8 @@ export default function PlatformSidebar() {
   };
 
   const isItemActive = (href: string) => {
+    // Root path only matches exact "/" (not everything)
+    if (href === "/") return pathname === "/" || pathname === "/platform";
     return pathname.startsWith(href);
   };
 

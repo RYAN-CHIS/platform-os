@@ -72,7 +72,7 @@ export const SIDEBAR_CONFIG: SidebarSection[] = [
         key: "dashboard",
         label: "总览",
         icon: "LayoutDashboard",
-        href: "/platform",
+        href: "/",
         permission: PERMISSIONS.DASHBOARD_VIEW,
         module: "dashboard",
       },
@@ -88,9 +88,9 @@ export const SIDEBAR_CONFIG: SidebarSection[] = [
     items: [
       {
         key: "erp-dashboard",
-        label: "ERP 总览",
-        icon: "LayoutDashboard",
-        href: "/platform",
+        label: "ERP 概览",
+        icon: "BarChart3",
+        href: "/erp",
         permission: PERMISSIONS.DASHBOARD_VIEW,
         module: "erp",
       },
@@ -373,8 +373,11 @@ export function findActiveItem(
   for (const section of config) {
     for (const item of section.items) {
       // Check direct match
-      if (item.href && pathname.startsWith(item.href)) {
-        return { sectionKey: section.key, itemKey: item.key };
+      if (item.href) {
+        const matches = item.href === "/"
+          ? (pathname === "/" || pathname === "/platform")
+          : pathname.startsWith(item.href);
+        if (matches) return { sectionKey: section.key, itemKey: item.key };
       }
       // Check children
       if (item.children) {
