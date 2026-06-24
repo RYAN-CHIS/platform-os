@@ -150,7 +150,9 @@ export function middleware(request: NextRequest) {
     // Platform-native API routes — serve directly
     if (
       pathname.startsWith("/api/seed-roles") ||
-      pathname.startsWith("/api/auth")
+      pathname.startsWith("/api/auth") ||
+      pathname.startsWith("/api/media") ||
+      pathname.startsWith("/api/audit")
     ) {
       return NextResponse.next();
     }
