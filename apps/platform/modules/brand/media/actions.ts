@@ -237,7 +237,18 @@ export async function deleteMediaAsset(id: number) {
     }
 
     const before = await prisma.erpMediaAsset.findUnique({ where: { id } });
+    const url = (before as any)?.url || "";
     await prisma.erpMediaAsset.delete({ where: { id } });
+
+    // Delete local file if it's a local upload
+    if (url.startsWith("/uploads/")) {
+      try {
+        const fs = await import("fs/promises");
+        const path = await import("path");
+        const filePath = path.join(process.cwd(), "public", url);
+        await fs.unlink(filePath);
+      } catch { /* file may already be gone */ }
+    }
 
     try { await createCrudAudit({ action: "DELETE", system: "BRAND", module: "media", targetId: id, before }); } catch {}
     refreshMediaPage();

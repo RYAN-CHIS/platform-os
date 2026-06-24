@@ -101,6 +101,7 @@ async function parseUploadResponse(res: Response) {
 
 export default function BrandMediaClient({ initialRows }: { initialRows: any[] }) {
   const [rows, setRows] = useState(initialRows);
+  const [mediaFilter, setMediaFilter] = useState("all");
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [uploadOpen, setUploadOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
@@ -208,6 +209,14 @@ export default function BrandMediaClient({ initialRows }: { initialRows: any[] }
     { label: "文档", value: "DOCUMENT" },
   ];
 
+  // Client-side filter
+  const filteredRows = mediaFilter === "all" ? rows : rows.filter((r: any) => {
+    if (mediaFilter === "IMAGE") return (r.mimeType || "").startsWith("image/");
+    if (mediaFilter === "VIDEO") return (r.mimeType || "").startsWith("video/");
+    if (mediaFilter === "DOCUMENT") return !(r.mimeType || "").startsWith("image/") && !(r.mimeType || "").startsWith("video/");
+    return true;
+  });
+
   const columns = [
     {
       key: "preview",
@@ -289,13 +298,14 @@ export default function BrandMediaClient({ initialRows }: { initialRows: any[] }
       <ErpToolbar
         title="媒体素材管理"
         subtitle="Brand OS · 图片 / 视频 / 文档"
-        total={rows.length}
+        total={filteredRows.length}
         entityLabel="个素材"
         searchPlaceholder="搜索文件名..."
         onRefresh={refresh}
         onAdd={() => setUploadOpen(true)}
         filterOptions={mediaTypeFilters}
-        activeFilter="all"
+        activeFilter={mediaFilter}
+        onFilterChange={setMediaFilter}
         extraButtons={
           selected.size > 0 ? (
             <button onClick={handleBulkDelete} style={{ padding: "6px 12px", border: "1px solid #ef4444", borderRadius: 6, fontSize: 13, cursor: "pointer", background: "#fff", color: "#ef4444" }}>
@@ -305,7 +315,7 @@ export default function BrandMediaClient({ initialRows }: { initialRows: any[] }
         }
       />
 
-      <ErpDataTable columns={columns} rows={rows} emptyText="暂无媒体素材，点击右上角上传" />
+      <ErpDataTable columns={columns} rows={filteredRows} emptyText="暂无媒体素材，点击右上角上传" />
 
       {/* Upload Modal */}
       {uploadOpen && (
