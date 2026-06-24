@@ -110,8 +110,14 @@ export function requirePermission(
   session: PlatformSession,
   permission: PermissionCode
 ): { allowed: true } | { allowed: false; error: NextResponse } {
-  if (session.permissions.includes("*")) return { allowed: true };
-  if (session.permissions.includes(permission)) return { allowed: true };
+  // SUPER_ADMIN bypass
+  const role = (session as any)?.role || session.role || "";
+  if (role === "SUPER_ADMIN") return { allowed: true };
+
+  // Null-safe permissions
+  const perms: string[] = Array.isArray(session.permissions) ? session.permissions : [];
+  if (perms.includes("*")) return { allowed: true };
+  if (perms.includes(permission)) return { allowed: true };
 
   return {
     allowed: false,
@@ -129,8 +135,11 @@ export function requireAnyPermission(
   session: PlatformSession,
   permissions: PermissionCode[]
 ): { allowed: true } | { allowed: false; error: NextResponse } {
-  if (session.permissions.includes("*")) return { allowed: true };
-  if (permissions.some((p) => session.permissions.includes(p))) return { allowed: true };
+  const role = (session as any)?.role || session.role || "";
+  if (role === "SUPER_ADMIN") return { allowed: true };
+  const perms: string[] = Array.isArray(session.permissions) ? session.permissions : [];
+  if (perms.includes("*")) return { allowed: true };
+  if (permissions.some((p) => perms.includes(p))) return { allowed: true };
 
   return {
     allowed: false,
@@ -148,10 +157,13 @@ export function requireAllPermissions(
   session: PlatformSession,
   permissions: PermissionCode[]
 ): { allowed: true } | { allowed: false; error: NextResponse } {
-  if (session.permissions.includes("*")) return { allowed: true };
-  if (permissions.every((p) => session.permissions.includes(p))) return { allowed: true };
+  const role = (session as any)?.role || session.role || "";
+  if (role === "SUPER_ADMIN") return { allowed: true };
+  const perms: string[] = Array.isArray(session.permissions) ? session.permissions : [];
+  if (perms.includes("*")) return { allowed: true };
+  if (permissions.every((p) => perms.includes(p))) return { allowed: true };
 
-  const missing = permissions.filter((p) => !session.permissions.includes(p));
+  const missing = permissions.filter((p) => !perms.includes(p));
   return {
     allowed: false,
     error: NextResponse.json(
@@ -168,8 +180,11 @@ export function requireWriteAccess(
   session: PlatformSession,
   method: string
 ): { allowed: true } | { allowed: false; error: NextResponse } {
-  if (session.permissions.includes("*")) return { allowed: true };
-  if (session.role === "viewer" && ["POST", "PUT", "DELETE", "PATCH"].includes(method)) {
+  const role = (session as any)?.role || session.role || "";
+  if (role === "SUPER_ADMIN") return { allowed: true };
+  const perms: string[] = Array.isArray(session.permissions) ? session.permissions : [];
+  if (perms.includes("*")) return { allowed: true };
+  if (role === "viewer" && ["POST", "PUT", "DELETE", "PATCH"].includes(method)) {
     return {
       allowed: false,
       error: NextResponse.json(

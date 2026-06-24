@@ -32,6 +32,20 @@ export interface DomainProduct {
   keywords?: string;
   lifeStage?: string;
   suitableFor?: string;
+  // V2.1 器物履历扩展
+  materialOrigin?: string;
+  craftMethod?: string;
+  completionDate?: string;
+  serialNumber?: string;
+  creationStory?: string;
+  emotionalState?: string;
+  companionsCount?: number;
+  remainingQuantity?: number;
+  // 定价/ERP 域扩展
+  specification?: string;
+  markupRatio?: number;
+  rarityLevel?: number;
+  storyFactor?: number;
 }
 
 // ── Domain: Series（统一七序/系列）──

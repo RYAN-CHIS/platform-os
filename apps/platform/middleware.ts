@@ -23,6 +23,9 @@ const NATIVE_ERP_ROUTES = [
   "/erp/production",
   "/erp/orders",
   "/erp/customers",
+  "/erp/costs",
+  "/erp/purchase",
+  "/erp/settings",
 ] as const;
 
 // Brand business pages still live in Brand OS. This Platform-owned bridge is
@@ -70,7 +73,9 @@ export function middleware(request: NextRequest) {
     pathname.startsWith("/brand/") ||
     pathname === "/" ||
     pathname.startsWith("/login") ||
-    pathname.startsWith("/api/auth")
+    pathname.startsWith("/api/auth") ||
+    pathname === "/settings" ||
+    pathname.startsWith("/settings/")
   ) {
     return NextResponse.next();
   }

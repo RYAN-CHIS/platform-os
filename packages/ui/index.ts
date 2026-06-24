@@ -12,6 +12,9 @@ export { colors, spacing, radius, shadow, zIndex, typography, motion, sidebar } 
 export { Button } from "./components/button";
 export { Card, StatCard, EmptyState, LoadingState } from "./components/card";
 export { PermissionDenied, ErrorState } from "./components/feedback";
+export { DataTable } from "./components/data-table";
+export type { Column, DataTableProps } from "./components/data-table";
+export { TableSkeleton, CardSkeleton, Skeleton, PageLoader, SubmitButton } from "./components/shared-states";
 
 // Permission boundary
 export { default as PermissionBoundary, PermissionProvider, usePermission, AnyPermission, AllPermissions } from "./permission-boundary";

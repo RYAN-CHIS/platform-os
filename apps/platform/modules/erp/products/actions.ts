@@ -1,22 +1,159 @@
-"use server";
-/** ERP Products — WO-P7D: Direct Prisma. Zero fetch, zero localhost:3001. */
-import { PrismaClient } from "@prisma/client";
-import { requirePermission } from "@yunwu/auth/platform-auth";
-import { PERMISSIONS } from "@yunwu/platform-core/config/permissions.config";
-import { getServerSession } from "next-auth"; import { authOptions } from "@/lib/auth"; import { redirect } from "next/navigation";
-import type { Product, ProductFilters } from "./types";
+'use server';
 
-const prisma = new PrismaClient(); const db = prisma as any;
+import { prisma } from '@yunwu/db';
+import { revalidatePath } from 'next/cache';
+import { createCrudAudit, createStatusAudit } from '@/lib/audit';
 
-async function s(){const x=await getServerSession(authOptions);if(!x?.user)redirect("/platform/login");return x;}
+// ── Product CRUD ──
 
-export async function listProducts(filters:ProductFilters):Promise<Product[]>{
-  const x=await s();await requirePermission(x as any,PERMISSIONS.PRODUCT_VIEW);
-  const where:any={};if(filters.status)where.status=filters.status;if(filters.keyword)where.OR=[{code:{contains:filters.keyword}},{name:{contains:filters.keyword}}];
-  return db.erpProduct.findMany({where,include:{skus:{include:{cost:true}},work:{include:{series:true}}},orderBy:{code:"asc"}});}
-export async function getProduct(id:number){await s();return db.erpProduct.findUnique({where:{id},include:{skus:{include:{cost:true,boms:{include:{material:true}}}},work:{include:{series:true}}}});}
-export async function createProduct(d:any){const x=await s();await requirePermission(x as any,PERMISSIONS.PRODUCT_EDIT);try{return{product:await db.erpProduct.create({data:d})};}catch(e:any){return{error:e.message};}}
-export async function updateProduct(id:number,d:any){const x=await s();await requirePermission(x as any,PERMISSIONS.PRODUCT_EDIT);try{await db.erpProduct.update({where:{id},data:d});return{};}catch(e:any){return{error:e.message};}}
-export async function deleteProduct(id:number){const x=await s();await requirePermission(x as any,PERMISSIONS.PRODUCT_DELETE);try{await db.erpProduct.delete({where:{id}});return{};}catch(e:any){return{error:e.message};}}
-export async function getSkus(pId:number){return db.erpProductSku.findMany({where:{productId:pId},orderBy:{code:"asc"}});}
-export async function createSku(d:any){const x=await s();await requirePermission(x as any,PERMISSIONS.SKU_EDIT);try{return await db.erpProductSku.create({data:d});}catch(e:any){return{error:e.message};}}
+export async function createProduct(data: {
+  code: string; name: string; workId: number; description?: string;
+}) {
+  const p = await prisma.erpProduct.create({
+    data: {
+      code: data.code,
+      name: data.name,
+      workId: data.workId,
+      description: data.description || '',
+    },
+  });
+
+  try { await createCrudAudit({ action: 'CREATE', system: 'ERP', module: 'products', targetId: p.id, after: p }); } catch {}
+
+  revalidatePath('/erp/products');
+  return p;
+}
+
+export async function updateProduct(id: number, data: {
+  code?: string; name?: string; workId?: number; status?: string; description?: string;
+}) {
+  // Fetch before state
+  const beforeRows = await prisma.$queryRawUnsafe<any[]>(`SELECT * FROM erp_products WHERE id = $1`, id);
+  const before = beforeRows[0] || null;
+
+  const updateData: any = {};
+  if (data.code !== undefined) updateData.code = data.code;
+  if (data.name !== undefined) updateData.name = data.name;
+  if (data.workId !== undefined) updateData.workId = data.workId;
+  if (data.status !== undefined) updateData.status = data.status;
+  if (data.description !== undefined) updateData.description = data.description;
+
+  const p = await prisma.erpProduct.update({ where: { id }, data: updateData });
+
+  try { await createCrudAudit({ action: 'UPDATE', system: 'ERP', module: 'products', targetId: id, before, after: p }); } catch {}
+
+  revalidatePath('/erp/products');
+  return p;
+}
+
+export async function deleteProduct(id: number) {
+  // Fetch before state
+  const beforeRows = await prisma.$queryRawUnsafe<any[]>(`SELECT * FROM erp_products WHERE id = $1`, id);
+  const before = beforeRows[0] || null;
+
+  const skuCount = await prisma.erpProductSku.count({ where: { productId: id } });
+  if (skuCount > 0) throw new Error(`产品下有 ${skuCount} 个 SKU，请先删除所有 SKU`);
+
+  await prisma.erpProductCost.deleteMany({
+    where: { sku: { productId: id } },
+  });
+  await prisma.erpBom.deleteMany({
+    where: { sku: { productId: id } },
+  });
+  await prisma.erpProductSku.deleteMany({ where: { productId: id } });
+  await prisma.erpProduct.delete({ where: { id } });
+
+  try { await createCrudAudit({ action: 'DELETE', system: 'ERP', module: 'products', targetId: id, before }); } catch {}
+
+  revalidatePath('/erp/products');
+}
+
+export async function toggleProductStatus(id: number, newStatus: string) {
+  // Fetch before state
+  const beforeRows = await prisma.$queryRawUnsafe<any[]>(`SELECT * FROM erp_products WHERE id = $1`, id);
+  const before = beforeRows[0] || null;
+
+  const p = await prisma.erpProduct.update({
+    where: { id },
+    data: { status: newStatus as any },
+  });
+
+  try { await createStatusAudit({ system: 'ERP', module: 'products', targetId: id, before: before || { status: '' }, after: { status: newStatus } }); } catch {}
+
+  revalidatePath('/erp/products');
+  return p;
+}
+
+// ── SKU CRUD ──
+
+export async function createSku(data: {
+  code: string; name: string; productId: number;
+  specification?: string; size?: string; price?: number;
+}) {
+  const sku = await prisma.erpProductSku.create({
+    data: {
+      code: data.code,
+      name: data.name,
+      productId: data.productId,
+      specification: data.specification || '',
+      size: data.size || '',
+      price: data.price || 0,
+    },
+  });
+  // auto-create cost record
+  await prisma.erpProductCost.create({
+    data: { skuId: sku.id },
+  });
+
+  try { await createCrudAudit({ action: 'CREATE', system: 'ERP', module: 'product_sku', targetId: sku.id, after: sku }); } catch {}
+
+  revalidatePath('/erp/products');
+  return sku;
+}
+
+export async function updateSku(id: number, data: {
+  code?: string; name?: string; specification?: string; size?: string;
+  price?: number; status?: string;
+}) {
+  // Fetch before state
+  const beforeRows = await prisma.$queryRawUnsafe<any[]>(`SELECT * FROM erp_product_skus WHERE id = $1`, id);
+  const before = beforeRows[0] || null;
+
+  const updateData: any = {};
+  if (data.code !== undefined) updateData.code = data.code;
+  if (data.name !== undefined) updateData.name = data.name;
+  if (data.specification !== undefined) updateData.specification = data.specification;
+  if (data.size !== undefined) updateData.size = data.size;
+  if (data.price !== undefined) updateData.price = data.price;
+  if (data.status !== undefined) updateData.status = data.status;
+
+  const sku = await prisma.erpProductSku.update({ where: { id }, data: updateData });
+
+  try { await createCrudAudit({ action: 'UPDATE', system: 'ERP', module: 'product_sku', targetId: id, before, after: sku }); } catch {}
+
+  revalidatePath('/erp/products');
+  return sku;
+}
+
+export async function deleteSku(id: number) {
+  // Fetch before state
+  const beforeRows = await prisma.$queryRawUnsafe<any[]>(`SELECT * FROM erp_product_skus WHERE id = $1`, id);
+  const before = beforeRows[0] || null;
+
+  await prisma.erpBom.deleteMany({ where: { skuId: id } });
+  await prisma.erpProductCost.deleteMany({ where: { skuId: id } });
+  await prisma.erpProductionRecord.deleteMany({ where: { skuId: id } });
+  await prisma.erpProductSku.delete({ where: { id } });
+
+  try { await createCrudAudit({ action: 'DELETE', system: 'ERP', module: 'product_sku', targetId: id, before }); } catch {}
+
+  revalidatePath('/erp/products');
+}
+
+// ── Lookup helpers ──
+export async function getWorks() {
+  return prisma.erpWork.findMany({
+    orderBy: { code: 'asc' },
+    select: { id: true, code: true, name: true },
+  });
+}

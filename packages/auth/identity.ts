@@ -136,7 +136,7 @@ export function canOperate(
   user: PlatformUser,
   system: SystemId,
   model: ModelDomain,
-  action: "read" | "write",
+  action: "read" | "write" | "admin",
 ): boolean {
   // 1. 先检查用户在该系统是否有对应能力
   const cap = action === "read" ? "canRead" : "canWrite";

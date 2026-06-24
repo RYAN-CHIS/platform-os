@@ -21,6 +21,8 @@ enum SystemDomain {
   ERP        // 进销存/财务/供应链
   BRAND      // 品牌系统（内容/美学/对外叙事）
   WEB        // 独立站（官网/SEO/展示）
+  SETTINGS   // 系统设置（用户/角色/权限/配置）
+  AUTH       // 认证行为（登录/登出/会话）
 }
 
 enum UserRole {
@@ -141,11 +143,13 @@ model AuditLog {
   id          String       @id @default(cuid())
   userId      Int          @map("user_id")
   user        User         @relation("AuditActor", fields: [userId], references: [id])
-  action      String       // GRANT / REVOKE / TEMP_GRANT / CREATE / UPDATE / DELETE / LOGIN
+  action      String       // GRANT / REVOKE / TEMP_GRANT / CREATE / UPDATE / DELETE / LOGIN / STATUS_CHANGE / etc.
   system      SystemDomain
   entityType  String       @map("entity_type")
   entityId    String?      @map("entity_id")
   details     String?
+  ip          String?      @db.VarChar(45)
+  userAgent   String?      @map("user_agent")
   createdAt   DateTime     @default(now()) @map("created_at")
 
   @@index([userId])
@@ -532,6 +536,8 @@ model BrandSeries {
   shortDesc   String?        @map("short_desc")
   sortOrder   Int            @default(0) @map("sort_order")
   isActive    Boolean        @default(true) @map("is_active")
+  status      PublishStatus  @default(DRAFT)
+  publishedAt DateTime?      @map("published_at")
   products    BrandProduct[]
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
@@ -563,6 +569,8 @@ model BrandProduct {
   gallery          String           @default("[]")
   stock            Int              @default(0)
   status           String           @default("draft")
+  publishedAt       DateTime?        @map("published_at")
+  sortOrder        Int              @default(0) @map("sort_order")
   createdAt        DateTime         @default(now()) @map("created_at")
   updatedAt        DateTime         @updatedAt @map("updated_at")
   /** Bridge to ERP master product */
@@ -670,6 +678,7 @@ model JournalPost {
   publishedAt    DateTime?       @map("published_at")
   createdAt      DateTime        @default(now()) @map("created_at")
   updatedAt      DateTime        @updatedAt @map("updated_at")
+  sortOrder      Int             @default(0) @map("sort_order")
   journalTags    BrandJournalTag[]
 
   @@index([status, publishedAt])
@@ -734,6 +743,57 @@ model SiteSetting {
   @@map("site_settings")
 }
 
+// ── P13C: 发布版本快照 ──
+model ContentVersion {
+  id          String   @id @default(cuid())
+  contentType String   @map("content_type") // products | series | journal | home
+  contentId   String   @map("content_id")
+  version     Int
+  snapshot    String   // JSON: complete content snapshot
+  status      String   @default("PUBLISHED") // state at time of snapshot
+  createdBy   Int      @default(1) @map("created_by")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@unique([contentType, contentId, version])
+  @@index([contentType, contentId])
+  @@index([createdAt])
+  @@map("content_versions")
+}
+
+// ── P13C: 定时发布队列 ──
+model PublishJob {
+  id          String   @id @default(cuid())
+  contentType String   @map("content_type") // products | series | journal | home
+  contentId   String   @map("content_id")
+  publishAt   DateTime @map("publish_at")
+  status      String   @default("pending") // pending | published | failed | cancelled
+  createdBy   Int      @default(1) @map("created_by")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([status, publishAt])
+  @@index([contentType, contentId])
+  @@map("publish_jobs")
+}
+
+// ── P13C: SEO 快照 ──
+model SeoSnapshot {
+  id           String   @id @default(cuid())
+  contentType  String   @map("content_type")
+  contentId    String   @map("content_id")
+  version      Int
+  title        String
+  slug         String
+  description  String?
+  keywords     String?
+  ogImage      String?  @map("og_image")
+  canonicalUrl String?  @map("canonical_url")
+  publishedAt  DateTime @map("published_at")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@index([contentType, contentId])
+  @@map("seo_snapshots")
+}
+
 // ── 标签系统 ──
 model BrandTag {
   id          String   @id @default(cuid())
@@ -780,7 +840,12 @@ enum JournalCategory {
 
 enum PublishStatus {
   DRAFT
+  IN_REVIEW
+  APPROVED
+  SCHEDULED
   PUBLISHED
+  ARCHIVED
+  REJECTED
 }
 
 enum TagType {

@@ -13,6 +13,8 @@
 // ═══════════════════════════════════════════
 
 const ERP = {
+  // Access gate
+  ERP_ACCESS: "erp.access",
   // Dashboard
   DASHBOARD_VIEW: "dashboard.view",
 
@@ -59,6 +61,10 @@ const ERP = {
   // Customers
   CUSTOMER_VIEW: "customer.view",
   CUSTOMER_EDIT: "customer.edit",
+
+  // Purchase
+  PURCHASE_VIEW: "purchase.view",
+  PURCHASE_EDIT: "purchase.edit",
 
   // User Management
   USER_VIEW: "user.view",
@@ -196,7 +202,7 @@ export const ALL_PERMISSION_CODES: PermissionCode[] = Object.values(PERMISSIONS)
 
 /** Count stats */
 export const PERMISSION_STATS = {
-  erp: Object.keys(ERP).length,
+  erp: Object.keys(ERP).length,  // 26
   brand: Object.keys(BRAND).length,
   crm: Object.keys(CRM).length,
   platform: Object.keys(PLATFORM).length,

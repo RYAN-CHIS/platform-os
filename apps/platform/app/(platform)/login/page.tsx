@@ -1,115 +1,20 @@
-"use client";
+import { getServerSession } from "next-auth";
+import { redirect } from "next/navigation";
+import { authOptions } from "@/lib/auth";
 
-import { useState } from "react";
-import { signIn } from "next-auth/react";
-import { useRouter } from "next/navigation";
-
-/**
- * Unified Login Page
- *
- * Single entry point for ERP + Brand OS + Platform
- * After login, user is redirected based on their role/permissions.
- */
-export default function LoginPage() {
-  const router = useRouter();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError("");
-    setLoading(true);
-
-    try {
-      const result = await signIn("credentials", {
-        email,
-        password,
-        redirect: false,
-      });
-
-      if (result?.error) {
-        setError("邮箱或密码错误");
-        setLoading(false);
-        return;
-      }
-
-      // Redirect to dashboard
-      router.push("/platform");
-      router.refresh();
-    } catch {
-      setError("登录失败，请重试");
-      setLoading(false);
-    }
-  };
+export default async function LoginPage() {
+  const session = await getServerSession(authOptions);
+  if (session) redirect("/");
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#f6f1eb]">
-      <div className="w-full max-w-sm">
-        {/* Logo */}
-        <div className="text-center mb-10">
-          <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-white shadow-sm border border-stone-200 flex items-center justify-center">
-            <span className="text-2xl">允</span>
-          </div>
-          <h1 className="text-xl font-semibold tracking-[0.15em] text-stone-800">
-            允物 Platform OS
-          </h1>
-          <p className="text-sm text-stone-400 mt-2 tracking-wider">
-            统一管理后台
-          </p>
+    <div className="min-h-screen flex items-center justify-center bg-gray-950">
+      <div className="w-full max-w-sm p-8 rounded-2xl bg-gray-900 border border-gray-800">
+        <h1 className="text-2xl font-bold text-center text-amber-400 mb-6">允物 Platform OS</h1>
+        <p className="text-center text-gray-400 mb-8">请登录以继续</p>
+        {/* TODO: 接入真实登录表单 */}
+        <div className="text-center text-sm text-gray-500">
+          登录功能待接入
         </div>
-
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-sm border border-stone-200 p-8 space-y-5">
-          {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg p-3 text-center">
-              {error}
-            </div>
-          )}
-
-          <div>
-            <label htmlFor="email" className="block text-sm font-medium text-stone-600 mb-1.5">
-              邮箱
-            </label>
-            <input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              className="w-full px-4 py-2.5 rounded-lg border border-stone-300 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-400 transition"
-              placeholder="admin@yunwu.com"
-            />
-          </div>
-
-          <div>
-            <label htmlFor="password" className="block text-sm font-medium text-stone-600 mb-1.5">
-              密码
-            </label>
-            <input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              className="w-full px-4 py-2.5 rounded-lg border border-stone-300 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-400 transition"
-              placeholder="••••••••"
-            />
-          </div>
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-2.5 rounded-lg bg-stone-800 text-white text-sm font-medium tracking-wider hover:bg-stone-700 transition disabled:opacity-50"
-          >
-            {loading ? "登录中..." : "登 录"}
-          </button>
-        </form>
-
-        <p className="text-center text-xs text-stone-400 mt-6">
-          © 2026 允物 Platform OS
-        </p>
       </div>
     </div>
   );

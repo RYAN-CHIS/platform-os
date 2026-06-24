@@ -29,6 +29,7 @@ import {
   ScrollText,
   FlaskConical,
   BarChart3,
+  UserCog,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -61,35 +62,36 @@ const ICON_MAP: Record<string, React.ComponentType<any>> = {
   FlaskConical,
   BarChart3,
   Settings,
+  UserCog,
 };
 
 // ─── 东方美学深色调色板 (from unified tokens) ───
-import { colors as tokens, sidebar as sidebarTokens } from "@yunwu/ui/tokens";
+import { colors } from "@yunwu/ui/tokens";
 const COLORS = {
-  bgGradient: tokens.sidebar.bgGradient,
-  text: tokens.sidebar.text,
-  textMuted: tokens.sidebar.textMuted,
-  textDim: tokens.sidebar.textDim,
-  border: tokens.sidebar.border,
-  hoverBg: tokens.sidebar.hoverBg,
-  activeBg: tokens.accent.activeBg,
-  activeBorder: tokens.accent.activeBorder,
-  activeText: tokens.accent.activeText,
-  indicatorGrad: tokens.accent.indicatorGrad,
-  childActive: tokens.accent.childActive,
-  childActiveBg: tokens.accent.childActiveBg,
+  bgGradient: colors.sidebar.bgGradient,
+  text: colors.sidebar.text,
+  textMuted: colors.sidebar.textMuted,
+  textDim: colors.sidebar.textDim,
+  border: colors.sidebar.border,
+  hoverBg: colors.sidebar.hoverBg,
+  activeBg: colors.sidebar.bgActive,
+  activeBorder: colors.sidebar.bgActive,
+  activeText: colors.sidebar.itemActive,
+  indicatorGrad: colors.sidebar.bgActive,
+  childActive: colors.sidebar.itemActive,
+  childActiveBg: colors.sidebar.bgHover,
   logoFilter: "none",
-  mobileBg: tokens.sidebar.bg,
-  mobileBorder: tokens.sidebar.border,
-  logoutText: tokens.sidebar.logoutText,
-  logoutHoverBg: tokens.sidebar.logoutHoverBg,
-  logoutHoverText: tokens.sidebar.logoutHoverText,
-  copyright: tokens.sidebar.copyright,
-  avatarBorder: tokens.sidebar.avatarBorder,
-  userRoleText: tokens.sidebar.userRoleText,
-  submenuText: tokens.sidebar.itemText,
-  submenuHover: tokens.sidebar.text,
-  expandArrow: tokens.sidebar.textDim,
+  mobileBg: colors.sidebar.bg,
+  mobileBorder: colors.sidebar.border,
+  logoutText: colors.sidebar.logoutText,
+  logoutHoverBg: colors.sidebar.logoutHoverBg,
+  logoutHoverText: colors.sidebar.logoutHoverText,
+  copyright: colors.sidebar.copyright,
+  avatarBorder: colors.sidebar.avatarBorder,
+  userRoleText: colors.sidebar.userRoleText,
+  submenuText: colors.sidebar.itemText,
+  submenuHover: colors.sidebar.text,
+  expandArrow: colors.sidebar.textDim,
 };
 
 const ROLE_LABELS: Record<string, string> = {
@@ -107,17 +109,11 @@ export default function PlatformSidebar() {
 
   const { data: session } = useSession();
   const role = (session?.user as any)?.role || "viewer";
-  const permissions: string[] = (session?.user as any)?.permissions || [];
   const enabledModules: SystemModule[] = DEFAULT_ENABLED_MODULES;
 
-  // Admin sees everything
-  const isAdmin = role === "admin" || role === "super_admin" || permissions.includes("super.admin");
-
-  const hasPerm = (code?: string) => {
-    if (!code) return true;
-    if (isAdmin) return true;
-    return permissions.includes(code);
-  };
+  // WO-P8E: Temporarily disable permission filter — force show all menus
+  const isAdmin = true;
+  const hasPerm = (code?: string) => true;
 
   // Filter config by permissions + modules
   const visibleSections = useMemo(() => {
@@ -139,7 +135,7 @@ export default function PlatformSidebar() {
         return { ...section, items: visibleItems };
       })
       .filter(Boolean) as SidebarSection[];
-  }, [permissions, enabledModules]);
+  }, [enabledModules]);
 
   // Auto-expand section containing active path
   useEffect(() => {
@@ -195,7 +191,7 @@ export default function PlatformSidebar() {
       >
         {/* Logo */}
         <div style={{ padding: "22px 18px 16px", borderBottom: `1px solid ${COLORS.border}` }}>
-          <Link href="/platform" className="flex flex-col items-center gap-1.5" onClick={() => setOpen(false)}>
+          <Link href="/" className="flex flex-col items-center gap-1.5" onClick={() => setOpen(false)}>
             <div
               style={{
                 width: 64,
@@ -211,7 +207,7 @@ export default function PlatformSidebar() {
               }}
             >
               <img
-                src="/logo.png"
+                src="/logo.svg"
                 alt="允物"
                 style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: 13 }}
               />
@@ -556,7 +552,7 @@ export default function PlatformSidebar() {
             textAlign: "center",
           }}
         >
-          © 2026 允物 Platform OS
+          © 2026 允物 Platform OS · vP9C
         </div>
       </aside>
     </>

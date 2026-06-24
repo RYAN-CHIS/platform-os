@@ -6,21 +6,20 @@ export const dynamic = 'force-dynamic'; // V2.1: bypass ISR cache for production
 export default async function HomePage() {
   // Task A5：首屏仅一件作品
   const featuredWork = await prisma.product.findFirst({
-    where: { status: 'PUBLISHED' },
+    where: { status: 'published' },
     include: { series: true },
     orderBy: { createdAt: 'desc' },
   });
 
   // Section 02 知其来：材质来源
   const materials = await prisma.material.findMany({
-    where: { isActive: true },
     take: 6,
-    orderBy: { sortOrder: 'asc' },
+    orderBy: { id: 'asc' },
   });
 
   // Section 04 结其缘：更多作品
   const recentWorks = await prisma.product.findMany({
-    where: { status: 'PUBLISHED' },
+    where: { status: 'published' },
     include: { series: true },
     take: 6,
     orderBy: { createdAt: 'desc' },
@@ -72,7 +71,7 @@ export default async function HomePage() {
                 {featuredWork.companionsCount > 0 && (
                   <span className="yun-temporal-item">已陪伴 {featuredWork.companionsCount} 位同行者</span>
                 )}
-                {featuredWork.remainingQuantity > 0 && featuredWork.remainingQuantity <= 10 && (
+                {featuredWork.remainingQuantity != null && featuredWork.remainingQuantity > 0 && featuredWork.remainingQuantity <= 10 && (
                   <span className="yun-temporal-item">此批尚余 {featuredWork.remainingQuantity} 件</span>
                 )}
                 {featuredWork.completionDate && (
@@ -149,7 +148,7 @@ export default async function HomePage() {
                   style={{ padding: 'var(--yun-space-8) var(--yun-space-4)' }}
                 >
                   <h3 className="yun-vessel-title text-lg tracking-wider mb-2">{m.name}</h3>
-                  <p className="text-xs text-[var(--yun-ink-faded)] tracking-wider">{m.shortDesc}</p>
+                  <p className="text-xs text-[var(--yun-ink-faded)] tracking-wider">{m.origin}</p>
                 </Link>
               ))}
             </div>

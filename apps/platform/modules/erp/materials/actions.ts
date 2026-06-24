@@ -1,55 +1,93 @@
-"use server";
-/** ERP Materials — WO-P7D: Direct Prisma. Zero fetch, zero localhost:3001. */
-import { PrismaClient } from "@prisma/client";
-import { requirePermission } from "@yunwu/auth/platform-auth";
-import { PERMISSIONS } from "@yunwu/platform-core/config/permissions.config";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
-import { redirect } from "next/navigation";
-import type { Material, MaterialFilters } from "./types";
+'use server';
 
-const prisma = new PrismaClient(); const db = prisma as any;
+import { prisma } from '@yunwu/db';
+import { revalidatePath } from 'next/cache';
+import { createCrudAudit, createStatusAudit } from '@/lib/audit';
 
-async function getSession() {
-  const session = await getServerSession(authOptions);
-  if (!session?.user) redirect("/platform/login");
-  return session;
+export async function createMaterial(data: {
+  code: string; name: string; category?: string; materialType?: string;
+  specification?: string; inventoryUnit?: string; unitCost?: number;
+  supplier?: string; remark?: string;
+}) {
+  const m = await prisma.erpMaterial.create({
+    data: {
+      code: data.code,
+      name: data.name,
+      category: data.category || '',
+      materialType: (data.materialType as any) || 'OTHER',
+      specification: data.specification || '',
+      inventoryUnit: data.inventoryUnit || '颗',
+      unitCost: data.unitCost || 0,
+      supplier: data.supplier || '',
+      remark: data.remark || '',
+    },
+  });
+
+  try { await createCrudAudit({ action: 'CREATE', system: 'ERP', module: 'materials', targetId: m.id, after: m }); } catch {}
+
+  revalidatePath('/erp/materials');
+  return m;
 }
 
-export async function listMaterials(filters: MaterialFilters): Promise<Material[]> {
-  const s = await getSession();
-  await requirePermission(s as any, PERMISSIONS.MATERIAL_VIEW);
-  const where: any = {};
-  if (filters.status) where.status = filters.status;
-  if (filters.materialType) where.materialType = filters.materialType;
-  if (filters.keyword) where.OR = [{ code: { contains: filters.keyword } }, { name: { contains: filters.keyword } }];
-  return db.erpMaterial.findMany({ where, orderBy: { code: "asc" } });
-}
+export async function updateMaterial(id: number, data: {
+  code?: string; name?: string; category?: string; materialType?: string;
+  specification?: string; inventoryUnit?: string; unitCost?: number;
+  status?: string; supplier?: string; remark?: string;
+}) {
+  // Fetch before state
+  const beforeRows = await prisma.$queryRawUnsafe<any[]>(`SELECT * FROM erp_materials WHERE id = $1`, id);
+  const before = beforeRows[0] || null;
 
-export async function getMaterial(id: number) {
-  const s = await getSession();
-  await requirePermission(s as any, PERMISSIONS.MATERIAL_VIEW);
-  const m = await db.erpMaterial.findUnique({ where: { id }, include: { purchaseRecords: true, transactions: true } });
-  return m || null;
-}
+  const updateData: any = {};
+  if (data.code !== undefined) updateData.code = data.code;
+  if (data.name !== undefined) updateData.name = data.name;
+  if (data.category !== undefined) updateData.category = data.category;
+  if (data.materialType !== undefined) updateData.materialType = data.materialType;
+  if (data.specification !== undefined) updateData.specification = data.specification;
+  if (data.inventoryUnit !== undefined) updateData.inventoryUnit = data.inventoryUnit;
+  if (data.unitCost !== undefined) updateData.unitCost = data.unitCost;
+  if (data.status !== undefined) updateData.status = data.status;
+  if (data.supplier !== undefined) updateData.supplier = data.supplier;
+  if (data.remark !== undefined) updateData.remark = data.remark;
 
-export async function createMaterial(data: Record<string, unknown>) {
-  const s = await getSession();
-  await requirePermission(s as any, PERMISSIONS.MATERIAL_EDIT);
-  try { const m = db.erpMaterial ? await db.erpMaterial.create({ data }) : await db.rawMaterial.create({ data }); return { material: m }; }
-  catch (e: any) { return { error: e.message }; }
-}
+  const m = await prisma.erpMaterial.update({ where: { id }, data: updateData });
 
-export async function updateMaterial(id: number, data: Record<string, unknown>) {
-  const s = await getSession();
-  await requirePermission(s as any, PERMISSIONS.MATERIAL_EDIT);
-  try { db.erpMaterial ? await db.erpMaterial.update({ where: { id }, data }) : await db.rawMaterial.update({ where: { id }, data }); return {}; }
-  catch (e: any) { return { error: e.message }; }
+  try { await createCrudAudit({ action: 'UPDATE', system: 'ERP', module: 'materials', targetId: id, before, after: m }); } catch {}
+
+  revalidatePath('/erp/materials');
+  return m;
 }
 
 export async function deleteMaterial(id: number) {
-  const s = await getSession();
-  await requirePermission(s as any, PERMISSIONS.MATERIAL_DELETE);
-  try { db.erpMaterial ? await db.erpMaterial.delete({ where: { id } }) : await db.rawMaterial.delete({ where: { id } }); return {}; }
-  catch (e: any) { return { error: e.message }; }
+  // Fetch before state
+  const beforeRows = await prisma.$queryRawUnsafe<any[]>(`SELECT * FROM erp_materials WHERE id = $1`, id);
+  const before = beforeRows[0] || null;
+
+  // Check for BOM references
+  const bomCount = await prisma.erpBom.count({ where: { materialId: id } });
+  if (bomCount > 0) throw new Error(`材料被 ${bomCount} 条 BOM 引用，无法删除`);
+  const txnCount = await prisma.erpInventoryTransaction.count({ where: { materialId: id } });
+  if (txnCount > 0) throw new Error(`材料有 ${txnCount} 条库存记录，无法删除`);
+  await prisma.erpPurchaseRecord.deleteMany({ where: { materialId: id } });
+  await prisma.erpMaterial.delete({ where: { id } });
+
+  try { await createCrudAudit({ action: 'DELETE', system: 'ERP', module: 'materials', targetId: id, before }); } catch {}
+
+  revalidatePath('/erp/materials');
+}
+
+export async function toggleMaterialStatus(id: number, newStatus: string) {
+  // Fetch before state
+  const beforeRows = await prisma.$queryRawUnsafe<any[]>(`SELECT * FROM erp_materials WHERE id = $1`, id);
+  const before = beforeRows[0] || null;
+
+  const m = await prisma.erpMaterial.update({
+    where: { id },
+    data: { status: newStatus as any },
+  });
+
+  try { await createStatusAudit({ system: 'ERP', module: 'materials', targetId: id, before: before || { status: '' }, after: { status: newStatus } }); } catch {}
+
+  revalidatePath('/erp/materials');
+  return m;
 }

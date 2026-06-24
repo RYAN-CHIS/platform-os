@@ -3,14 +3,16 @@
  *
  * 菜单配置驱动。新增模块只需在此文件中添加条目。
  * 支持：权限过滤、模块开关、多级菜单、动态图标。
+ *
+ * WO-P8D: 按工单要求重建 Sidebar 配置
  */
 
 import type { LucideIcon } from "lucide-react";
 import { PERMISSIONS } from "./permissions.config";
 
-// ═══════════════════════════════════════════
+// ════════════════════════════════════════════
 // Types
-// ═══════════════════════════════════════════
+// ════════════════════════════════════════════
 
 export interface SidebarChild {
   key: string;
@@ -56,9 +58,9 @@ export type SystemModule =
 /** Re-export for backward compatibility */
 export const PLATFORM_PERMISSIONS = PERMISSIONS;
 
-// ═══════════════════════════════════════════
-// Sidebar Configuration
-// ═══════════════════════════════════════════
+// ════════════════════════════════════════════
+// Sidebar Configuration — WO-P8D
+// ════════════════════════════════════════════
 
 export const SIDEBAR_CONFIG: SidebarSection[] = [
   // ── Dashboard ──
@@ -68,7 +70,7 @@ export const SIDEBAR_CONFIG: SidebarSection[] = [
     items: [
       {
         key: "dashboard",
-        label: "仪表盘",
+        label: "总览",
         icon: "LayoutDashboard",
         href: "/platform",
         permission: PERMISSIONS.DASHBOARD_VIEW,
@@ -77,7 +79,7 @@ export const SIDEBAR_CONFIG: SidebarSection[] = [
     ],
   },
 
-  // ── ERP ──
+  // ── ERP 系统 ──
   {
     key: "erp",
     label: "ERP 系统",
@@ -86,9 +88,9 @@ export const SIDEBAR_CONFIG: SidebarSection[] = [
     items: [
       {
         key: "erp-dashboard",
-        label: "ERP 仪表盘",
+        label: "ERP 总览",
         icon: "LayoutDashboard",
-        href: "/erp/dashboard",
+        href: "/platform",
         permission: PERMISSIONS.DASHBOARD_VIEW,
         module: "erp",
       },
@@ -117,22 +119,6 @@ export const SIDEBAR_CONFIG: SidebarSection[] = [
         module: "erp",
       },
       {
-        key: "inventory",
-        label: "库存池",
-        icon: "Warehouse",
-        href: "/erp/inventory",
-        permission: PERMISSIONS.INVENTORY_VIEW,
-        module: "erp",
-      },
-      {
-        key: "productions",
-        label: "生产记录",
-        icon: "ClipboardCheck",
-        href: "/erp/productions",
-        permission: PERMISSIONS.PRODUCTION_VIEW,
-        module: "erp",
-      },
-      {
         key: "costs",
         label: "成本核算",
         icon: "DollarSign",
@@ -141,55 +127,49 @@ export const SIDEBAR_CONFIG: SidebarSection[] = [
         module: "erp",
       },
       {
+        key: "production",
+        label: "生产记录",
+        icon: "ClipboardCheck",
+        href: "/erp/production",
+        permission: PERMISSIONS.PRODUCTION_VIEW,
+        module: "erp",
+      },
+      {
+        key: "inventory",
+        label: "库存池",
+        icon: "Warehouse",
+        href: "/erp/inventory",
+        permission: PERMISSIONS.INVENTORY_VIEW,
+        module: "erp",
+      },
+      {
         key: "orders",
-        label: "订单管理",
+        label: "销售管理",
         icon: "ShoppingCart",
         href: "/erp/orders",
         permission: PERMISSIONS.ORDER_VIEW,
         module: "erp",
-        children: [
-          {
-            key: "orders-list",
-            label: "全部订单",
-            href: "/erp/orders",
-            permission: PERMISSIONS.ORDER_VIEW,
-          },
-          {
-            key: "customers",
-            label: "客户管理",
-            href: "/erp/customers",
-            permission: PERMISSIONS.CUSTOMER_VIEW,
-          },
-        ],
       },
       {
-        key: "works",
-        label: "作品管理",
-        icon: "Sparkle",
-        href: "/erp/works",
-        permission: PERMISSIONS.WORK_VIEW,
+        key: "customers",
+        label: "客户管理",
+        icon: "Users",
+        href: "/erp/customers",
+        permission: PERMISSIONS.CUSTOMER_VIEW,
         module: "erp",
       },
       {
-        key: "erp-media",
-        label: "ERP 媒体库",
-        icon: "Image",
-        href: "/erp/media",
-        permission: PERMISSIONS.MEDIA_VIEW,
-        module: "erp",
-      },
-      {
-        key: "erp-import",
-        label: "数据导入",
-        icon: "Upload",
-        href: "/erp/import",
-        permission: PERMISSIONS.IMPORT_DATA,
+        key: "purchase",
+        label: "采购管理",
+        icon: "Truck",
+        href: "/erp/purchase",
+        permission: PERMISSIONS.PURCHASE_VIEW,
         module: "erp",
       },
     ],
   },
 
-  // ── Brand OS ──
+  // ── Brand OS ──  (WO-P8D: 完整 10 项)
   {
     key: "brand",
     label: "Brand OS",
@@ -197,180 +177,124 @@ export const SIDEBAR_CONFIG: SidebarSection[] = [
     permission: PERMISSIONS.BRAND_ACCESS,
     items: [
       {
-        key: "series",
-        label: "七序叙事",
-        icon: "BookOpen",
-        href: "/admin/series",
-        permission: PERMISSIONS.BRAND_SERIES_VIEW,
-        module: "brand",
-      },
-      {
-        key: "objects",
-        label: "器物展示",
-        icon: "Gem",
-        href: "/admin/objects",
-        permission: PERMISSIONS.BRAND_PRODUCT_VIEW,
-        module: "brand",
-      },
-      {
-        key: "brand-materials",
-        label: "材料研究",
-        icon: "FlaskConical",
-        href: "/admin/materials",
-        permission: PERMISSIONS.BRAND_MATERIAL_VIEW,
-        module: "brand",
-      },
-      {
-        key: "journal",
-        label: "品牌志",
-        icon: "PenTool",
-        href: "/admin/journal",
-        permission: PERMISSIONS.BRAND_JOURNAL_VIEW,
-        module: "brand",
-        children: [
-          {
-            key: "journal-list",
-            label: "全部文章",
-            href: "/admin/journal",
-            permission: PERMISSIONS.BRAND_JOURNAL_VIEW,
-          },
-          {
-            key: "journal-new",
-            label: "新建文章",
-            href: "/admin/journal/new",
-            permission: PERMISSIONS.BRAND_JOURNAL_CREATE,
-          },
-        ],
-      },
-      {
-        key: "content",
-        label: "页面内容",
-        icon: "FileText",
-        href: "/admin/content",
+        key: "brand-overview",
+        label: "Brand 概览",
+        icon: "Sparkle",
+        href: "/brand",
         permission: PERMISSIONS.BRAND_PAGE_EDIT,
         module: "brand",
       },
       {
-        key: "tags",
-        label: "标签系统",
-        icon: "Tag",
-        href: "/admin/tags",
-        permission: PERMISSIONS.BRAND_TAG_VIEW,
+        key: "brand-products",
+        label: "产品展示",
+        icon: "Gem",
+        href: "/brand/products",
+        permission: PERMISSIONS.BRAND_PRODUCT_VIEW,
         module: "brand",
       },
       {
-        key: "media",
-        label: "媒体中心",
+        key: "brand-series",
+        label: "七序系列",
+        icon: "BookOpen",
+        href: "/brand/series",
+        permission: PERMISSIONS.BRAND_SERIES_VIEW,
+        module: "brand",
+      },
+      {
+        key: "brand-materials",
+        label: "材料展示",
+        icon: "FlaskConical",
+        href: "/brand/materials",
+        permission: PERMISSIONS.BRAND_MATERIAL_VIEW,
+        module: "brand",
+      },
+      {
+        key: "brand-journal",
+        label: "品牌志",
+        icon: "PenTool",
+        href: "/brand/journal",
+        permission: PERMISSIONS.BRAND_ARTICLE_VIEW,
+        module: "brand",
+      },
+      {
+        key: "brand-media",
+        label: "媒体素材",
         icon: "Image",
-        href: "/admin/media",
+        href: "/brand/media",
         permission: PERMISSIONS.MEDIA_VIEW,
         module: "brand",
       },
-    ],
-  },
-
-  // ── CRM ──
-  {
-    key: "crm",
-    label: "CRM",
-    module: "crm",
-    permission: PERMISSIONS.CRM_ACCESS,
-    items: [
       {
-        key: "leads",
-        label: "潜在线索",
-        icon: "Users",
-        href: "/admin/leads",
-        permission: PERMISSIONS.LEAD_VIEW,
-        module: "crm",
+        key: "brand-banners",
+        label: "Banner 管理",
+        icon: "Layers",
+        href: "/brand/banners",
+        permission: PERMISSIONS.BANNER_VIEW,
+        module: "brand",
+      },
+      {
+        key: "brand-seo",
+        label: "SEO 设置",
+        icon: "Search",
+        href: "/brand/seo",
+        permission: PERMISSIONS.BRAND_SEO_VIEW,
+        module: "brand",
+      },
+      {
+        key: "brand-settings",
+        label: "页面设置",
+        icon: "Settings",
+        href: "/brand/settings",
+        permission: PERMISSIONS.BRAND_PAGE_EDIT,
+        module: "brand",
       },
     ],
   },
 
-  // ── Analytics ──
-  {
-    key: "analytics",
-    label: "数据分析",
-    module: "analytics",
-    permission: PERMISSIONS.ANALYTICS_ACCESS,
-    badge: { text: "即将推出", variant: "beta" },
-    items: [],
-  },
-
-  // ── Supplier (Future) ──
-  {
-    key: "supplier",
-    label: "供应商管理",
-    module: "supplier",
-    permission: PERMISSIONS.SUPPLIER_ACCESS,
-    badge: { text: "即将推出", variant: "beta" },
-    items: [],
-  },
-
-  // ── Finance (Future) ──
-  {
-    key: "finance",
-    label: "财务管理",
-    module: "finance",
-    permission: PERMISSIONS.FINANCE_ACCESS,
-    badge: { text: "即将推出", variant: "beta" },
-    items: [],
-  },
-
-  // ── AI Center (Future) ──
-  {
-    key: "ai",
-    label: "AI Center",
-    module: "ai",
-    permission: PERMISSIONS.AI_ACCESS,
-    badge: { text: "即将推出", variant: "beta" },
-    items: [],
-  },
-
-  // ── Settings ──
+  // ── 系统设置 ──  (WO-P8D: 完整 3 项)
   {
     key: "settings",
-    label: "系统管理",
+    label: "系统设置",
     module: "settings",
     permission: PERMISSIONS.SETTING_VIEW,
     items: [
       {
-        key: "users",
+        key: "settings-users",
         label: "用户管理",
         icon: "Users",
-        href: "/erp/settings",
+        href: "/settings/users",
         permission: PERMISSIONS.USER_VIEW,
         module: "settings",
       },
       {
-        key: "permissions",
-        label: "权限管理",
-        icon: "Shield",
-        href: "/erp/settings",
+        key: "settings-roles",
+        label: "角色管理",
+        icon: "UserCog",
+        href: "/settings/roles",
         permission: PERMISSIONS.USER_EDIT,
         module: "settings",
       },
       {
-        key: "seo",
-        label: "SEO 配置",
-        icon: "Search",
-        href: "/admin/seo",
-        permission: PERMISSIONS.SEO_VIEW,
+        key: "settings-permissions",
+        label: "权限矩阵",
+        icon: "Shield",
+        href: "/settings/permissions",
+        permission: PERMISSIONS.USER_EDIT,
         module: "settings",
       },
       {
-        key: "audit",
+        key: "settings-audit",
         label: "审计日志",
         icon: "ScrollText",
-        href: "/admin/audit",
-        permission: PERMISSIONS.AUDIT_VIEW,
+        href: "/settings/audit",
+        permission: PERMISSIONS.SETTING_VIEW,
         module: "settings",
       },
       {
-        key: "system",
-        label: "系统设置",
+        key: "settings-system",
+        label: "系统配置",
         icon: "Settings",
-        href: "/admin/settings",
+        href: "/settings/system",
         permission: PERMISSIONS.SETTING_EDIT,
         module: "settings",
       },
@@ -378,33 +302,34 @@ export const SIDEBAR_CONFIG: SidebarSection[] = [
   },
 ];
 
-// ═══════════════════════════════════════════
+// ════════════════════════════════════════════
 // Module Config
-// ═══════════════════════════════════════════
+// ════════════════════════════════════════════
 
 /** 默认启用的模块 */
 export const DEFAULT_ENABLED_MODULES: SystemModule[] = [
   "dashboard",
   "erp",
   "brand",
-  "crm",
   "settings",
 ];
 
 /** 模块中文标签 */
 export const MODULE_LABELS: Record<SystemModule, string> = {
-  dashboard: "仪表盘",
+  dashboard: "总览",
   erp: "ERP 系统",
   brand: "Brand OS",
   crm: "CRM",
   analytics: "数据分析",
+  supplier: "供应商",
+  finance: "财务",
   ai: "AI Center",
-  settings: "系统管理",
+  settings: "系统设置",
 };
 
-// ═══════════════════════════════════════════
+// ════════════════════════════════════════════
 // Helpers
-// ═══════════════════════════════════════════
+// ════════════════════════════════════════════
 
 /** Flatten all sidebar items (sections → items → children) into a single list */
 export function flattenSidebarItems(

@@ -10,6 +10,7 @@ import NextAuth from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { createPrisma } from "@yunwu/db";
 import bcrypt from "bcryptjs";
+import { createAuthAudit } from "@/lib/audit";
 
 const prisma = createPrisma();
 
@@ -33,10 +34,22 @@ const handler = NextAuth({
           },
         });
 
-        if (!user) return null;
+        if (!user) {
+          try { await createAuthAudit({ action: "LOGIN_FAILED", email: credentials?.email as string, reason: "user_not_found" }); } catch {}
+          return null;
+        }
 
         const isValid = await bcrypt.compare(credentials.password, user.password);
-        if (!isValid) return null;
+        if (!isValid) {
+          try { await createAuthAudit({ action: "LOGIN_FAILED", email: credentials?.email as string, userId: user.id, reason: "wrong_password" }); } catch {}
+          return null;
+        }
+
+        // Audit: LOGIN_SUCCESS
+        try {
+          await (prisma as any).$executeRawUnsafe(`UPDATE users SET last_login_at = NOW() WHERE id = $1`, user.id);
+          await createAuthAudit({ action: "LOGIN_SUCCESS", email: credentials.email as string, userId: user.id });
+        } catch {}
 
         // Build permissions array from userPermissions
         const permissions = user.userPermissions
@@ -68,6 +81,16 @@ const handler = NextAuth({
         (session.user as any).permissions = token.permissions;
       }
       return session;
+    },
+  },
+  events: {
+    async signOut({ token }) {
+      try {
+        const email = token.email as string;
+        if (email) {
+          await createAuthAudit({ action: "LOGOUT", email, reason: "user_initiated" });
+        }
+      } catch {}
     },
   },
   pages: {

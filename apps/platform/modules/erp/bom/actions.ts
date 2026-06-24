@@ -1,16 +1,120 @@
-"use server";
-/** ERP BOM — WO-P7D: Direct Prisma. Zero fetch, zero localhost:3001. */
-import { PrismaClient } from "@prisma/client";
-import { requirePermission } from "@yunwu/auth/platform-auth";
-import { PERMISSIONS } from "@yunwu/platform-core/config/permissions.config";
-import { getServerSession } from "next-auth"; import { authOptions } from "@/lib/auth"; import { redirect } from "next/navigation";
+'use server';
 
-const prisma = new PrismaClient(); const db = prisma as any;
+import { prisma } from '@yunwu/db';
+import { revalidatePath } from 'next/cache';
+import { createCrudAudit, createAuditLog } from '@/lib/audit';
 
-async function s(){const x=await getServerSession(authOptions);if(!x?.user)redirect("/platform/login");return x;}
+export async function createBom(data: {
+  skuId: number; materialId: number; quantity: number;
+}) {
+  const material = await prisma.erpMaterial.findUnique({ where: { id: data.materialId } });
+  if (!material) throw new Error('材料不存在');
 
-export async function listBom(skuId?:number){await s();const where:any={};if(skuId)where.skuId=skuId;return db.erpBom.findMany({where,include:{material:true,sku:true}});}
-export async function getBom(id:number){await s();return db.erpBom.findUnique({where:{id},include:{material:true,sku:{include:{product:true}}}});}
-export async function createBom(d:any){const x=await s();await requirePermission(x as any,PERMISSIONS.BOM_EDIT);const mat=await db.erpMaterial.findUnique({where:{id:d.materialId}});try{return await db.erpBom.create({data:{...d,materialCodeSnapshot:mat.code,materialNameSnapshot:mat.name,lineCost:(d.unitPrice||0)*d.quantity}});}catch(e:any){return{error:e.message};}}
-export async function updateBom(id:number,d:any){const x=await s();await requirePermission(x as any,PERMISSIONS.BOM_EDIT);const b=await db.erpBom.findUnique({where:{id}});const lineCost=(d.unitPrice??b.unitPrice??0)*(d.quantity??b.quantity);try{await db.erpBom.update({where:{id},data:{...d,lineCost}});return{};}catch(e:any){return{error:e.message};}}
-export async function deleteBom(id:number){const x=await s();await requirePermission(x as any,PERMISSIONS.BOM_EDIT);try{await db.erpBom.delete({where:{id}});return{};}catch(e:any){return{error:e.message};}}
+  const unitPrice = material.unitCost || 0;
+  const lineCost = unitPrice * data.quantity;
+
+  const bom = await prisma.erpBom.create({
+    data: {
+      skuId: data.skuId,
+      materialId: data.materialId,
+      quantity: data.quantity,
+      unitPrice,
+      lineCost,
+      materialCodeSnapshot: material.code,
+      materialNameSnapshot: material.name,
+    },
+  });
+
+  try { await createCrudAudit({ action: 'CREATE', system: 'ERP', module: 'bom', targetId: bom.id, after: bom }); } catch {}
+
+  // Recalculate SKU material cost
+  await recalcSkuCost(data.skuId);
+  revalidatePath('/erp/bom');
+  return bom;
+}
+
+export async function updateBom(id: number, data: { quantity: number }) {
+  // Fetch before state
+  const beforeRows = await prisma.$queryRawUnsafe<any[]>(`SELECT * FROM erp_boms WHERE id = $1`, id);
+  const before = beforeRows[0] || null;
+
+  const existing = await prisma.erpBom.findUnique({
+    where: { id },
+    include: { material: true },
+  });
+  if (!existing) throw new Error('BOM 条目不存在');
+
+  const unitPrice = existing.material?.unitCost || existing.unitPrice || 0;
+  const lineCost = unitPrice * data.quantity;
+
+  const bom = await prisma.erpBom.update({
+    where: { id },
+    data: { quantity: data.quantity, unitPrice, lineCost },
+  });
+
+  try { await createCrudAudit({ action: 'UPDATE', system: 'ERP', module: 'bom', targetId: id, before, after: bom }); } catch {}
+
+  await recalcSkuCost(existing.skuId);
+  revalidatePath('/erp/bom');
+  return bom;
+}
+
+export async function deleteBom(id: number) {
+  // Fetch before state
+  const beforeRows = await prisma.$queryRawUnsafe<any[]>(`SELECT * FROM erp_boms WHERE id = $1`, id);
+  const before = beforeRows[0] || null;
+
+  const existing = await prisma.erpBom.findUnique({ where: { id } });
+  if (!existing) throw new Error('BOM 条目不存在');
+
+  await prisma.erpBom.delete({ where: { id } });
+  await recalcSkuCost(existing.skuId);
+
+  try { await createCrudAudit({ action: 'DELETE', system: 'ERP', module: 'bom', targetId: id, before }); } catch {}
+
+  revalidatePath('/erp/bom');
+}
+
+async function recalcSkuCost(skuId: number) {
+  const boms = await prisma.erpBom.findMany({ where: { skuId } });
+  const materialCost = boms.reduce((s, b) => s + Number(b.lineCost || 0), 0);
+
+  const existing = await prisma.erpProductCost.findUnique({ where: { skuId } });
+  const laborCost = existing?.laborCost || 0;
+  const packagingCost = existing?.packagingCost || 0;
+  const totalCost = materialCost + laborCost + packagingCost;
+
+  await prisma.erpProductCost.upsert({
+    where: { skuId },
+    create: { skuId, materialCost, laborCost, packagingCost, totalCost },
+    update: { materialCost, totalCost },
+  });
+}
+
+export async function getSkus() {
+  return prisma.erpProductSku.findMany({
+    orderBy: { code: 'asc' },
+    select: { id: true, code: true, name: true },
+  });
+}
+
+export async function getMaterials() {
+  return prisma.erpMaterial.findMany({
+    where: { status: { not: 'ARCHIVED' } },
+    orderBy: { code: 'asc' },
+    select: { id: true, code: true, name: true, inventoryUnit: true, unitCost: true },
+  });
+}
+
+export async function recalcAllCosts() {
+  const skus = await prisma.erpProductSku.findMany({ select: { id: true } });
+  for (const sku of skus) {
+    await recalcSkuCost(sku.id);
+  }
+
+  try { await createAuditLog({ action: 'COST_RECALCULATE', system: 'ERP', module: 'costs', description: `重算全部成本: ${skus.length} 个 SKU` }); } catch {}
+
+  revalidatePath('/erp/costs');
+  revalidatePath('/erp/bom');
+  return { recalculated: skus.length };
+}

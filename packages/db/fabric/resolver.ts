@@ -160,7 +160,7 @@ export function resolveBrandProduct(unified: UnifiedProduct): BrandProductView {
   if (unified.brand.inspiration) score += 2;
   if (unified.brand.theme) score += 1;
   if (unified.brand.lifeStage) score += 1;
-  if (unified.brand.coverImage) score += 1;
+  if (unified.web.coverImage) score += 1;
   if (materials.length > 0) score += 1;
   if (keywords.length > 0) score += 1;
 
@@ -180,7 +180,7 @@ export function resolveBrandProduct(unified: UnifiedProduct): BrandProductView {
     lifeStage: unified.brand.lifeStage ?? "",
     keywords,
     materials,
-    coverImage: unified.brand.coverImage ?? unified.web.coverImage ?? "",
+    coverImage: unified.web.coverImage ?? unified.web.coverImage ?? "",
     gallery,
     hasFullStory: score >= 5,
     contentScore: Math.min(score, 10),
