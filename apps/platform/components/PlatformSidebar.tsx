@@ -215,9 +215,9 @@ export default function PlatformSidebar() {
               }}
             >
               <img
-                src="/logo.svg"
+                src="/logo.png"
                 alt="允物"
-                style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: 13 }}
+                style={{ width: "100%", height: "100%", objectFit: "contain", borderRadius: 13, padding: 6 }}
               />
             </div>
             <h1
