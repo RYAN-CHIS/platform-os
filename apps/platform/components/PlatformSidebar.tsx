@@ -231,28 +231,42 @@ export default function PlatformSidebar() {
             </div>
             <h1
               style={{
-                margin: 0,
-                fontSize: "1.2rem",
-                fontWeight: 700,
+                margin: "4px 0 0",
+                fontSize: "1.5rem",
+                fontWeight: 600,
                 color: COLORS.text,
-                letterSpacing: "0.15em",
+                letterSpacing: "0.18em",
                 fontFamily: "var(--font-serif-zh), serif",
+                lineHeight: 1.3,
               }}
             >
               允物
             </h1>
             <p
               style={{
-                margin: "2px 0 0",
-                fontSize: "0.7rem",
-                fontWeight: 400,
+                margin: "1px 0 0",
+                fontSize: "0.68rem",
+                fontWeight: 300,
                 color: COLORS.text,
-                letterSpacing: "0.23em",
-                opacity: 0.75,
+                letterSpacing: "0.12em",
+                opacity: 0.7,
                 fontFamily: "var(--font-serif-zh), serif",
               }}
             >
-              让物归物，让心归心
+              东方器物生活系统
+            </p>
+            <p
+              style={{
+                margin: "3px 0 0",
+                fontSize: "0.55rem",
+                fontWeight: 400,
+                color: COLORS.text,
+                letterSpacing: "0.08em",
+                opacity: 0.4,
+                fontFamily: "var(--font-sans), system-ui, sans-serif",
+              }}
+            >
+              Object · Ritual · Meaning · Time
             </p>
           </Link>
         </div>
@@ -589,7 +603,7 @@ export default function PlatformSidebar() {
             textAlign: "center",
           }}
         >
-          © 2026 允物 Platform OS · vP9C
+          © 2026 允物 · 东方器物生活系统
         </div>
       </aside>
     </>
