@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { writeFile, mkdir } from "fs/promises";
+import { writeFile, mkdir, unlink } from "fs/promises";
 import { join } from "path";
 import crypto from "crypto";
-import { put } from "@vercel/blob";
+import { del, put } from "@vercel/blob";
+import { revalidatePath } from "next/cache";
+import { formatDbError, insertBrandMediaAsset } from "@/modules/brand/media/repository";
 
 export const runtime = "nodejs";
 
@@ -43,10 +45,71 @@ function safeExtension(filename: string) {
   return ext || "bin";
 }
 
+function getMediaType(mimeType: string): "IMAGE" | "VIDEO" | "DOCUMENT" | "OTHER" {
+  if (mimeType.startsWith("image/")) return "IMAGE";
+  if (mimeType.startsWith("video/")) return "VIDEO";
+  if (mimeType === "application/pdf" || mimeType === "text/csv" || mimeType.includes("spreadsheet")) {
+    return "DOCUMENT";
+  }
+  return "OTHER";
+}
+
+function formString(value: FormDataEntryValue | null, fallback = "") {
+  return typeof value === "string" && value.trim() ? value.trim() : fallback;
+}
+
+function parseBlobStoreIdFromToken(token: string) {
+  // V1 format: vercel_blob_rw_{storeId}_{secret}
+  // V2 format: vcp_{random_string}
+  const parts = token.split("_");
+  if (parts.length >= 5 && parts[0] === "vercel" && parts[1] === "blob") {
+    return parts[3] || "";
+  }
+  // V2 vcp_ format — accept any non-empty vcp token
+  if (parts.length >= 2 && parts[0] === "vcp") {
+    return parts[1] || "";
+  }
+  return "";
+}
+
+function getBlobReadWriteToken() {
+  const token = process.env.BLOB_READ_WRITE_TOKEN?.trim() || "";
+  if (!token) return { token: "", error: "missing" as const };
+  if (!parseBlobStoreIdFromToken(token)) return { token: "", error: "invalid-format" as const };
+  return { token, error: null };
+}
+
+function isBlobAuthError(message: string) {
+  return [
+    "Access denied",
+    "Invalid `token` parameter",
+    "Invalid `BLOB_READ_WRITE_TOKEN`",
+    "invalid token",
+    "unable to extract store ID",
+    "No read-write token found",
+    "No blob credentials found",
+  ].some((part) => message.includes(part));
+}
+
+async function cleanupUpload(storage: string, url: string, blobToken: string) {
+  if (!url) return;
+  try {
+    if (storage === "vercel-blob") {
+      await del(url, { token: blobToken });
+    } else if (url.startsWith("/uploads/")) {
+      await unlink(join(process.cwd(), "public", url));
+    }
+  } catch (error) {
+    console.warn("[media-upload] cleanup skipped:", error instanceof Error ? error.message : "unknown error");
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
     const file = formData.get("file") as File | null;
+    const menuGroup = formString(formData.get("menuGroup"), "other");
+    const remark = formString(formData.get("remark"));
 
     if (!file) {
       return jsonError("未选择文件", 400, { stage: "request" });
@@ -73,10 +136,19 @@ export async function POST(request: NextRequest) {
     const buffer = Buffer.from(await file.arrayBuffer());
     let url = "";
     let storage = "local";
+    let blobToken = "";
 
-    const blobToken = process.env.BLOB_READ_WRITE_TOKEN || process.env.BLOB_READ_WRITE_TOKEN_V2;
+    const blobConfig = getBlobReadWriteToken();
+    if (blobConfig.error === "invalid-format") {
+      return jsonError(
+        "Vercel Blob Token 配置无效：BLOB_READ_WRITE_TOKEN 不是 Blob read/write token，请重新连接 platform-os-blob 并重新部署。",
+        500,
+        { stage: "config", storage: "vercel-blob", requiredEnv: "BLOB_READ_WRITE_TOKEN", code: "BLOB_TOKEN_INVALID_FORMAT" }
+      );
+    }
 
-    if (blobToken) {
+    if (blobConfig.token) {
+      blobToken = blobConfig.token;
       try {
         const blob = await put(`brand-media/${uniqueName}`, buffer, {
           access: "public",
@@ -90,16 +162,17 @@ export async function POST(request: NextRequest) {
         const errMsg = error instanceof Error ? error.message : "未知错误";
         console.error("[media-upload] Vercel Blob upload failed:", errMsg);
 
-        if (errMsg.includes("Access denied") || errMsg.includes("invalid token") || errMsg.includes("not found")) {
+        if (isBlobAuthError(errMsg) || errMsg.includes("not found")) {
           return jsonError(
-            `Vercel Blob Token 无效。请在本地终端运行以下命令修复：\n` +
-            `1. cd apps/platform\n` +
-            `2. npx vercel blob create-store "platform-os-blob" --access public\n` +
-            `3. 复制输出的 BLOB_READ_WRITE_TOKEN\n` +
-            `4. npx vercel env add BLOB_READ_WRITE_TOKEN production\n` +
-            `5. npx vercel env add BLOB_READ_WRITE_TOKEN preview\n` +
-            `6. npx vercel --prod --yes`,
-            500, { stage: "storage", storage: "vercel-blob", detail: errMsg }
+            "Vercel Blob Token 无法访问 platform-os-blob，请确认 Production/Preview 的 BLOB_READ_WRITE_TOKEN 来自同一个 Blob Store。",
+            500,
+            {
+              stage: "config",
+              storage: "vercel-blob",
+              requiredEnv: "BLOB_READ_WRITE_TOKEN",
+              code: "BLOB_TOKEN_ACCESS_DENIED",
+              detail: errMsg,
+            }
           );
         }
 
@@ -109,11 +182,9 @@ export async function POST(request: NextRequest) {
       }
     } else if (isVercelRuntime) {
       return jsonError(
-        "Vercel Blob 未配置。请运行：\n" +
-        "1. npx vercel blob create-store \"platform-os-blob\" --access public\n" +
-        "2. 复制输出的 BLOB_READ_WRITE_TOKEN\n" +
-        "3. npx vercel env add BLOB_READ_WRITE_TOKEN production",
-        500, { stage: "storage", storage: "vercel-blob" }
+        "Vercel Blob 未配置：Production/Preview 缺少 BLOB_READ_WRITE_TOKEN。",
+        500,
+        { stage: "config", storage: "vercel-blob", requiredEnv: "BLOB_READ_WRITE_TOKEN", code: "BLOB_TOKEN_MISSING" }
       );
     } else {
       // Local dev fallback
@@ -124,6 +195,32 @@ export async function POST(request: NextRequest) {
       url = `/uploads/${uniqueName}`;
     }
 
+    let asset;
+    try {
+      asset = await insertBrandMediaAsset({
+        filename: uniqueName,
+        originalName: file.name,
+        mimeType,
+        size: file.size,
+        url,
+        mediaType: getMediaType(mimeType),
+        menuGroup,
+        remark,
+      });
+    } catch (error) {
+      await cleanupUpload(storage, url, blobToken);
+      return jsonError(formatDbError(error), 500, {
+        stage: "database",
+        storage,
+        filename: file.name,
+      });
+    }
+    try {
+      revalidatePath("/brand/media");
+    } catch (error) {
+      console.warn("[media-upload] revalidate skipped:", error instanceof Error ? error.message : "unknown error");
+    }
+
     return NextResponse.json({
       url,
       filename: uniqueName,
@@ -131,6 +228,7 @@ export async function POST(request: NextRequest) {
       mimeType,
       size: file.size,
       storage,
+      asset,
     });
   } catch (error: any) {
     console.error("[media-upload] request failed", error);
