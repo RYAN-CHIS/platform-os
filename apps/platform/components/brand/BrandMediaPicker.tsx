@@ -61,8 +61,12 @@ export function BrandMediaPicker({
     try {
       const formData = new FormData();
       formData.append("file", file);
+      formData.append("menuGroup", "other");
       const res = await fetch("/api/media/upload", { method: "POST", body: formData });
       const data = await res.json();
+      if (!res.ok || data.error) {
+        throw new Error(data.error || `上传接口 ${res.status}`);
+      }
       if (data.url) {
         onChange(data.url);
         setPreviewUrl(data.url);

@@ -3,7 +3,6 @@
 import { useState, useRef } from "react";
 import {
   listMedia,
-  createMediaAsset,
   updateMediaAsset,
   deleteMediaAsset,
   bulkDeleteMedia,
@@ -11,12 +10,6 @@ import {
 import { MEDIA_MENU_GROUPS } from "@/modules/brand/media/config";
 import ErpToolbar from "@/components/ErpToolbar";
 import ErpDataTable from "@/components/ErpDataTable";
-
-function getMediaType(mime: string): string {
-  if (mime.startsWith("image/")) return "IMAGE";
-  if (mime.startsWith("video/")) return "VIDEO";
-  return "DOCUMENT";
-}
 
 const MAX_UPLOAD_SIZE = 10 * 1024 * 1024;
 const ALLOWED_EXTENSIONS = new Set(["jpg", "jpeg", "png", "webp", "gif", "svg", "mp4", "mov", "webm", "pdf", "csv", "xlsx", "zip"]);
@@ -96,6 +89,9 @@ async function parseUploadResponse(res: Response) {
   if (!body.url || !body.filename || !body.originalName || !body.mimeType || !body.size) {
     throw new Error("上传接口返回内容不完整");
   }
+  if (!body.asset?.id) {
+    throw new Error("素材记录保存失败");
+  }
   return body;
 }
 
@@ -133,22 +129,11 @@ export default function BrandMediaClient({ initialRows }: { initialRows: any[] }
 
       const formData = new FormData();
       formData.append("file", file);
+      formData.append("menuGroup", uploadMenuGroup);
 
       try {
         const res = await fetch("/api/media/upload", { method: "POST", body: formData });
-        const result = await parseUploadResponse(res);
-        const saved = await createMediaAsset({
-          filename: result.filename,
-          originalName: result.originalName,
-          mimeType: result.mimeType,
-          size: result.size,
-          url: result.url,
-          mediaType: getMediaType(result.mimeType),
-          menuGroup: uploadMenuGroup,
-        });
-        if (saved.error) {
-          throw new Error(saved.error);
-        }
+        await parseUploadResponse(res);
         success++;
       } catch (error) {
         const reason = error instanceof Error ? error.message : "上传失败";
