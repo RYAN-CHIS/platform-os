@@ -78,6 +78,24 @@ function getIdColumn(contentType: ContentType): string {
   return contentType === "journal" || contentType === "home" ? "id" : "id";
 }
 
+function usesIntegerId(contentType: ContentType) {
+  return contentType === "products" || contentType === "series" || contentType === "banners";
+}
+
+function normalizeLiveContentId(contentType: ContentType, contentId: string | number) {
+  if (!usesIntegerId(contentType)) return String(contentId);
+
+  const id = typeof contentId === "number" ? contentId : Number(contentId);
+  if (!Number.isInteger(id) || id <= 0) {
+    throw new Error(`${contentType} id must be a positive integer`);
+  }
+  return id;
+}
+
+function idPredicate(contentType: ContentType, idCol = "id") {
+  return usesIntegerId(contentType) ? `${idCol} = $1::integer` : `${idCol} = $1`;
+}
+
 // ── Version management ──
 
 /**
@@ -145,6 +163,7 @@ export async function rollbackToVersion(
   targetVersion: number
 ): Promise<{ success: boolean; restoredVersion: number; error?: string }> {
   try {
+    const liveContentId = normalizeLiveContentId(contentType, contentId);
     // Fetch the target snapshot
     const rows = await brandPrisma.$queryRawUnsafe<Record<string, unknown>[]>(
       `SELECT version, snapshot, status FROM content_versions WHERE content_type = $1 AND content_id = $2 AND version = $3`,
@@ -165,13 +184,14 @@ export async function rollbackToVersion(
     const entries = Object.entries(snapshot).filter(([k]) => !skipFields.includes(k));
 
     if (entries.length > 0) {
-      const setClauses = entries.map((_, i) => `${toSnakeCase(entries[i][0])} = $${i + 2}`);
+      const setClauses = entries.map((_, i) => `${toSnakeCase(entries[i][0])} = $${i + 1}`);
       const values = entries.map(([_, v]) => v);
+      const idParamIndex = values.length + 1;
 
       const idCol = "id";
       await brandPrisma.$executeRawUnsafe(
-        `UPDATE ${table} SET ${setClauses.join(", ")}, updated_at = NOW() WHERE ${idCol} = $1`,
-        String(contentId), ...values
+        `UPDATE ${table} SET ${setClauses.join(", ")}, updated_at = NOW() WHERE ${idCol} = $${idParamIndex}${usesIntegerId(contentType) ? "::integer" : ""}`,
+        ...values, liveContentId
       );
     }
 
@@ -209,10 +229,11 @@ export async function transitionStatus(
   try {
     const table = getTable(contentType);
     const idCol = "id";
+    const liveContentId = normalizeLiveContentId(contentType, contentId);
 
     // Fetch current state
     const current = await brandPrisma.$queryRawUnsafe<{ status: string }[]>(
-      `SELECT status FROM ${table} WHERE ${idCol} = $1`, String(contentId)
+      `SELECT status FROM ${table} WHERE ${idPredicate(contentType, idCol)}`, liveContentId
     );
     if (!current.length) return { success: false, error: "Content not found" };
 
@@ -235,13 +256,13 @@ export async function transitionStatus(
     if (contentType === "journal") {
       await brandPrisma.$executeRawUnsafe(
         `UPDATE ${table} SET status = CAST($1 AS "PublishStatus"), published_at = CASE WHEN $2 = true THEN COALESCE(published_at, NOW()) ELSE published_at END, updated_at = NOW() WHERE ${idCol} = $3`,
-        newStatus, isPublishing, String(contentId)
+        newStatus, isPublishing, liveContentId
       );
     } else {
       const extraSet = isPublishing ? `, published_at = COALESCE(published_at, NOW())` : "";
       await brandPrisma.$executeRawUnsafe(
-        `UPDATE ${table} SET status = $1${extraSet}, updated_at = NOW() WHERE ${idCol} = $2`,
-        newStatus, String(contentId)
+        `UPDATE ${table} SET status = $1${extraSet}, updated_at = NOW() WHERE ${idCol} = $2${usesIntegerId(contentType) ? "::integer" : ""}`,
+        newStatus, liveContentId
       );
     }
 
@@ -271,7 +292,7 @@ export async function transitionStatus(
     // Create version snapshot on publish
     if (isPublishing) {
       const fullContent = await brandPrisma.$queryRawUnsafe<Record<string, unknown>[]>(
-        `SELECT * FROM ${table} WHERE ${idCol} = $1`, String(contentId)
+        `SELECT * FROM ${table} WHERE ${idPredicate(contentType, idCol)}`, liveContentId
       );
       if (fullContent.length > 0) {
         try { await createVersion(contentType, contentId, fullContent[0], newStatus); } catch {}
@@ -461,8 +482,9 @@ export async function getPreviewContent(
   contentId: string
 ): Promise<Record<string, unknown> | null> {
   const table = getTable(contentType);
+  const liveContentId = normalizeLiveContentId(contentType, contentId);
   const rows = await brandPrisma.$queryRawUnsafe<Record<string, unknown>[]>(
-    `SELECT * FROM ${table} WHERE id = $1`, contentId
+    `SELECT * FROM ${table} WHERE ${idPredicate(contentType)}`, liveContentId
   );
   return rows.length > 0 ? rows[0] : null;
 }
@@ -535,8 +557,9 @@ export async function getContentStatus(
   contentId: string | number
 ): Promise<{ status: string; publishedAt: string | null; allowedTransitions: PublishState[] }> {
   const table = getTable(contentType);
+  const liveContentId = normalizeLiveContentId(contentType, contentId);
   const rows = await brandPrisma.$queryRawUnsafe<{ status: string; published_at: string | null }[]>(
-    `SELECT status, published_at FROM ${table} WHERE id = $1`, String(contentId)
+    `SELECT status, published_at FROM ${table} WHERE ${idPredicate(contentType)}`, liveContentId
   );
   if (!rows.length) {
     return { status: "UNKNOWN", publishedAt: null, allowedTransitions: [] };

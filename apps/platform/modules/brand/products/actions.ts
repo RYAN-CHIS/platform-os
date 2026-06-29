@@ -195,6 +195,14 @@ function toNullableInteger(value: unknown, label: string) {
   return numberValue;
 }
 
+function toPositiveIntegerId(value: unknown, label = "产品 ID") {
+  const numberValue = typeof value === "number" ? value : Number(value);
+  if (!Number.isInteger(numberValue) || numberValue <= 0) {
+    throw new Error(`${label}必须是有效的数字 ID`);
+  }
+  return numberValue;
+}
+
 function toInteger(value: unknown, defaultValue: number, label: string) {
   if (value === undefined || value === null || value === "") return defaultValue;
 
@@ -471,10 +479,11 @@ export async function createProduct(data: Record<string, unknown>) {
   }
 }
 
-export async function updateProduct(id: number, data: Record<string, unknown>) {
+export async function updateProduct(id: number | string, data: Record<string, unknown>) {
   try {
+    const productId = toPositiveIntegerId(id);
     // Fetch before
-    const beforeRows: any[] = await brandPrisma.$queryRawUnsafe(`SELECT * FROM ${TABLE} WHERE id = $1`, id);
+    const beforeRows: any[] = await brandPrisma.$queryRawUnsafe(`SELECT * FROM ${TABLE} WHERE id = $1::integer`, productId);
     const before = beforeRows[0] || null;
 
     const enriched = normalizeProductData(data, "update");
@@ -485,7 +494,7 @@ export async function updateProduct(id: number, data: Record<string, unknown>) {
     const afterRows: any[] = await brandPrisma.$queryRaw(Prisma.sql`
       UPDATE products
       SET ${Prisma.join(sets)}
-      WHERE id = ${id}::integer
+      WHERE id = ${productId}::integer
       RETURNING *
     `);
     const after = afterRows[0] || null;
@@ -493,7 +502,7 @@ export async function updateProduct(id: number, data: Record<string, unknown>) {
 
     // Audit
     try {
-      await createCrudAudit({ action: "UPDATE", system: "BRAND", module: "products", targetId: id, before, after });
+      await createCrudAudit({ action: "UPDATE", system: "BRAND", module: "products", targetId: productId, before, after });
     } catch {}
 
     return { error: null };
@@ -502,17 +511,18 @@ export async function updateProduct(id: number, data: Record<string, unknown>) {
   }
 }
 
-export async function deleteProduct(id: number) {
+export async function deleteProduct(id: number | string) {
   try {
+    const productId = toPositiveIntegerId(id);
     // Fetch before
-    const beforeRows: any[] = await brandPrisma.$queryRawUnsafe(`SELECT * FROM ${TABLE} WHERE id = $1`, id);
+    const beforeRows: any[] = await brandPrisma.$queryRawUnsafe(`SELECT * FROM ${TABLE} WHERE id = $1::integer`, productId);
     const before = beforeRows[0] || null;
 
-    await brandPrisma.$queryRawUnsafe(`DELETE FROM ${TABLE} WHERE id = $1`, id);
+    await brandPrisma.$queryRawUnsafe(`DELETE FROM ${TABLE} WHERE id = $1::integer`, productId);
 
     // Audit
     try {
-      await createCrudAudit({ action: "DELETE", system: "BRAND", module: "products", targetId: id, before });
+      await createCrudAudit({ action: "DELETE", system: "BRAND", module: "products", targetId: productId, before });
     } catch {}
 
     return { error: null };
@@ -521,18 +531,20 @@ export async function deleteProduct(id: number) {
   }
 }
 
-export async function toggleProductStatus(id: number, newStatus: string): Promise<{ row: any; error: string | null }> {
-  const result = await transitionStatus("products", id, newStatus as any);
+export async function toggleProductStatus(id: number | string, newStatus: string): Promise<{ row: any; error: string | null }> {
+  const productId = toPositiveIntegerId(id);
+  const result = await transitionStatus("products", productId, newStatus as any);
   if (!result.success) return { row: null, error: result.error || "状态变更失败" };
   // Fetch updated row
-  const rows = await brandPrisma.$queryRawUnsafe<any[]>(`SELECT * FROM ${TABLE} WHERE id = $1`, id);
+  const rows = await brandPrisma.$queryRawUnsafe<any[]>(`SELECT * FROM ${TABLE} WHERE id = $1::integer`, productId);
   return { row: rows[0] || null, error: null };
 }
 
-export async function moveProduct(id: number, direction: "up" | "down") {
+export async function moveProduct(id: number | string, direction: "up" | "down") {
   try {
+    const productId = toPositiveIntegerId(id);
     const rows: any[] = await brandPrisma.$queryRawUnsafe(
-      `SELECT id, sort_order FROM ${TABLE} WHERE id = $1`, id
+      `SELECT id, sort_order FROM ${TABLE} WHERE id = $1::integer`, productId
     );
     if (!rows.length) return { error: "Product not found" };
 
@@ -551,17 +563,17 @@ export async function moveProduct(id: number, direction: "up" | "down") {
     const before = { [id]: current, [neighbor.id]: neighbor.sort_order };
 
     await brandPrisma.$queryRawUnsafe(
-      `UPDATE ${TABLE} SET sort_order = $1 WHERE id = $2`, neighbor.sort_order, id
+      `UPDATE ${TABLE} SET sort_order = $1::integer WHERE id = $2::integer`, neighbor.sort_order, productId
     );
     await brandPrisma.$queryRawUnsafe(
-      `UPDATE ${TABLE} SET sort_order = $1 WHERE id = $2`, current, neighbor.id
+      `UPDATE ${TABLE} SET sort_order = $1::integer WHERE id = $2::integer`, current, toPositiveIntegerId(neighbor.id, "相邻产品 ID")
     );
 
     const after = { [id]: neighbor.sort_order, [neighbor.id]: current };
 
     // Audit
     try {
-      await createAuditLog({ action: "SORT_CHANGE", system: "BRAND", module: "products", targetId: id, before, after });
+      await createAuditLog({ action: "SORT_CHANGE", system: "BRAND", module: "products", targetId: productId, before, after });
     } catch {}
 
     return { error: null };
@@ -572,46 +584,46 @@ export async function moveProduct(id: number, direction: "up" | "down") {
 
 // ── Publishing Workflow Actions (bound to contentType="products") ──
 
-export async function submitProductForReview(id: number) {
-  return submitForReview("products", id);
+export async function submitProductForReview(id: number | string) {
+  return submitForReview("products", toPositiveIntegerId(id));
 }
 
-export async function approveProduct(id: number) {
-  return approveContent("products", id);
+export async function approveProduct(id: number | string) {
+  return approveContent("products", toPositiveIntegerId(id));
 }
 
-export async function rejectProduct(id: number, reason?: string) {
-  return rejectContent("products", id, reason);
+export async function rejectProduct(id: number | string, reason?: string) {
+  return rejectContent("products", toPositiveIntegerId(id), reason);
 }
 
-export async function publishProductNow(id: number) {
-  return publishNow("products", id);
+export async function publishProductNow(id: number | string) {
+  return publishNow("products", toPositiveIntegerId(id));
 }
 
-export async function scheduleProductPublish(id: number, publishAt: string) {
-  return schedulePublish("products", id, publishAt);
+export async function scheduleProductPublish(id: number | string, publishAt: string) {
+  return schedulePublish("products", toPositiveIntegerId(id), publishAt);
 }
 
-export async function unpublishProduct(id: number) {
-  return unpublishContent("products", id);
+export async function unpublishProduct(id: number | string) {
+  return unpublishContent("products", toPositiveIntegerId(id));
 }
 
-export async function archiveProduct(id: number) {
-  return archiveContent("products", id);
+export async function archiveProduct(id: number | string) {
+  return archiveContent("products", toPositiveIntegerId(id));
 }
 
-export async function getProductVersions(id: number) {
-  return getVersions("products", id);
+export async function getProductVersions(id: number | string) {
+  return getVersions("products", toPositiveIntegerId(id));
 }
 
-export async function rollbackProduct(id: number, version: number) {
-  return rollbackToVersion("products", id, version);
+export async function rollbackProduct(id: number | string, version: number) {
+  return rollbackToVersion("products", toPositiveIntegerId(id), version);
 }
 
-export async function getProductPreviewToken(id: number) {
-  return generatePreviewToken("products", id);
+export async function getProductPreviewToken(id: number | string) {
+  return generatePreviewToken("products", toPositiveIntegerId(id));
 }
 
-export async function getProductStatus(id: number) {
-  return getContentStatus("products", id);
+export async function getProductStatus(id: number | string) {
+  return getContentStatus("products", toPositiveIntegerId(id));
 }
