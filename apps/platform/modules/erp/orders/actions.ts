@@ -4,8 +4,49 @@ import { prisma } from '@yunwu/db';
 import { revalidatePath } from 'next/cache';
 import { createCrudAudit, createStatusAudit, createInventoryAudit } from '@/lib/audit';
 
+/** Standardized order item shape. */
+export interface OrderItemInput {
+  sku_id: number;
+  sku_code: string;
+  product_id: number;
+  qty: number;
+  price: number;
+}
+
+function orderItemsString(items: OrderItemInput[]): string {
+  return JSON.stringify(items.map((it) => ({
+    sku_id: it.sku_id,
+    sku_code: it.sku_code,
+    product_id: it.product_id,
+    qty: it.qty,
+    price: it.price,
+  })));
+}
+
+/** Fetch SKUs for the order item selector. */
+export async function getSkusForOrderSelect() {
+  try {
+    const skus = await prisma.erpProductSku.findMany({
+      where: { status: { not: 'ARCHIVED' } },
+      select: {
+        id: true,
+        code: true,
+        name: true,
+        price: true,
+        finishedStock: true,
+        productId: true,
+        product: { select: { id: true, code: true, name: true } },
+      },
+      orderBy: { code: 'asc' },
+    });
+    return { skus, error: null };
+  } catch (e: any) {
+    return { skus: [], error: e.message };
+  }
+}
+
 export async function createOrder(data: {
-  customerId: number; channel?: string; items?: string;
+  customerId: number; channel?: string; items?: OrderItemInput[];
   subtotal?: number; discount?: number; totalAmount: number;
   shippingFee?: number; notes?: string;
 }) {
@@ -20,7 +61,7 @@ export async function createOrder(data: {
       orderNo,
       customerId: data.customerId,
       channel: (data.channel as any) || 'MANUAL',
-      items: data.items || '[]',
+      items: data.items ? orderItemsString(data.items) : '[]',
       subtotal: data.subtotal || data.totalAmount,
       discount: data.discount || 0,
       totalAmount: data.totalAmount,
@@ -40,7 +81,7 @@ export async function createOrder(data: {
 }
 
 export async function updateOrder(id: number, data: {
-  customerId?: number; totalAmount?: number; discount?: number;
+  customerId?: number; items?: OrderItemInput[]; totalAmount?: number; discount?: number;
   shippingFee?: number; notes?: string; shippingAddress?: string;
 }) {
   // Fetch before state
@@ -52,6 +93,7 @@ export async function updateOrder(id: number, data: {
 
   const updateData: any = {};
   if (data.customerId !== undefined) updateData.customerId = data.customerId;
+  if (data.items !== undefined) updateData.items = orderItemsString(data.items);
   if (data.totalAmount !== undefined) updateData.totalAmount = data.totalAmount;
   if (data.discount !== undefined) updateData.discount = data.discount;
   if (data.shippingFee !== undefined) updateData.shippingFee = data.shippingFee;
@@ -80,27 +122,33 @@ export async function shipOrder(id: number) {
     throw new Error(`当前状态 ${order.status} 不允许发货`);
   }
 
-  // Parse items to find SKUs and deduct stock
-  let items: Array<{ skuId?: number; skuName?: string; quantity?: number }> = [];
-  try { items = JSON.parse(order.items || '[]'); } catch (e) { /* ignore */ }
+  // Parse items — supports both old format (skuId/skuName/quantity) and new (sku_id/sku_code/qty/price)
+  let rawItems: any[] = [];
+  try { rawItems = JSON.parse(order.items || '[]'); } catch (e) { /* ignore */ }
+
+  const normalizedItems: Array<{ skuId: number; qty: number }> = [];
+  for (const item of rawItems) {
+    const skuId = item.sku_id ?? item.skuId;
+    const qty = item.qty ?? item.quantity;
+    if (skuId && qty > 0) normalizedItems.push({ skuId, qty });
+  }
 
   const details: string[] = [];
   await prisma.$transaction(async (tx: any) => {
-    for (const item of items) {
-      if (item.skuId && item.quantity) {
-        const sku = await tx.erpProductSku.findUnique({ where: { id: item.skuId } });
-        if (sku) {
-          const beforeStock = sku.finishedStock;
-          if (beforeStock < item.quantity) {
-            throw new Error(`SKU ${sku.name} 成品库存不足: 需要 ${item.quantity}，当前 ${beforeStock}`);
-          }
-          await tx.erpProductSku.update({
-            where: { id: item.skuId },
-            data: { finishedStock: beforeStock - item.quantity },
-          });
-          details.push(`${sku.name} -${item.quantity} (${beforeStock} → ${beforeStock - item.quantity})`);
-        }
+    for (const item of normalizedItems) {
+      const sku = await tx.erpProductSku.findUnique({ where: { id: item.skuId } });
+      if (!sku) {
+        throw new Error(`SKU ID ${item.skuId} 不存在，无法发货`);
       }
+      const beforeStock = sku.finishedStock;
+      if (beforeStock < item.qty) {
+        throw new Error(`SKU ${sku.name} 成品库存不足: 需要 ${item.qty}，当前 ${beforeStock}`);
+      }
+      await tx.erpProductSku.update({
+        where: { id: item.skuId },
+        data: { finishedStock: beforeStock - item.qty },
+      });
+      details.push(`${sku.name} -${item.qty} (${beforeStock} → ${beforeStock - item.qty})`);
     }
     await tx.erpOrder.update({
       where: { id },
@@ -112,12 +160,10 @@ export async function shipOrder(id: number) {
   try { await createStatusAudit({ system: 'ERP', module: 'orders', targetId: id, before: before || { status: order.status }, after: { status: 'SHIPPED' }, description: `订单发货 ${order.orderNo}: ${order.customer.name}` }); } catch {}
 
   // Inventory audit for each SKU shipped
-  for (const item of items) {
-    if (item.skuId && item.quantity) {
-      const sku = await prisma.erpProductSku.findUnique({ where: { id: item.skuId } });
-      if (sku) {
-        try { await createInventoryAudit({ action: 'ORDER_SHIPPED', productName: sku.name, skuCode: sku.code, quantity: item.quantity, beforeStock: sku.finishedStock + item.quantity, afterStock: sku.finishedStock, orderId: id, description: `订单发货扣库存: ${sku.name} -${item.quantity}` }); } catch {}
-      }
+  for (const item of normalizedItems) {
+    const sku = await prisma.erpProductSku.findUnique({ where: { id: item.skuId } });
+    if (sku) {
+      try { await createInventoryAudit({ action: 'ORDER_SHIPPED', productName: sku.name, skuCode: sku.code, quantity: item.qty, beforeStock: sku.finishedStock + item.qty, afterStock: sku.finishedStock, orderId: id, description: `订单发货扣库存: ${sku.name} -${item.qty}` }); } catch {}
     }
   }
 
