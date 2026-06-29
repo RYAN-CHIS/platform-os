@@ -2,8 +2,12 @@
 /**
  * BrandMediaPicker — Image/media selector with library pick & local upload
  * Replace manual URL input with picker/upload/preview/replace/delete
+ *
+ * Fetches brand media assets via listMedia server action (category=BRAND),
+ * so it reads from the exact same data source as the media management page.
  */
 import { useState, useRef, useEffect } from "react";
+import { listMedia } from "@/modules/brand/media/actions";
 
 interface MediaItem {
   id: number;
@@ -42,15 +46,22 @@ export function BrandMediaPicker({
   const openPicker = async () => {
     setLoading(true);
     try {
-      const res = await fetch("/brand/media?q=");
-      // We use a simple inline fetch approach
-      const data = await res.json().catch(() => null);
-      if (data?.rows) {
-        setMediaList(data.rows.filter((r: any) =>
-          r.mediaType === "IMAGE" || r.url?.match(/\.(jpg|jpeg|png|webp|gif|svg)/i)
-        ));
+      // Use the same data source as Brand OS → 媒体素材管理 (category=BRAND, mediaType=IMAGE)
+      const result = await listMedia({ mediaType: "IMAGE" });
+      if (result.rows) {
+        setMediaList(
+          (result.rows as any[]).map((r) => ({
+            id: r.id,
+            url: r.url,
+            filename: r.filename,
+            thumbnail: r.thumbnailUrl || r.url,
+            mediaType: r.mediaType,
+          }))
+        );
       }
-    } catch {}
+    } catch (e) {
+      console.error("Failed to load media list", e);
+    }
     setLoading(false);
     setMode("picker");
   };
