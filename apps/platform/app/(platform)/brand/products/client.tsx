@@ -3,7 +3,7 @@
  * BrandProductsClient — WO-P12B + Publishing Workflow
  * Interactive wrapper: ActionBar + Table + CRUD Modals + Workflow UI
  */
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { ActionBar } from "@/components/ActionBar";
 import { ConfirmModal } from "@/components/BrandCrudModal";
@@ -36,7 +36,17 @@ import {
   rollbackProduct,
   getProductPreviewToken,
 } from "@/modules/brand/products/actions";
+import { listSeries } from "@/modules/brand/series/actions";
 import { toast } from "@/components/toast";
+
+// ── 五器物体系（允物品牌宪章定义）──
+const THEME_OPTIONS = [
+  { label: "见己", value: "见己" },
+  { label: "留痕", value: "留痕" },
+  { label: "栖居", value: "栖居" },
+  { label: "随行", value: "随行" },
+  { label: "传藏", value: "传藏" },
+];
 
 const OBJECT_CATEGORIES = [
   { label: "手串", value: "BRACELET" },
@@ -82,11 +92,12 @@ function StatusBadge({ status }: { status: string }) {
 
 // ── Product Form Content (shared by add & edit) ──
 function ProductFormContent({
-  form, setField, errors,
+  form, setField, errors, seriesOptions,
 }: {
   form: Record<string, unknown>;
   setField: (k: string, v: unknown) => void;
   errors: Record<string, string>;
+  seriesOptions: { label: string; value: string }[];
 }) {
   return (
     <>
@@ -105,10 +116,10 @@ function ProductFormContent({
           <BrandSelect value={String(form.object_category ?? "BRACELET")} onChange={(e) => setField("object_category", e.target.value)} options={OBJECT_CATEGORIES} />
         </BrandField>
         <BrandField label="主题">
-          <BrandInput value={String(form.theme ?? "")} onChange={(e) => setField("theme", e.target.value)} placeholder="见己 / 留痕 / 栖居 / 随行 / 传藏" />
+          <BrandSelect value={String(form.theme ?? "")} onChange={(e) => setField("theme", e.target.value)} options={THEME_OPTIONS} />
         </BrandField>
-        <BrandField label="系列 ID">
-          <BrandNumberInput value={String(form.series_id ?? "")} onChange={(e) => setField("series_id", e.target.value ? Number(e.target.value) : "")} placeholder="关联系列 ID" />
+        <BrandField label="所属系列">
+          <BrandSelect value={String(form.series_id ?? "")} onChange={(e) => setField("series_id", e.target.value ? Number(e.target.value) : "")} options={seriesOptions} />
         </BrandField>
       </BrandFormSection>
 
@@ -179,7 +190,25 @@ function ProductFormModal({
   }));
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [seriesOptions, setSeriesOptions] = useState<{ label: string; value: string }[]>([
+    { label: "加载中…", value: "" },
+  ]);
   const router = useRouter();
+
+  // Load series list on mount
+  useEffect(() => {
+    (async () => {
+      const result = await listSeries();
+      if (result.rows && result.rows.length > 0) {
+        setSeriesOptions(result.rows.map((s: any) => ({
+          label: s.name || s.slug || `#${s.id}`,
+          value: String(s.id),
+        })));
+      } else {
+        setSeriesOptions([{ label: "暂无系列，请先创建系列", value: "" }]);
+      }
+    })();
+  }, []);
 
   function setField(k: string, v: unknown) { setForm((p) => ({ ...p, [k]: v })); }
 
@@ -217,7 +246,7 @@ function ProductFormModal({
         />
       }
     >
-      <ProductFormContent form={form} setField={setField} errors={errors} />
+      <ProductFormContent form={form} setField={setField} errors={errors} seriesOptions={seriesOptions} />
     </BrandFormModal>
   );
 }
