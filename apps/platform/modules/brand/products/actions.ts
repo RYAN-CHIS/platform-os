@@ -279,10 +279,25 @@ function sqlIdentifier(column: string) {
 }
 
 function sqlValue(column: string, value: unknown) {
+  // ── Null / undefined → typed NULL ──
+  if (value === null || value === undefined) {
+    if (INTEGER_COLUMNS.has(column as ProductColumn)) return Prisma.sql`NULL::integer`;
+    if (FLOAT_COLUMNS.has(column as ProductColumn)) return Prisma.sql`NULL::double precision`;
+    if (column === "object_category") return Prisma.sql`NULL::"ObjectCategory"`;
+    if (column === "publish_status") return Prisma.sql`NULL::"PublishStatus"`;
+    if (TIMESTAMP_COLUMNS.has(column)) return Prisma.sql`NULL::timestamp`;
+    if (TIMESTAMPTZ_COLUMNS.has(column)) return Prisma.sql`NULL::timestamptz`;
+    return Prisma.sql`NULL`;
+  }
+
+  // ── Non-null typed values ──
   if (INTEGER_COLUMNS.has(column as ProductColumn)) return Prisma.sql`${value}::integer`;
   if (FLOAT_COLUMNS.has(column as ProductColumn)) return Prisma.sql`${value}::double precision`;
-  if (column === "object_category") return Prisma.sql`${value}::"ObjectCategory"`;
-  if (column === "publish_status") return Prisma.sql`${value}::"PublishStatus"`;
+  // Enum columns: use raw SQL literal because Prisma parameter binding may send type text,
+  // and PostgreSQL rejects `$1::"ObjectCategory"` when $1 is typed as text in the wire protocol.
+  // Values are pre-validated by normalizeEnumAlias, so raw embedding is safe.
+  if (column === "object_category") return Prisma.raw(`'${value}'::"ObjectCategory"`);
+  if (column === "publish_status") return Prisma.raw(`'${value}'::"PublishStatus"`);
   if (TIMESTAMP_COLUMNS.has(column)) return Prisma.sql`${value}::timestamp`;
   if (TIMESTAMPTZ_COLUMNS.has(column)) return Prisma.sql`${value}::timestamptz`;
   return Prisma.sql`${value}`;
