@@ -36,6 +36,7 @@ import {
   getProductVersions,
   rollbackProduct,
   getProductPreviewToken,
+  listErpProductsForSelect,
 } from "@/modules/brand/products/actions";
 import { listSeries } from "@/modules/brand/series/actions";
 import { toast } from "@/components/toast";
@@ -57,6 +58,7 @@ const CSV_COLUMNS = [
   { key: "sale_price", label: "售价" },
   { key: "object_category", label: "分类" },
   { key: "status", label: "状态" },
+  { key: "erp_product_id", label: "ERP 关联" },
   { key: "sort_order", label: "排序" },
 ];
 
@@ -179,13 +181,16 @@ function ProductGalleryEditor({
 
 // ── Product Form Content (shared by add & edit) ──
 function ProductFormContent({
-  form, setField, errors, seriesOptions,
+  form, setField, errors, seriesOptions, erpProducts, erpProductsLoading,
 }: {
   form: Record<string, unknown>;
   setField: (k: string, v: unknown) => void;
   errors: Record<string, string>;
   seriesOptions: { label: string; value: string }[];
+  erpProducts: { label: string; value: string }[];
+  erpProductsLoading: boolean;
 }) {
+  const noErpLink = !form.erp_product_id || String(form.erp_product_id) === "";
   return (
     <>
       {/* 基础信息 */}
@@ -208,6 +213,14 @@ function ProductFormContent({
         <BrandField label="所属系列">
           <BrandSelect value={String(form.series_id ?? "")} onChange={(e) => setField("series_id", e.target.value ? Number(e.target.value) : "")} options={seriesOptions} />
         </BrandField>
+        <BrandField label="关联 ERP 产品">
+          <BrandSelect value={String(form.erp_product_id ?? "")} onChange={(e) => setField("erp_product_id", e.target.value ? Number(e.target.value) : "")} options={erpProducts} disabled={erpProductsLoading} />
+        </BrandField>
+        {noErpLink && (
+          <div style={{ padding: "8px 12px", background: "#fffbeb", borderRadius: 6, fontSize: 12, color: "#92400e", border: "1px solid #fde68a", marginTop: 4 }}>
+            ⚠️ 未关联 ERP 产品，成本/库存不会自动同步。
+          </div>
+        )}
       </BrandFormSection>
 
       {/* 价格库存 */}
@@ -284,12 +297,15 @@ function ProductFormModal({
     gallery: initialData?.galleryImages ?? initialData?.gallery_images ?? parseGallery(initialData?.gallery),
     stock: initialData?.stock ?? 0, object_category: initialData?.object_category ?? "BRACELET",
     status: initialData?.status ?? "DRAFT", story: initialData?.story ?? "", theme: initialData?.theme ?? "",
+    erp_product_id: initialData?.erp_product_id ?? "",
   }));
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [seriesOptions, setSeriesOptions] = useState<{ label: string; value: string }[]>([
     { label: "加载中…", value: "" },
   ]);
+  const [erpProducts, setErpProducts] = useState<{ label: string; value: string }[]>([]);
+  const [erpProductsLoading, setErpProductsLoading] = useState(true);
   const router = useRouter();
 
   // Load series list on mount
@@ -304,6 +320,26 @@ function ProductFormModal({
       } else {
         setSeriesOptions([{ label: "暂无系列，请先创建系列", value: "" }]);
       }
+    })();
+  }, []);
+
+  // Load ERP products on mount
+  useEffect(() => {
+    (async () => {
+      setErpProductsLoading(true);
+      const result = await listErpProductsForSelect();
+      if (result.products && result.products.length > 0) {
+        setErpProducts([
+          { label: "（不关联）", value: "" },
+          ...result.products.map((p: any) => ({
+            label: `${p.code} - ${p.name}${p.skuCode ? ` (${p.skuCode})` : ""}${p.skuStock != null ? ` • 库存:${p.skuStock}` : ""}`,
+            value: String(p.id),
+          })),
+        ]);
+      } else {
+        setErpProducts([{ label: "暂无 ERP 产品", value: "" }]);
+      }
+      setErpProductsLoading(false);
     })();
   }, []);
 
@@ -343,7 +379,7 @@ function ProductFormModal({
         />
       }
     >
-      <ProductFormContent form={form} setField={setField} errors={errors} seriesOptions={seriesOptions} />
+      <ProductFormContent form={form} setField={setField} errors={errors} seriesOptions={seriesOptions} erpProducts={erpProducts} erpProductsLoading={erpProductsLoading} />
     </BrandFormModal>
   );
 }
@@ -533,6 +569,7 @@ export function BrandProductsClient({ rows, error: serverError, searchQ }: {
                 <th style={thStyle}>排序</th>
                 <th style={thStyle}>SKU</th>
                 <th style={thStyle}>名称</th>
+                <th style={thStyle}>ERP</th>
                 <th style={thStyle}>售价</th>
                 <th style={thStyle}>分类</th>
                 <th style={thStyle}>状态</th>
@@ -549,6 +586,13 @@ export function BrandProductsClient({ rows, error: serverError, searchQ }: {
                   </td>
                   <td style={{ ...tdStyle, fontFamily: "monospace", fontSize: 11 }}>{r.sku}</td>
                   <td style={{ ...tdStyle, fontWeight: 500 }}>{r.name}</td>
+                  <td style={{ ...tdStyle, fontSize: 11 }}>
+                    {r.erp_product_id ? (
+                      <span style={{ color: "#059669", fontWeight: 500 }}>✅ 已关联</span>
+                    ) : (
+                      <span style={{ color: "#a8a29e" }}>—</span>
+                    )}
+                  </td>
                   <td style={tdStyle}>¥{r.sale_price ?? 0}</td>
                   <td style={tdStyle}>{r.object_category || "—"}</td>
                   <td style={tdStyle}>

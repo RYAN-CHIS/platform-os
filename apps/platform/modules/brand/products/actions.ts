@@ -63,6 +63,7 @@ const PRODUCT_CREATE_FIELDS: ProductColumn[] = [
   "status",
   "story",
   "theme",
+  "erp_product_id",
 ];
 
 const PRODUCT_UPDATE_FIELDS: ProductColumn[] = [
@@ -453,6 +454,43 @@ export async function listProducts(search?: string) {
     return { rows: rows.map(withProductOsOutput), error: null };
   } catch (e: any) {
     return { rows: [] as any[], error: e.message };
+  }
+}
+
+/** Fetch ERP products with SKU summary for the Brand product dropdown selector. */
+export async function listErpProductsForSelect() {
+  try {
+    const products: Array<{
+      id: number;
+      code: string;
+      name: string;
+      status: string;
+      skuCode: string | null;
+      skuPrice: number | null;
+      skuStock: number | null;
+    }> = await prisma.$queryRaw(Prisma.sql`
+      SELECT
+        p.id,
+        p.code,
+        p.name,
+        p.status,
+        s.code AS "skuCode",
+        s.price AS "skuPrice",
+        s.finished_stock AS "skuStock"
+      FROM erp_products p
+      LEFT JOIN LATERAL (
+        SELECT code, price, finished_stock
+        FROM erp_product_skus
+        WHERE product_id = p.id
+        ORDER BY id ASC
+        LIMIT 1
+      ) s ON true
+      WHERE p.status != 'ARCHIVED'
+      ORDER BY p.code ASC
+    `);
+    return { products, error: null };
+  } catch (e: any) {
+    return { products: [] as Array<{ id: number; code: string; name: string; status: string; skuCode: string | null; skuPrice: number | null; skuStock: number | null }>, error: e.message };
   }
 }
 
