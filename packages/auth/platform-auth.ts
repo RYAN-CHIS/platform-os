@@ -263,7 +263,7 @@ export const PAGE_PERMISSION_MAP: Record<string, PermissionCode> = {
   "/admin/settings": PERMISSIONS.SETTING_EDIT,
 
   // Platform pages
-  "/platform": PERMISSIONS.PLATFORM_ACCESS,
+  "/": PERMISSIONS.PLATFORM_ACCESS,
 };
 
 /** Match a pathname to its required permission */

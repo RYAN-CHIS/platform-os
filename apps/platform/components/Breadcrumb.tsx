@@ -15,7 +15,7 @@ export default function Breadcrumb() {
   const pathname = usePathname();
 
   // Dashboard doesn't need breadcrumb
-  if (pathname === "/platform" || pathname === "/") return null;
+  if (pathname === "/" || pathname === "/erp/dashboard") return null;
 
   // Build breadcrumb segments
   const segments = pathname.split("/").filter(Boolean);
@@ -31,7 +31,7 @@ export default function Breadcrumb() {
 
   // Build crumbs
   const crumbs: { label: string; href: string }[] = [
-    { label: "仪表盘", href: "/platform" },
+    { label: "仪表盘", href: "/erp/dashboard" },
   ];
 
   let accumulated = "";

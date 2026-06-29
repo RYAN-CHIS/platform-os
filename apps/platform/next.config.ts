@@ -16,6 +16,27 @@ const nextConfig: NextConfig = {
     ];
   },
 
+  // Edge-level redirects (handled before middleware by Vercel)
+  async redirects() {
+    return [
+      {
+        source: "/platform",
+        destination: "/erp/dashboard",
+        permanent: false,
+      },
+      {
+        source: "/platform/:path*",
+        destination: "/erp/dashboard",
+        permanent: false,
+      },
+      {
+        source: "/",
+        destination: "/erp/dashboard",
+        permanent: false,
+      },
+    ];
+  },
+
   // Relax type checking for workspace packages
   typescript: {
     ignoreBuildErrors: true,

@@ -400,7 +400,7 @@ export function findActiveItem(
       if (item.href) {
         const base = item.href.includes("?") ? item.href.split("?")[0] : item.href;
         const matches = item.href === "/"
-          ? (pathname === "/" || pathname === "/platform")
+          ? (pathname === "/" || pathname === "/erp/dashboard")
           : pathname.startsWith(base);
         if (matches) return { sectionKey: section.key, itemKey: item.key };
       }

@@ -166,7 +166,7 @@ export default function PlatformSidebar() {
 
   const isItemActive = (href: string) => {
     // Root path only matches exact "/" (not everything)
-    if (href === "/") return pathname === "/" || pathname === "/platform";
+    if (href === "/") return pathname === "/" || pathname === "/erp/dashboard";
     // If href contains query params, check both pathname and category param
     if (href.includes("?")) {
       const [base, query] = href.split("?");
