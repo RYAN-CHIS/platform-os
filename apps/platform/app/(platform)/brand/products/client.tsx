@@ -39,7 +39,7 @@ import {
 import { listSeries } from "@/modules/brand/series/actions";
 import { toast } from "@/components/toast";
 
-// ── 五器物体系（允物品牌宪章定义）──
+// ── 器物分类（ObjectCategory enum）──
 const THEME_OPTIONS = [
   { label: "见己", value: "见己" },
   { label: "留痕", value: "留痕" },
@@ -49,11 +49,12 @@ const THEME_OPTIONS = [
 ];
 
 const OBJECT_CATEGORIES = [
-  { label: "手串", value: "BRACELET" },
-  { label: "挂件", value: "PENDANT" },
-  { label: "摆件", value: "ORNAMENT" },
-  { label: "配饰", value: "ACCESSORY" },
-  { label: "其他", value: "OTHER" },
+  { label: "珠串", value: "BRACELET" },
+  { label: "香器", value: "INCENSE" },
+  { label: "印章", value: "SEAL" },
+  { label: "瓷器", value: "CERAMIC" },
+  { label: "珐琅", value: "ENAMEL" },
+  { label: "文房", value: "SCHOLAR" },
 ];
 
 const CSV_COLUMNS = [
@@ -581,6 +582,15 @@ const thStyle: React.CSSProperties = { padding: "8px 12px", fontSize: 11, fontWe
 const tdStyle: React.CSSProperties = { padding: "8px 12px", color: "#44403c", verticalAlign: "middle" };
 const sortBtnStyle: React.CSSProperties = { background: "none", border: "1px solid #e7e5e4", borderRadius: 3, cursor: "pointer", fontSize: 12, color: "#78716c", padding: "0 5px" };
 const actionStyle: React.CSSProperties = { background: "none", border: "none", cursor: "pointer", fontSize: 12, color: "#d97706", marginLeft: 8, textDecoration: "underline" };
+const inputStyle: React.CSSProperties = {
+  width: "100%",
+  padding: "8px 10px",
+  border: "1px solid #e7e5e4",
+  borderRadius: 6,
+  fontSize: 13,
+  color: "#1c1917",
+  background: "#fff",
+};
 
 const modalOverlayStyle: React.CSSProperties = {
   position: "fixed", top: 0, left: 0, right: 0, bottom: 0,

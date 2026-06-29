@@ -5,6 +5,7 @@
  * Status changes are routed through the publisher engine.
  */
 import { brandPrisma } from "@yunwu/db/brand";
+import { Prisma } from "@prisma/client";
 import { createCrudAudit, createStatusAudit, createAuditLog } from "@/lib/audit";
 import {
   transitionStatus,
@@ -22,6 +23,270 @@ import {
 } from "@/lib/publisher";
 
 const TABLE = "products";
+
+type ProductColumn =
+  | "sku"
+  | "name"
+  | "slug"
+  | "series_id"
+  | "sale_price"
+  | "cost_price"
+  | "cover_image"
+  | "stock"
+  | "object_category"
+  | "status"
+  | "publish_status"
+  | "story"
+  | "theme"
+  | "gallery"
+  | "materials"
+  | "inspiration"
+  | "keywords"
+  | "life_stage"
+  | "suitable_for"
+  | "sort_order"
+  | "published_at"
+  | "erp_product_id";
+
+const PRODUCT_CREATE_FIELDS: ProductColumn[] = [
+  "sku",
+  "name",
+  "slug",
+  "series_id",
+  "sale_price",
+  "cost_price",
+  "cover_image",
+  "stock",
+  "object_category",
+  "status",
+  "story",
+  "theme",
+];
+
+const PRODUCT_UPDATE_FIELDS: ProductColumn[] = [
+  ...PRODUCT_CREATE_FIELDS,
+  "publish_status",
+  "gallery",
+  "materials",
+  "inspiration",
+  "keywords",
+  "life_stage",
+  "suitable_for",
+  "sort_order",
+  "published_at",
+  "erp_product_id",
+];
+
+const PRODUCT_CREATE_DEFAULTS: Partial<Record<ProductColumn, unknown>> = {
+  series_id: null,
+  sale_price: 0,
+  cost_price: 0,
+  cover_image: "",
+  stock: 0,
+  object_category: "BRACELET",
+  status: "DRAFT",
+  story: "",
+  theme: "",
+};
+
+type ObjectCategoryValue = "BRACELET" | "INCENSE" | "SEAL" | "CERAMIC" | "ENAMEL" | "SCHOLAR";
+type PublishStatusValue = "DRAFT" | "PENDING_REVIEW" | "APPROVED" | "PUBLISHED" | "UNPUBLISHED" | "ARCHIVED";
+
+const OBJECT_CATEGORY_ALIASES: Record<string, ObjectCategoryValue> = {
+  BRACELET: "BRACELET",
+  "串珠": "BRACELET",
+  "珠串": "BRACELET",
+  "手串": "BRACELET",
+  INCENSE: "INCENSE",
+  "香": "INCENSE",
+  "香器": "INCENSE",
+  SEAL: "SEAL",
+  "印": "SEAL",
+  "印章": "SEAL",
+  CERAMIC: "CERAMIC",
+  PORCELAIN: "CERAMIC",
+  "瓷": "CERAMIC",
+  "瓷器": "CERAMIC",
+  "陶瓷": "CERAMIC",
+  ENAMEL: "ENAMEL",
+  "珐琅": "ENAMEL",
+  SCHOLAR: "SCHOLAR",
+  "文房": "SCHOLAR",
+  "文房器": "SCHOLAR",
+};
+
+const PUBLISH_STATUS_ALIASES: Record<string, PublishStatusValue> = {
+  DRAFT: "DRAFT",
+  IN_REVIEW: "PENDING_REVIEW",
+  PENDING_REVIEW: "PENDING_REVIEW",
+  APPROVED: "APPROVED",
+  SCHEDULED: "APPROVED",
+  PUBLISHED: "PUBLISHED",
+  UNPUBLISHED: "UNPUBLISHED",
+  ARCHIVED: "ARCHIVED",
+};
+
+const PRODUCT_STATUS_VALUES = new Set([
+  "DRAFT",
+  "IN_REVIEW",
+  "APPROVED",
+  "SCHEDULED",
+  "PUBLISHED",
+  "UNPUBLISHED",
+  "ARCHIVED",
+  "REJECTED",
+]);
+
+const COLUMN_INPUT_ALIASES: Partial<Record<ProductColumn, string[]>> = {
+  series_id: ["series_id", "seriesId"],
+  sale_price: ["sale_price", "salePrice"],
+  cost_price: ["cost_price", "costPrice"],
+  cover_image: ["cover_image", "coverImage"],
+  object_category: ["object_category", "objectCategory"],
+  publish_status: ["publish_status", "publishStatus"],
+  life_stage: ["life_stage", "lifeStage"],
+  suitable_for: ["suitable_for", "suitableFor"],
+  sort_order: ["sort_order", "sortOrder"],
+  published_at: ["published_at", "publishedAt"],
+  erp_product_id: ["erp_product_id", "erpProductId"],
+};
+
+const INTEGER_COLUMNS = new Set<ProductColumn>(["series_id", "stock", "sort_order", "erp_product_id"]);
+const FLOAT_COLUMNS = new Set<ProductColumn>(["sale_price", "cost_price"]);
+const TIMESTAMP_COLUMNS = new Set<string>(["updated_at"]);
+const TIMESTAMPTZ_COLUMNS = new Set<string>(["published_at"]);
+
+function normalizeEnumAlias<T extends string>(
+  value: unknown,
+  aliases: Record<string, T>,
+  label: string,
+) {
+  const raw = toStringValue(value).trim();
+  const normalized = aliases[raw] ?? aliases[raw.toUpperCase()];
+  if (!normalized) {
+    throw new Error(`${label}必须是允许值：${Array.from(new Set(Object.values(aliases))).join(" / ")}`);
+  }
+  return normalized;
+}
+
+function hasOwn(data: Record<string, unknown>, key: string) {
+  return Object.prototype.hasOwnProperty.call(data, key);
+}
+
+function readInput(data: Record<string, unknown>, column: ProductColumn) {
+  const aliases = COLUMN_INPUT_ALIASES[column] ?? [column];
+  for (const key of aliases) {
+    if (hasOwn(data, key)) return data[key];
+  }
+  return undefined;
+}
+
+function toNullableInteger(value: unknown, label: string) {
+  if (value === undefined || value === null) return null;
+  if (typeof value === "string" && value.trim() === "") return null;
+
+  const numberValue = typeof value === "number" ? value : Number(value);
+  if (!Number.isInteger(numberValue) || numberValue <= 0) {
+    throw new Error(`${label}必须是有效的数字 ID`);
+  }
+  return numberValue;
+}
+
+function toInteger(value: unknown, defaultValue: number, label: string) {
+  if (value === undefined || value === null || value === "") return defaultValue;
+
+  const numberValue = typeof value === "number" ? value : Number(value);
+  if (!Number.isInteger(numberValue)) {
+    throw new Error(`${label}必须是整数`);
+  }
+  return numberValue;
+}
+
+function toNumber(value: unknown, defaultValue: number, label: string) {
+  if (value === undefined || value === null || value === "") return defaultValue;
+
+  const numberValue = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(numberValue)) {
+    throw new Error(`${label}必须是数字`);
+  }
+  return numberValue;
+}
+
+function toStringValue(value: unknown, defaultValue = "") {
+  if (value === undefined || value === null) return defaultValue;
+  return String(value);
+}
+
+function normalizeProductValue(column: ProductColumn, value: unknown) {
+  switch (column) {
+    case "object_category":
+      return normalizeEnumAlias(value, OBJECT_CATEGORY_ALIASES, "器物分类");
+    case "publish_status":
+      return normalizeEnumAlias(value, PUBLISH_STATUS_ALIASES, "发布状态");
+    case "status": {
+      const status = toStringValue(value, "DRAFT").trim().toUpperCase();
+      if (!PRODUCT_STATUS_VALUES.has(status)) {
+        throw new Error(`状态必须是允许值：${Array.from(PRODUCT_STATUS_VALUES).join(" / ")}`);
+      }
+      return status;
+    }
+    case "series_id":
+      return toNullableInteger(value, "所属系列");
+    case "erp_product_id":
+      return toNullableInteger(value, "ERP 产品");
+    case "stock":
+      return toInteger(value, 0, "库存");
+    case "sort_order":
+      return toInteger(value, 0, "排序");
+    case "sale_price":
+      return toNumber(value, 0, "售价");
+    case "cost_price":
+      return toNumber(value, 0, "成本价");
+    case "published_at":
+      if (value === undefined || value === null || value === "") return null;
+      return value instanceof Date ? value : new Date(String(value));
+    default:
+      return toStringValue(value);
+  }
+}
+
+function normalizeProductData(data: Record<string, unknown>, mode: "create" | "update") {
+  const fields = mode === "create" ? PRODUCT_CREATE_FIELDS : PRODUCT_UPDATE_FIELDS;
+  const normalized: Record<string, unknown> = {};
+
+  for (const column of fields) {
+    const rawValue = readInput(data, column);
+    if (rawValue === undefined && mode === "update") continue;
+
+    const value = rawValue === undefined ? PRODUCT_CREATE_DEFAULTS[column] : rawValue;
+    normalized[column] = normalizeProductValue(column, value);
+  }
+
+  if (mode === "create") {
+    for (const required of ["sku", "name", "slug"] as const) {
+      if (!String(normalized[required] ?? "").trim()) {
+        throw new Error(`${required}不能为空`);
+      }
+    }
+  }
+
+  normalized.updated_at = new Date();
+  return normalized;
+}
+
+function sqlIdentifier(column: string) {
+  return Prisma.raw(`"${column}"`);
+}
+
+function sqlValue(column: string, value: unknown) {
+  if (INTEGER_COLUMNS.has(column as ProductColumn)) return Prisma.sql`${value}::integer`;
+  if (FLOAT_COLUMNS.has(column as ProductColumn)) return Prisma.sql`${value}::double precision`;
+  if (column === "object_category") return Prisma.sql`${value}::"ObjectCategory"`;
+  if (column === "publish_status") return Prisma.sql`${value}::"PublishStatus"`;
+  if (TIMESTAMP_COLUMNS.has(column)) return Prisma.sql`${value}::timestamp`;
+  if (TIMESTAMPTZ_COLUMNS.has(column)) return Prisma.sql`${value}::timestamptz`;
+  return Prisma.sql`${value}`;
+}
 
 export async function getBrandStats() {
   try {
@@ -59,12 +324,13 @@ export async function listProducts(search?: string) {
 
 export async function createProduct(data: Record<string, unknown>) {
   try {
-    // Ensure NOT NULL columns without defaults are included
-    const enriched = { ...data, updated_at: new Date().toISOString() };
-    const cols = Object.keys(enriched).map(k => `"${k}"`).join(", ");
-    const placeholders = Object.keys(enriched).map((_, i) => `$${i + 1}`).join(", ");
-    const sql = `INSERT INTO ${TABLE} (${cols}) VALUES (${placeholders}) RETURNING *`;
-    const rows: any[] = await brandPrisma.$queryRawUnsafe(sql, ...Object.values(enriched));
+    const enriched = normalizeProductData(data, "create");
+    const columns = Object.keys(enriched);
+    const rows: any[] = await brandPrisma.$queryRaw(Prisma.sql`
+      INSERT INTO products (${Prisma.join(columns.map(sqlIdentifier))})
+      VALUES (${Prisma.join(columns.map((column) => sqlValue(column, enriched[column])))})
+      RETURNING *
+    `);
     const row = rows[0];
 
     // Audit
@@ -84,11 +350,17 @@ export async function updateProduct(id: number, data: Record<string, unknown>) {
     const beforeRows: any[] = await brandPrisma.$queryRawUnsafe(`SELECT * FROM ${TABLE} WHERE id = $1`, id);
     const before = beforeRows[0] || null;
 
-    const enriched = { ...data, updated_at: new Date().toISOString() };
-    const sets = Object.keys(enriched).map((k, i) => `"${k}" = $${i + 1}`).join(", ");
-    const vals = Object.values(enriched);
-    const sql = `UPDATE ${TABLE} SET ${sets} WHERE id = $${vals.length + 1} RETURNING *`;
-    const afterRows: any[] = await brandPrisma.$queryRawUnsafe(sql, ...vals, id);
+    const enriched = normalizeProductData(data, "update");
+    const columns = Object.keys(enriched);
+    const sets = columns.map((column) =>
+      Prisma.sql`${sqlIdentifier(column)} = ${sqlValue(column, enriched[column])}`
+    );
+    const afterRows: any[] = await brandPrisma.$queryRaw(Prisma.sql`
+      UPDATE products
+      SET ${Prisma.join(sets)}
+      WHERE id = ${id}::integer
+      RETURNING *
+    `);
     const after = afterRows[0] || null;
 
     // Audit
