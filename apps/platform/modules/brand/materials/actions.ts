@@ -4,6 +4,7 @@
 "use server";
 
 import { brandPrisma } from "@yunwu/db/brand";
+import { prisma } from "@yunwu/db";
 import { createAuditLog } from "@/lib/audit";
 import { revalidatePath } from "next/cache";
 
@@ -82,6 +83,7 @@ async function ensureColumns() {
       { name: "seo_title", def: "seo_title TEXT DEFAULT ''" },
       { name: "seo_description", def: "seo_description TEXT DEFAULT ''" },
       { name: "seo_keywords", def: "seo_keywords TEXT DEFAULT ''" },
+      { name: "erp_material_id", def: "erp_material_id INTEGER" },
     ];
     for (const col of newCols) {
       await brandPrisma.$executeRawUnsafe(
@@ -161,8 +163,8 @@ export async function createBrandMaterial(data: Record<string, any>): Promise<{ 
     await brandPrisma.$executeRawUnsafe(
       `INSERT INTO brand_materials (name, slug, category, origin, description, short_desc, features, story,
         applicable_products, status, sort_order, image, cover_image, detail_images,
-        seo_title, seo_description, seo_keywords, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, NOW(), NOW())`,
+        seo_title, seo_description, seo_keywords, erp_material_id, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, NOW(), NOW())`,
       name,
       String(data.slug || ""),
       String(data.category || ""),
@@ -180,6 +182,7 @@ export async function createBrandMaterial(data: Record<string, any>): Promise<{ 
       String(data.seoTitle || data.seo_title || ""),
       String(data.seoDescription || data.seo_description || ""),
       String(data.seoKeywords || data.seo_keywords || ""),
+      data.erp_material_id ? parseInt(data.erp_material_id) : null,
     );
 
     try {
@@ -237,6 +240,13 @@ export async function updateBrandMaterial(id: number, data: Record<string, any>)
       vals.push(JSON.stringify(data.detailImages || data.detail_images || []));
     }
 
+    // erp_material_id: integer field, handled separately
+    if (data.erp_material_id !== undefined) {
+      const v = parseInt(data.erp_material_id);
+      sets.push(`erp_material_id = $${idx++}`);
+      vals.push(isNaN(v) ? null : v);
+    }
+
     if (sets.length === 0) return { ok: true };
     sets.push(`updated_at = NOW()`);
 
@@ -281,6 +291,31 @@ export async function deleteBrandMaterial(id: number): Promise<{ ok: boolean; er
     return { ok: true };
   } catch (e: any) {
     return { ok: false, error: e.message };
+  }
+}
+
+// ── ERP Materials Bridge ──
+
+/** Fetch ERP raw materials for the Brand materials dropdown selector. */
+export async function getErpMaterialsForSelect() {
+  try {
+    const materials = await prisma.erpMaterial.findMany({
+      where: { status: { not: 'ARCHIVED' as any } },
+      select: {
+        id: true,
+        code: true,
+        name: true,
+        category: true,
+        inventoryUnit: true,
+        remaining: true,
+        unitCost: true,
+        supplier: true,
+      },
+      orderBy: { code: 'asc' },
+    });
+    return { materials, error: null };
+  } catch (e: any) {
+    return { materials: [], error: e.message };
   }
 }
 

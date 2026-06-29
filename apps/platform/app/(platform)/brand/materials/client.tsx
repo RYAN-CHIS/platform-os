@@ -21,6 +21,7 @@ import {
   updateBrandMaterial,
   deleteBrandMaterial,
   toggleMaterialStatus,
+  getErpMaterialsForSelect,
   type BrandMaterialRow,
 } from "@/modules/brand/materials/actions";
 
@@ -48,10 +49,12 @@ const STATUS_BADGE: Record<string, { bg: string; color: string; label: string }>
   ARCHIVED: { bg: "#fef2f2", color: "#dc2626", label: "已归档" },
 };
 
-function MaterialFormContent({ form, setField, errors }: {
+function MaterialFormContent({ form, setField, errors, erpMaterials, erpMaterialsLoading }: {
   form: Record<string, any>;
   setField: (k: string, v: any) => void;
   errors: Record<string, string>;
+  erpMaterials: { label: string; value: string }[];
+  erpMaterialsLoading: boolean;
 }) {
   return (
     <>
@@ -74,6 +77,14 @@ function MaterialFormContent({ form, setField, errors }: {
         <BrandField label="简短描述">
           <BrandInput value={form.description || ""} onChange={(e) => setField("description", e.target.value)} placeholder="简短描述该材料" />
         </BrandField>
+        <BrandField label="关联 ERP 材料">
+          <BrandSelect value={String(form.erp_material_id ?? "")} onChange={(e) => setField("erp_material_id", e.target.value)} options={erpMaterials} disabled={erpMaterialsLoading} />
+        </BrandField>
+        {(!form.erp_material_id || String(form.erp_material_id) === "") && (
+          <div style={{ padding: "8px 12px", background: "#fffbeb", borderRadius: 6, fontSize: 12, color: "#92400e", border: "1px solid #fde68a", marginTop: 4 }}>
+            ⚠️ 未关联 ERP 材料，库存和成本不会自动同步。
+          </div>
+        )}
       </BrandFormSection>
 
       <BrandFormSection title="展示内容" description="材料故事、材质说明与来源">
@@ -140,10 +151,33 @@ function MaterialFormModal({ mode, initialData, onClose }: {
     seoTitle: initialData?.seoTitle ?? initialData?.seo_title ?? "",
     seoDescription: initialData?.seoDescription ?? initialData?.seo_description ?? "",
     seoKeywords: initialData?.seoKeywords ?? initialData?.seo_keywords ?? "",
+    erp_material_id: initialData?.erp_material_id ?? "",
   }));
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [erpMaterials, setErpMaterials] = useState<{ label: string; value: string }[]>([]);
+  const [erpMaterialsLoading, setErpMaterialsLoading] = useState(true);
   const router = useRouter();
+
+  // Load ERP materials on mount
+  useEffect(() => {
+    (async () => {
+      setErpMaterialsLoading(true);
+      const result = await getErpMaterialsForSelect();
+      if (result.materials && result.materials.length > 0) {
+        setErpMaterials([
+          { label: "（不关联）", value: "" },
+          ...result.materials.map((m: any) => ({
+            label: `${m.code} - ${m.name}${m.category ? ` (${m.category})` : ""}${m.remaining != null ? ` · 库存:${m.remaining}` : ""}${m.unitCost != null ? ` · ¥${m.unitCost}` : ""}`,
+            value: String(m.id),
+          })),
+        ]);
+      } else {
+        setErpMaterials([{ label: "暂无 ERP 材料", value: "" }]);
+      }
+      setErpMaterialsLoading(false);
+    })();
+  }, []);
 
   function setField(k: string, v: any) { setForm((p) => ({ ...p, [k]: v })); }
 
@@ -169,7 +203,7 @@ function MaterialFormModal({ mode, initialData, onClose }: {
     <BrandFormModal open title={mode === "add" ? "新增材料展示" : "编辑材料展示"} onClose={onClose} width={960}
       footer={<BrandFormFooter onCancel={onClose} onSave={handleSave} saving={saving} saveLabel={mode === "add" ? "创建" : "保存"} />}
     >
-      <MaterialFormContent form={form} setField={setField} errors={errors} />
+      <MaterialFormContent form={form} setField={setField} errors={errors} erpMaterials={erpMaterials} erpMaterialsLoading={erpMaterialsLoading} />
     </BrandFormModal>
   );
 }
@@ -252,6 +286,7 @@ export default function BrandMaterialsClient({ initialData, searchQ }: {
                 <th className="text-left py-2 px-3">材料名称</th>
                 <th className="text-left py-2 px-3">分类</th>
                 <th className="text-left py-2 px-3">排序</th>
+                <th className="text-left py-2 px-3">ERP</th>
                 <th className="text-left py-2 px-3">状态</th>
                 <th className="text-left py-2 px-3">更新时间</th>
                 <th className="text-right py-2 px-3">操作</th>
@@ -278,6 +313,13 @@ export default function BrandMaterialsClient({ initialData, searchQ }: {
                     <td className="py-2 px-3 font-medium">{row.name}</td>
                     <td className="py-2 px-3 text-stone-500 text-xs">{row.category || "—"}</td>
                     <td className="py-2 px-3 text-stone-400 text-xs">{row.sort_order}</td>
+                    <td className="py-2 px-3 text-xs">
+                      {row.erp_material_id ? (
+                        <span style={{ color: "#059669", fontWeight: 500 }}>✅ 已关联</span>
+                      ) : (
+                        <span style={{ color: "#a8a29e" }}>—</span>
+                      )}
+                    </td>
                     <td className="py-2 px-3">
                       <select value={row.status} onChange={(e) => handleToggle(row.id, e.target.value)}
                         style={{ fontSize: 11, padding: "2px 6px", borderRadius: 4, border: "none", background: badge.bg, color: badge.color, cursor: "pointer" }}>
