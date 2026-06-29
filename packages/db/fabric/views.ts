@@ -61,6 +61,7 @@ export type WebProductView = Pick<
     description: string;
   };
   gallery: string[];
+  galleryImages: string[];
   // 展示用关联
   relatedProducts?: { id: number; name: string; image: string }[];
 };
@@ -84,6 +85,7 @@ export type BrandProductView = Pick<
   materials: string[];
   coverImage: string;
   gallery: string[];
+  galleryImages: string[];
   // 内容元数据
   hasFullStory: boolean;
   contentScore: number; // 0-10 内容完整度

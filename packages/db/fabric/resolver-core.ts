@@ -70,6 +70,7 @@ export function resolveWebProductFromCore(core: ProductCore): WebProductView {
       description: core.description?.slice(0, 160) ?? "",
     },
     gallery: core.gallery,
+    galleryImages: core.gallery,
   };
 }
 
@@ -92,6 +93,7 @@ export function resolveBrandProductFromCore(core: ProductCore): BrandProductView
     materials: [],
     coverImage: core.coverImage ?? "",
     gallery: core.gallery,
+    galleryImages: core.gallery,
     hasFullStory: (core.story?.length ?? 0) > 50,
     contentScore: calculateContentScore(core),
   };

@@ -5,6 +5,7 @@
  */
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { ArrowDown, ArrowUp, Star, Trash2 } from "lucide-react";
 import { ActionBar } from "@/components/ActionBar";
 import { ConfirmModal } from "@/components/BrandCrudModal";
 import {
@@ -91,6 +92,99 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
+function parseGallery(value: unknown): string[] {
+  if (Array.isArray(value)) return value.map((item) => String(item).trim()).filter(Boolean);
+  if (typeof value !== "string" || !value.trim()) return [];
+  try {
+    const parsed = JSON.parse(value);
+    if (Array.isArray(parsed)) return parsed.map((item) => String(item).trim()).filter(Boolean);
+  } catch {}
+  return [];
+}
+
+function ProductGalleryEditor({
+  coverImage,
+  galleryImages,
+  setField,
+}: {
+  coverImage: string;
+  galleryImages: string[];
+  setField: (k: string, v: unknown) => void;
+}) {
+  function setGallery(next: string[]) {
+    setField("gallery", next.filter(Boolean));
+  }
+
+  function addImage(url: string) {
+    if (!url) return;
+    setGallery(galleryImages.includes(url) ? galleryImages : [...galleryImages, url]);
+  }
+
+  function removeImage(index: number) {
+    setGallery(galleryImages.filter((_, i) => i !== index));
+  }
+
+  function moveImage(index: number, direction: -1 | 1) {
+    const nextIndex = index + direction;
+    if (nextIndex < 0 || nextIndex >= galleryImages.length) return;
+    const next = [...galleryImages];
+    [next[index], next[nextIndex]] = [next[nextIndex], next[index]];
+    setGallery(next);
+  }
+
+  return (
+    <div style={{ display: "grid", gap: 12 }}>
+      <BrandMediaPicker value="" onChange={addImage} placeholder="添加展示图" />
+      {galleryImages.length > 0 && (
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))",
+          gap: 12,
+        }}>
+          {galleryImages.map((url, index) => (
+            <div key={`${url}-${index}`} style={{
+              border: "1px solid #e7e5e4",
+              borderRadius: 8,
+              overflow: "hidden",
+              background: "#fff",
+            }}>
+              <div style={{ position: "relative", aspectRatio: "4 / 3", background: "#f5f5f4" }}>
+                <img src={url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                {url === coverImage && (
+                  <span style={{
+                    position: "absolute",
+                    top: 6,
+                    left: 6,
+                    padding: "2px 6px",
+                    borderRadius: 4,
+                    background: "#1c1917",
+                    color: "#fff",
+                    fontSize: 11,
+                  }}>封面</span>
+                )}
+              </div>
+              <div style={{ display: "flex", gap: 4, padding: 6, justifyContent: "space-between" }}>
+                <button type="button" title="上移" aria-label="上移" disabled={index === 0} onClick={() => moveImage(index, -1)} style={iconBtn}>
+                  <ArrowUp size={14} />
+                </button>
+                <button type="button" title="下移" aria-label="下移" disabled={index === galleryImages.length - 1} onClick={() => moveImage(index, 1)} style={iconBtn}>
+                  <ArrowDown size={14} />
+                </button>
+                <button type="button" title="设为封面" aria-label="设为封面" onClick={() => setField("cover_image", url)} style={iconBtn}>
+                  <Star size={14} />
+                </button>
+                <button type="button" title="删除" aria-label="删除" onClick={() => removeImage(index)} style={{ ...iconBtn, color: "#dc2626" }}>
+                  <Trash2 size={14} />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Product Form Content (shared by add & edit) ──
 function ProductFormContent({
   form, setField, errors, seriesOptions,
@@ -144,6 +238,15 @@ function ProductFormContent({
             <BrandMediaPicker value={String(form.cover_image ?? "")} onChange={(v) => setField("cover_image", v)} />
           </BrandField>
         </BrandFormRow>
+        <BrandFormRow>
+          <BrandField label="展示图">
+            <ProductGalleryEditor
+              coverImage={String(form.cover_image ?? "")}
+              galleryImages={parseGallery(form.gallery)}
+              setField={setField}
+            />
+          </BrandField>
+        </BrandFormRow>
       </BrandFormSection>
 
       {/* 产品故事 */}
@@ -186,6 +289,7 @@ function ProductFormModal({
     sku: initialData?.sku ?? "", name: initialData?.name ?? "", slug: initialData?.slug ?? "",
     series_id: initialData?.series_id ?? "", sale_price: initialData?.sale_price ?? 0,
     cost_price: initialData?.cost_price ?? 0, cover_image: initialData?.cover_image ?? "",
+    gallery: initialData?.galleryImages ?? initialData?.gallery_images ?? parseGallery(initialData?.gallery),
     stock: initialData?.stock ?? 0, object_category: initialData?.object_category ?? "BRACELET",
     status: initialData?.status ?? "DRAFT", story: initialData?.story ?? "", theme: initialData?.theme ?? "",
   }));
@@ -582,6 +686,18 @@ const thStyle: React.CSSProperties = { padding: "8px 12px", fontSize: 11, fontWe
 const tdStyle: React.CSSProperties = { padding: "8px 12px", color: "#44403c", verticalAlign: "middle" };
 const sortBtnStyle: React.CSSProperties = { background: "none", border: "1px solid #e7e5e4", borderRadius: 3, cursor: "pointer", fontSize: 12, color: "#78716c", padding: "0 5px" };
 const actionStyle: React.CSSProperties = { background: "none", border: "none", cursor: "pointer", fontSize: 12, color: "#d97706", marginLeft: 8, textDecoration: "underline" };
+const iconBtn: React.CSSProperties = {
+  width: 26,
+  height: 26,
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  border: "1px solid #e7e5e4",
+  borderRadius: 4,
+  background: "#fff",
+  color: "#57534e",
+  cursor: "pointer",
+};
 const inputStyle: React.CSSProperties = {
   width: "100%",
   padding: "8px 10px",

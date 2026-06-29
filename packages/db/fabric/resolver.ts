@@ -24,6 +24,16 @@ import type {
 // PRODUCT RESOLVERS
 // ═══════════════════════════════════════════════════════════
 
+function parseGallery(value?: string): string[] {
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed.map((item) => String(item)).filter(Boolean) : [];
+  } catch {
+    return [];
+  }
+}
+
 /**
  * DomainProduct → UnifiedProduct（全字段展开）
  */
@@ -61,7 +71,7 @@ export function toUnifiedProduct(raw: DomainProduct): UnifiedProduct {
       lifeStage: raw.lifeStage,
       suitableFor: raw.suitableFor,
       materials: raw.materials,
-      gallery: raw.gallery ? JSON.parse(raw.gallery) : undefined,
+      gallery: parseGallery(raw.gallery),
     },
     web: {
       salePrice: raw.price,
@@ -139,6 +149,7 @@ export function resolveWebProduct(unified: UnifiedProduct): WebProductView {
       description: unified.web.seoDescription ?? unified.brand.story?.slice(0, 160) ?? "",
     },
     gallery,
+    galleryImages: gallery,
   };
 }
 
@@ -182,6 +193,7 @@ export function resolveBrandProduct(unified: UnifiedProduct): BrandProductView {
     materials,
     coverImage: unified.web.coverImage ?? unified.web.coverImage ?? "",
     gallery,
+    galleryImages: gallery,
     hasFullStory: score >= 5,
     contentScore: Math.min(score, 10),
   };

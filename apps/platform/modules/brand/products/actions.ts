@@ -5,6 +5,7 @@
  * Status changes are routed through the publisher engine.
  */
 import { brandPrisma } from "@yunwu/db/brand";
+import { prisma } from "@yunwu/db";
 import { Prisma } from "@prisma/client";
 import { createCrudAudit, createStatusAudit, createAuditLog } from "@/lib/audit";
 import {
@@ -56,6 +57,7 @@ const PRODUCT_CREATE_FIELDS: ProductColumn[] = [
   "sale_price",
   "cost_price",
   "cover_image",
+  "gallery",
   "stock",
   "object_category",
   "status",
@@ -82,6 +84,7 @@ const PRODUCT_CREATE_DEFAULTS: Partial<Record<ProductColumn, unknown>> = {
   sale_price: 0,
   cost_price: 0,
   cover_image: "",
+  gallery: "[]",
   stock: 0,
   object_category: "BRACELET",
   status: "DRAFT",
@@ -217,6 +220,112 @@ function toStringValue(value: unknown, defaultValue = "") {
   return String(value);
 }
 
+function normalizeGallery(value: unknown) {
+  if (value === undefined || value === null || value === "") return "[]";
+  if (Array.isArray(value)) {
+    return JSON.stringify(value.map((item) => String(item).trim()).filter(Boolean));
+  }
+
+  const raw = String(value).trim();
+  if (!raw) return "[]";
+
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) {
+      return JSON.stringify(parsed.map((item) => String(item).trim()).filter(Boolean));
+    }
+  } catch {}
+
+  return JSON.stringify(raw.split("\n").map((item) => item.trim()).filter(Boolean));
+}
+
+function parseGallery(value: unknown): string[] {
+  if (Array.isArray(value)) return value.map((item) => String(item).trim()).filter(Boolean);
+  if (typeof value !== "string" || !value.trim()) return [];
+  try {
+    const parsed = JSON.parse(value);
+    if (Array.isArray(parsed)) return parsed.map((item) => String(item).trim()).filter(Boolean);
+  } catch {}
+  return [];
+}
+
+function withProductOsOutput<T extends Record<string, any>>(row: T): T & {
+  coverImage: string;
+  galleryImages: string[];
+  gallery_images: string[];
+} {
+  const galleryImages = parseGallery(row.gallery);
+  return {
+    ...row,
+    coverImage: row.cover_image ?? row.coverImage ?? "",
+    galleryImages,
+    gallery_images: galleryImages,
+  };
+}
+
+async function syncProductMediaReferences(productId: number, coverImage: string, galleryImages: string[]) {
+  const orderedUrls = [coverImage, ...galleryImages].map((url) => url.trim()).filter(Boolean);
+  const urls = Array.from(new Set(orderedUrls));
+  if (!urls.length) {
+    await prisma.$executeRaw`
+      DELETE FROM media_references
+      WHERE entity_type = 'product'
+        AND entity_id = ${productId}::integer
+        AND field_name IN ('cover_image', 'gallery_images')
+    `;
+    return;
+  }
+
+  const assets = await prisma.$queryRaw<Array<{ id: number; url: string }>>(Prisma.sql`
+    SELECT id, url
+    FROM media_assets
+    WHERE url IN (${Prisma.join(urls)})
+  `);
+  const assetByUrl = new Map(assets.map((asset) => [asset.url, asset.id]));
+
+  await prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`
+      DELETE FROM media_references
+      WHERE entity_type = 'product'
+        AND entity_id = ${productId}::integer
+        AND field_name IN ('cover_image', 'gallery_images')
+    `;
+
+    const coverMediaId = coverImage ? assetByUrl.get(coverImage) : undefined;
+    if (coverMediaId) {
+      await tx.$executeRaw`
+        INSERT INTO media_references (media_id, entity_type, entity_id, field_name, sort_order)
+        VALUES (${coverMediaId}::integer, 'product', ${productId}::integer, 'cover_image', 0)
+        ON CONFLICT (media_id, entity_type, entity_id, field_name)
+        DO UPDATE SET sort_order = EXCLUDED.sort_order
+      `;
+    }
+
+    for (const [index, url] of galleryImages.entries()) {
+      const mediaId = assetByUrl.get(url);
+      if (!mediaId) continue;
+      await tx.$executeRaw`
+        INSERT INTO media_references (media_id, entity_type, entity_id, field_name, sort_order)
+        VALUES (${mediaId}::integer, 'product', ${productId}::integer, 'gallery_images', ${index}::integer)
+        ON CONFLICT (media_id, entity_type, entity_id, field_name)
+        DO UPDATE SET sort_order = EXCLUDED.sort_order
+      `;
+    }
+  });
+}
+
+async function syncProductMediaReferencesBestEffort(row: Record<string, any>) {
+  try {
+    await syncProductMediaReferences(
+      Number(row.id),
+      String(row.cover_image ?? row.coverImage ?? ""),
+      parseGallery(row.gallery),
+    );
+  } catch (error) {
+    console.warn(`[brand-products] media reference sync skipped: ${error instanceof Error ? error.message : "unknown error"}`);
+  }
+}
+
 function normalizeProductValue(column: ProductColumn, value: unknown) {
   switch (column) {
     case "object_category":
@@ -242,6 +351,8 @@ function normalizeProductValue(column: ProductColumn, value: unknown) {
       return toNumber(value, 0, "售价");
     case "cost_price":
       return toNumber(value, 0, "成本价");
+    case "gallery":
+      return normalizeGallery(value);
     case "published_at":
       if (value === undefined || value === null || value === "") return null;
       return value instanceof Date ? value : new Date(String(value));
@@ -331,7 +442,7 @@ export async function listProducts(search?: string) {
     }
     const sql = `SELECT * FROM ${TABLE} ${where} ORDER BY sort_order ASC, created_at DESC LIMIT 200`;
     const rows: any[] = await brandPrisma.$queryRawUnsafe(sql, ...params);
-    return { rows, error: null };
+    return { rows: rows.map(withProductOsOutput), error: null };
   } catch (e: any) {
     return { rows: [] as any[], error: e.message };
   }
@@ -347,13 +458,14 @@ export async function createProduct(data: Record<string, unknown>) {
       RETURNING *
     `);
     const row = rows[0];
+    await syncProductMediaReferencesBestEffort(row);
 
     // Audit
     try {
       await createCrudAudit({ action: "CREATE", system: "BRAND", module: "products", targetId: row.id, after: row });
     } catch {}
 
-    return { row, error: null };
+    return { row: withProductOsOutput(row), error: null };
   } catch (e: any) {
     return { row: null, error: e.message };
   }
@@ -377,6 +489,7 @@ export async function updateProduct(id: number, data: Record<string, unknown>) {
       RETURNING *
     `);
     const after = afterRows[0] || null;
+    if (after) await syncProductMediaReferencesBestEffort(after);
 
     // Audit
     try {
