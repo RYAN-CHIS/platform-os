@@ -41,14 +41,6 @@ import { listSeries } from "@/modules/brand/series/actions";
 import { toast } from "@/components/toast";
 
 // ── 器物分类（ObjectCategory enum）──
-const THEME_OPTIONS = [
-  { label: "见己", value: "见己" },
-  { label: "留痕", value: "留痕" },
-  { label: "栖居", value: "栖居" },
-  { label: "随行", value: "随行" },
-  { label: "传藏", value: "传藏" },
-];
-
 const OBJECT_CATEGORIES = [
   { label: "珠串", value: "BRACELET" },
   { label: "香器", value: "INCENSE" },
@@ -211,7 +203,7 @@ function ProductFormContent({
           <BrandSelect value={String(form.object_category ?? "BRACELET")} onChange={(e) => setField("object_category", e.target.value)} options={OBJECT_CATEGORIES} />
         </BrandField>
         <BrandField label="主题">
-          <BrandSelect value={String(form.theme ?? "")} onChange={(e) => setField("theme", e.target.value)} options={THEME_OPTIONS} />
+          <BrandInput value={String(form.theme ?? "")} onChange={(e) => setField("theme", e.target.value)} placeholder="见己 / 归心 / 澄明 / 守拙 / 日用 / 礼赠" />
         </BrandField>
         <BrandField label="所属系列">
           <BrandSelect value={String(form.series_id ?? "")} onChange={(e) => setField("series_id", e.target.value ? Number(e.target.value) : "")} options={seriesOptions} />
