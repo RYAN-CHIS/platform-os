@@ -95,6 +95,8 @@ const COLORS = {
 };
 export default function PlatformSidebar() {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const [optimisticHref, setOptimisticHref] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
   // Track manual collapses separately from auto-expand (for route-based auto-open)
@@ -114,7 +116,7 @@ export default function PlatformSidebar() {
 
   const { data: session } = useSession();
   const role = (session?.user as any)?.role || "viewer";
-  const searchParams = useSearchParams();
+  const searchKey = searchParams.toString();
   const enabledModules: SystemModule[] = DEFAULT_ENABLED_MODULES;
 
   // WO-P8E: Temporarily disable permission filter — force show all menus
@@ -143,6 +145,10 @@ export default function PlatformSidebar() {
       .filter(Boolean) as SidebarSection[];
   }, [enabledModules]);
 
+  useEffect(() => {
+    setOptimisticHref(null);
+  }, [pathname, searchKey]);
+
   const toggleSection = (key: string) => {
     setExpandedSections((prev) => {
       const next = new Set(prev);
@@ -165,19 +171,27 @@ export default function PlatformSidebar() {
   };
 
   const isItemActive = (href: string) => {
+    const activePathname = optimisticHref?.split("?")[0] || pathname;
+    const activeSearchParams = new URLSearchParams(optimisticHref?.split("?")[1] || searchKey);
+
     // Root path only matches exact "/" (not everything)
-    if (href === "/") return pathname === "/" || pathname === "/erp/dashboard";
+    if (href === "/") return activePathname === "/" || activePathname === "/erp/dashboard";
     // If href contains query params, check both pathname and category param
     if (href.includes("?")) {
       const [base, query] = href.split("?");
-      if (!pathname.startsWith(base)) return false;
+      if (!activePathname.startsWith(base)) return false;
       const params = new URLSearchParams(query);
       for (const [k, v] of params.entries()) {
-        if (searchParams.get(k) !== v) return false;
+        if (activeSearchParams.get(k) !== v) return false;
       }
       return true;
     }
-    return pathname.startsWith(href);
+    return activePathname === href || activePathname.startsWith(`${href}/`);
+  };
+
+  const handleNavigate = (href?: string) => {
+    if (href) setOptimisticHref(href);
+    setOpen(false);
   };
 
   return (
@@ -208,7 +222,7 @@ export default function PlatformSidebar() {
       >
         {/* Logo */}
         <div style={{ padding: "22px 18px 16px", borderBottom: `1px solid ${COLORS.border}` }}>
-          <Link href="/erp/dashboard" className="flex flex-col items-center gap-1.5" onClick={() => setOpen(false)}>
+          <Link href="/erp/dashboard" prefetch className="flex flex-col items-center gap-1.5" onClick={() => handleNavigate("/erp/dashboard")}>
             <div
               style={{
                 width: 64,
@@ -331,7 +345,8 @@ export default function PlatformSidebar() {
                       <Link
                         key={item.key}
                         href={item.href || "#"}
-                        onClick={() => setOpen(false)}
+                        prefetch
+                        onClick={() => handleNavigate(item.href)}
                         style={{
                           display: "flex",
                           alignItems: "center",
@@ -470,7 +485,8 @@ export default function PlatformSidebar() {
                               <Link
                                 key={child.key}
                                 href={child.href}
-                                onClick={() => setOpen(false)}
+                                prefetch
+                                onClick={() => handleNavigate(child.href)}
                                 style={{
                                   display: "flex",
                                   alignItems: "center",
