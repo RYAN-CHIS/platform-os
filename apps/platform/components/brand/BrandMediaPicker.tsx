@@ -3,10 +3,17 @@
  * BrandMediaPicker — Image/media selector with library pick & local upload
  * Replace manual URL input with picker/upload/preview/replace/delete
  *
- * Fetches brand media assets via listMedia server action (category=BRAND),
- * so it reads from the exact same data source as the media management page.
+ * State design (single source of truth):
+ *   Preview display is driven entirely by the `value` prop (passed from parent form state).
+ *   No local previewUrl state — eliminates race conditions between local state & parent value.
+ *
+ *   Flow: picker select / upload complete → onChange(url) → parent setField → value prop → preview
+ *   Flow: remove → onChange("") → value="" → empty state
+ *
+ *   Fetches brand media assets via listMedia server action (category=BRAND, mediaType=IMAGE),
+ *   so it reads from the exact same data source as the media management page.
  */
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef } from "react";
 import { listMedia } from "@/modules/brand/media/actions";
 
 interface MediaItem {
@@ -36,11 +43,11 @@ export function BrandMediaPicker({
   const [mode, setMode] = useState<"none" | "picker" | "upload">("none");
   const [mediaList, setMediaList] = useState<MediaItem[]>([]);
   const [loading, setLoading] = useState(false);
-  const [previewUrl, setPreviewUrl] = useState(value || "");
   const fileRef = useRef<HTMLInputElement>(null);
 
-  // Sync preview with external value
-  useEffect(() => { setPreviewUrl(value); }, [value]);
+  // Preview is driven by value prop (parent's cover_image field)
+  const previewUrl = value;
+  const hasImage = Boolean(previewUrl);
 
   // ── Open media library picker ──
   const openPicker = async () => {
@@ -79,8 +86,8 @@ export function BrandMediaPicker({
         throw new Error(data.error || `上传接口 ${res.status}`);
       }
       if (data.url) {
+        // onChange fires → parent setField("cover_image", url) → value prop updates → preview shows
         onChange(data.url);
-        setPreviewUrl(data.url);
         setMode("none");
       }
     } catch (e) {
@@ -92,7 +99,6 @@ export function BrandMediaPicker({
   // ── Remove image ──
   const handleRemove = () => {
     onChange("");
-    setPreviewUrl("");
     setMode("none");
   };
 
@@ -107,7 +113,7 @@ export function BrandMediaPicker({
         </label>
       )}
 
-      {previewUrl ? (
+      {hasImage ? (
         /* ── Image preview ── */
         <div style={{
           position: "relative", borderRadius: 8, overflow: "hidden",
@@ -206,7 +212,7 @@ export function BrandMediaPicker({
                 <button
                   key={item.id}
                   type="button"
-                  onClick={() => { onChange(item.url); setPreviewUrl(item.url); setMode("none"); }}
+                  onClick={() => { onChange(item.url); setMode("none"); }}
                   style={{
                     border: "1px solid #e7e5e4", borderRadius: 8, overflow: "hidden",
                     cursor: "pointer", padding: 0, background: "#fafaf9",
