@@ -109,8 +109,10 @@ export async function deleteMaterial(id: number) {
   if (bomCount > 0) throw new Error(`材料被 ${bomCount} 条 BOM 引用，无法删除`);
   const txnCount = await prisma.erpInventoryTransaction.count({ where: { materialId: id } });
   if (txnCount > 0) throw new Error(`材料有 ${txnCount} 条库存记录，无法删除`);
-  await prisma.erpPurchaseRecord.deleteMany({ where: { materialId: id } });
-  await prisma.erpMaterial.delete({ where: { id } });
+  await prisma.$transaction(async (tx: any) => {
+    await tx.erpPurchaseRecord.deleteMany({ where: { materialId: id } });
+    await tx.erpMaterial.delete({ where: { id } });
+  });
 
   try { await createCrudAudit({ action: 'DELETE', system: 'ERP', module: 'materials', targetId: id, before }); } catch {}
 

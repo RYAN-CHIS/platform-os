@@ -4,6 +4,14 @@ import { prisma } from '@yunwu/db';
 import { revalidatePath } from 'next/cache';
 import { createCrudAudit, createStatusAudit, createInventoryAudit } from '@/lib/audit';
 
+type PurchaseStatus = 'draft' | 'received' | 'cancelled';
+
+function getPurchaseStatus(record: { status?: string | null } | null | undefined): PurchaseStatus {
+  const status = record?.status;
+  if (status === 'received' || status === 'cancelled' || status === 'draft') return status;
+  return 'draft';
+}
+
 export async function createPurchase(data: {
   materialId: number; purchaseDate?: string; supplier?: string;
   purchaseUnit?: string; conversionRate?: number;
@@ -54,7 +62,8 @@ export async function updatePurchase(id: number, data: {
     include: { material: true },
   });
   if (!existing) throw new Error('采购记录不存在');
-  if ((existing as any).status === 'received') throw new Error('已入库的采购单不可修改');
+  const status = getPurchaseStatus(existing);
+  if (status === 'received') throw new Error('已入库的采购单不可修改');
 
   const qty = data.purchaseQuantity ?? existing.purchaseQuantity;
   const unitPrice = data.purchaseUnitPrice ?? existing.purchaseUnitPrice ?? 0;
@@ -86,13 +95,14 @@ export async function cancelPurchase(id: number) {
     include: { material: { select: { name: true } } },
   });
   if (!existing) throw new Error('采购记录不存在');
-  if ((existing as any).status === 'received') throw new Error('已入库的采购单不可取消');
+  const status = getPurchaseStatus(existing);
+  if (status === 'received') throw new Error('已入库的采购单不可取消');
 
-  const oldStatus = (existing as any).status || 'pending';
+  const oldStatus = status;
 
   await prisma.erpPurchaseRecord.update({
     where: { id },
-    data: { status: 'cancelled' } as any,
+    data: { status: 'cancelled' },
   });
 
   try { await createStatusAudit({ system: 'ERP', module: 'purchase', targetId: id, before: { status: oldStatus }, after: { status: 'cancelled' }, description: `取消采购单: ${existing.material.name}` }); } catch {}
@@ -106,13 +116,16 @@ export async function confirmReceive(id: number) {
     include: { material: true },
   });
   if (!existing) throw new Error('采购记录不存在');
-  if ((existing as any).status === 'received') throw new Error('已入库，不可重复确认');
-  if ((existing as any).status === 'cancelled') throw new Error('已取消的采购单不可入库');
+  const status = getPurchaseStatus(existing);
+  if (status === 'received') throw new Error('已入库，不可重复确认');
+  if (status === 'cancelled') throw new Error('已取消的采购单不可入库');
 
   const invQty = existing.inventoryQuantity;
   const material = existing.material;
   const beforeQty = material.remaining;
   const afterQty = beforeQty + invQty;
+  const oldUnitCost = material.unitCost ?? 0;
+  const receivedUnitCost = invQty > 0 ? existing.purchasePrice / invQty : 0;
 
   // Transaction: update material stock + create inventory transaction + update purchase status
   await prisma.$transaction(async (tx: any) => {
@@ -133,22 +146,24 @@ export async function confirmReceive(id: number) {
     });
     await tx.erpPurchaseRecord.update({
       where: { id },
-      data: { status: 'received' } as any,
+      data: { status: 'received' },
     });
-    // Update material unit cost (weighted average)
-    if (invQty > 0 && existing.purchasePrice > 0) {
-      const newUnitCost = existing.purchasePrice / invQty;
-      await tx.erpMaterial.update({
-        where: { id: existing.materialId },
-        data: { unitCost: newUnitCost },
-      });
-    }
+    // Update material unit cost with weighted average.
+    const oldRemaining = beforeQty;
+    const totalQty = oldRemaining + invQty;
+    const newUnitCost = totalQty > 0
+      ? ((oldUnitCost * oldRemaining) + (receivedUnitCost * invQty)) / totalQty
+      : oldUnitCost;
+    await tx.erpMaterial.update({
+      where: { id: existing.materialId },
+      data: { unitCost: newUnitCost },
+    });
   });
 
   const afterMaterial = await prisma.erpMaterial.findUnique({ where: { id: existing.materialId } });
 
   // Status change audit
-  try { await createStatusAudit({ system: 'ERP', module: 'purchase', targetId: id, before: { status: (existing as any).status || 'pending' }, after: { status: 'received' }, description: `采购入库确认: ${material.name}` }); } catch {}
+  try { await createStatusAudit({ system: 'ERP', module: 'purchase', targetId: id, before: { status }, after: { status: 'received' }, description: `采购入库确认: ${material.name}` }); } catch {}
 
   // Inventory audit
   try { await createInventoryAudit({ action: 'PURCHASE_RECEIVED', materialName: material.name, quantity: invQty, beforeStock: beforeQty, afterStock: afterMaterial?.remaining ?? afterQty, purchaseId: id, description: `采购入库: ${material.name} +${invQty}` }); } catch {}
@@ -165,8 +180,10 @@ export async function deletePurchase(id: number) {
 
   const existing = await prisma.erpPurchaseRecord.findUnique({ where: { id } });
   if (!existing) throw new Error('采购记录不存在');
-  if ((existing as any).status === 'received') throw new Error('已入库的采购单不可删除');
-  await prisma.erpPurchaseRecord.delete({ where: { id } });
+  if (getPurchaseStatus(existing) === 'received') throw new Error('已入库的采购单不可删除');
+  await prisma.$transaction(async (tx: any) => {
+    await tx.erpPurchaseRecord.delete({ where: { id } });
+  });
 
   try { await createCrudAudit({ action: 'DELETE', system: 'ERP', module: 'purchase', targetId: id, before }); } catch {}
 

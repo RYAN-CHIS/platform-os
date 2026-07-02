@@ -322,6 +322,7 @@ model ErpMaterial {
 model ErpPurchaseRecord {
   id                Int        @id @default(autoincrement())
   materialId        Int
+  status            String     @default("draft")
   purchaseDate      DateTime   @default(now()) @map("purchase_date")
   supplier          String?
   purchaseUnit      String

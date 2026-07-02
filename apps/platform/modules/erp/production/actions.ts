@@ -55,7 +55,7 @@ export async function startProduction(id: number) {
     include: { sku: true },
   });
   if (!record) throw new Error('生产记录不存在');
-  if ((record as any).status !== 'draft') throw new Error('只能启动草稿状态的生产单');
+  if (record.status !== 'draft') throw new Error('只能启动草稿状态的生产单');
 
   // Deduct BOM materials from inventory
   const boms = await prisma.erpBom.findMany({
@@ -75,6 +75,7 @@ export async function startProduction(id: number) {
         throw new Error(`材料 ${bom.materialNameSnapshot} 库存不足: 需要 ${deductedQty}，当前 ${material?.remaining || 0}`);
       }
       const after = material.remaining - deductedQty;
+      if (after < 0) throw new Error(`材料 ${bom.materialNameSnapshot} 库存不足: 需要 ${deductedQty}，当前 ${material.remaining}`);
       await tx.erpMaterial.update({
         where: { id: bom.materialId },
         data: { remaining: after },
@@ -100,7 +101,7 @@ export async function startProduction(id: number) {
     }
     await tx.erpProductionRecord.update({
       where: { id },
-      data: { status: 'in_progress' } as any,
+      data: { status: 'in_progress' },
     });
   });
 
@@ -127,7 +128,7 @@ export async function completeProduction(id: number) {
     include: { sku: true },
   });
   if (!record) throw new Error('生产记录不存在');
-  if ((record as any).status !== 'in_progress') throw new Error('只能完成"进行中"状态的生产单');
+  if (record.status !== 'in_progress') throw new Error('只能完成"进行中"状态的生产单');
 
   const beforeStock = record.sku.finishedStock;
   const afterStock = beforeStock + record.quantity;
@@ -141,7 +142,7 @@ export async function completeProduction(id: number) {
     // Update production status
     await tx.erpProductionRecord.update({
       where: { id },
-      data: { status: 'completed' } as any,
+      data: { status: 'completed' },
     });
     // Update product cost
     await tx.erpProductCost.upsert({
@@ -183,10 +184,10 @@ export async function cancelProduction(id: number) {
     include: { sku: { select: { name: true } } },
   });
   if (!record) throw new Error('生产记录不存在');
-  if ((record as any).status === 'completed') throw new Error('已完成的生产单不可取消');
+  if (record.status === 'completed') throw new Error('已完成的生产单不可取消');
 
   // If in_progress, need to reverse material deductions
-  if ((record as any).status === 'in_progress') {
+  if (record.status === 'in_progress') {
     const boms = await prisma.erpBom.findMany({
       where: { skuId: record.skuId },
     });
@@ -215,17 +216,17 @@ export async function cancelProduction(id: number) {
       }
       await tx.erpProductionRecord.update({
         where: { id },
-        data: { status: 'cancelled' } as any,
+        data: { status: 'cancelled' },
       });
     });
   } else {
     await prisma.erpProductionRecord.update({
       where: { id },
-      data: { status: 'cancelled' } as any,
+      data: { status: 'cancelled' },
     });
   }
 
-  try { await createStatusAudit({ system: 'ERP', module: 'production', targetId: id, before: before || { status: (record as any).status }, after: { status: 'cancelled' }, description: `取消生产单: ${record.sku.name} x${record.quantity}` }); } catch {}
+  try { await createStatusAudit({ system: 'ERP', module: 'production', targetId: id, before: before || { status: record.status }, after: { status: 'cancelled' }, description: `取消生产单: ${record.sku.name} x${record.quantity}` }); } catch {}
 
   revalidatePath('/erp/production');
   revalidatePath('/erp/inventory');
@@ -240,7 +241,7 @@ export async function updateProduction(id: number, data: {
 
   const record = await prisma.erpProductionRecord.findUnique({ where: { id } });
   if (!record) throw new Error('生产记录不存在');
-  if ((record as any).status !== 'draft') throw new Error('只能编辑草稿状态的生产单');
+  if (record.status !== 'draft') throw new Error('只能编辑草稿状态的生产单');
 
   const qty = data.quantity ?? record.quantity;
   const laborCost = data.laborCost ?? record.laborCost;
@@ -278,8 +279,10 @@ export async function deleteProduction(id: number) {
 
   const record = await prisma.erpProductionRecord.findUnique({ where: { id } });
   if (!record) throw new Error('生产记录不存在');
-  if ((record as any).status !== 'draft') throw new Error('只能删除草稿状态的生产单');
-  await prisma.erpProductionRecord.delete({ where: { id } });
+  if (record.status !== 'draft') throw new Error('只能删除草稿状态的生产单');
+  await prisma.$transaction(async (tx: any) => {
+    await tx.erpProductionRecord.delete({ where: { id } });
+  });
 
   try { await createCrudAudit({ action: 'DELETE', system: 'ERP', module: 'production', targetId: id, before }); } catch {}
 

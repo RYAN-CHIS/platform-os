@@ -70,14 +70,16 @@ export async function deleteProduct(id: number) {
   const skuCount = await prisma.erpProductSku.count({ where: { productId: id } });
   if (skuCount > 0) throw new Error(`产品下有 ${skuCount} 个 SKU，请先删除所有 SKU`);
 
-  await prisma.erpProductCost.deleteMany({
-    where: { sku: { productId: id } },
+  await prisma.$transaction(async (tx: any) => {
+    await tx.erpProductCost.deleteMany({
+      where: { sku: { productId: id } },
+    });
+    await tx.erpBom.deleteMany({
+      where: { sku: { productId: id } },
+    });
+    await tx.erpProductSku.deleteMany({ where: { productId: id } });
+    await tx.erpProduct.delete({ where: { id } });
   });
-  await prisma.erpBom.deleteMany({
-    where: { sku: { productId: id } },
-  });
-  await prisma.erpProductSku.deleteMany({ where: { productId: id } });
-  await prisma.erpProduct.delete({ where: { id } });
 
   try { await createCrudAudit({ action: 'DELETE', system: 'ERP', module: 'products', targetId: id, before }); } catch {}
 
