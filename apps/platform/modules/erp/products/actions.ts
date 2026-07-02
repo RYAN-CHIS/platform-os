@@ -4,6 +4,22 @@ import { prisma } from '@yunwu/db';
 import { revalidatePath } from 'next/cache';
 import { createCrudAudit, createStatusAudit } from '@/lib/audit';
 
+const PRODUCT_AUDIT_TABLE = 'products';
+const SKU_AUDIT_TABLE = 'product_skus';
+
+async function fetchAuditSnapshot(table: string, id: number) {
+  try {
+    return await prisma.$queryRawUnsafe<any[]>(`SELECT * FROM ${table} WHERE id = $1`, id);
+  } catch (error) {
+    if (process.env.NODE_ENV !== 'production') {
+      console.error(`[audit] snapshot query failed for ${table}#${id}:`, error);
+      throw error;
+    }
+    console.warn(`[audit] snapshot query failed for ${table}#${id}:`, error);
+    return [];
+  }
+}
+
 // ── Product CRUD ──
 
 export async function createProduct(data: {
@@ -28,7 +44,7 @@ export async function updateProduct(id: number, data: {
   code?: string; name?: string; workId?: number; status?: string; description?: string;
 }) {
   // Fetch before state
-  const beforeRows = await prisma.$queryRawUnsafe<any[]>(`SELECT * FROM erp_products WHERE id = $1`, id);
+  const beforeRows = await fetchAuditSnapshot(PRODUCT_AUDIT_TABLE, id);
   const before = beforeRows[0] || null;
 
   const updateData: any = {};
@@ -48,7 +64,7 @@ export async function updateProduct(id: number, data: {
 
 export async function deleteProduct(id: number) {
   // Fetch before state
-  const beforeRows = await prisma.$queryRawUnsafe<any[]>(`SELECT * FROM erp_products WHERE id = $1`, id);
+  const beforeRows = await fetchAuditSnapshot(PRODUCT_AUDIT_TABLE, id);
   const before = beforeRows[0] || null;
 
   const skuCount = await prisma.erpProductSku.count({ where: { productId: id } });
@@ -70,7 +86,7 @@ export async function deleteProduct(id: number) {
 
 export async function toggleProductStatus(id: number, newStatus: string) {
   // Fetch before state
-  const beforeRows = await prisma.$queryRawUnsafe<any[]>(`SELECT * FROM erp_products WHERE id = $1`, id);
+  const beforeRows = await fetchAuditSnapshot(PRODUCT_AUDIT_TABLE, id);
   const before = beforeRows[0] || null;
 
   const p = await prisma.erpProduct.update({
@@ -116,7 +132,7 @@ export async function updateSku(id: number, data: {
   price?: number; status?: string;
 }) {
   // Fetch before state
-  const beforeRows = await prisma.$queryRawUnsafe<any[]>(`SELECT * FROM erp_product_skus WHERE id = $1`, id);
+  const beforeRows = await fetchAuditSnapshot(SKU_AUDIT_TABLE, id);
   const before = beforeRows[0] || null;
 
   const updateData: any = {};
@@ -137,7 +153,7 @@ export async function updateSku(id: number, data: {
 
 export async function deleteSku(id: number) {
   // Fetch before state
-  const beforeRows = await prisma.$queryRawUnsafe<any[]>(`SELECT * FROM erp_product_skus WHERE id = $1`, id);
+  const beforeRows = await fetchAuditSnapshot(SKU_AUDIT_TABLE, id);
   const before = beforeRows[0] || null;
 
   await prisma.erpBom.deleteMany({ where: { skuId: id } });

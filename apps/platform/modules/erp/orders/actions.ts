@@ -4,6 +4,39 @@ import { prisma } from '@yunwu/db';
 import { revalidatePath } from 'next/cache';
 import { createCrudAudit, createStatusAudit, createInventoryAudit } from '@/lib/audit';
 
+const AUDIT_SNAPSHOT_TABLE = 'orders';
+const ORDER_STATUS_VALUES = new Set(['PENDING', 'CONFIRMED', 'SHIPPED', 'COMPLETED', 'CANCELLED']);
+
+async function fetchAuditSnapshot(id: number) {
+  try {
+    return await prisma.$queryRawUnsafe<any[]>(`SELECT * FROM ${AUDIT_SNAPSHOT_TABLE} WHERE id = $1`, id);
+  } catch (error) {
+    if (process.env.NODE_ENV !== 'production') {
+      console.error(`[audit] snapshot query failed for ${AUDIT_SNAPSHOT_TABLE}#${id}:`, error);
+      throw error;
+    }
+    console.warn(`[audit] snapshot query failed for ${AUDIT_SNAPSHOT_TABLE}#${id}:`, error);
+    return [];
+  }
+}
+
+function assertManualOrderStatusTransition(current: string, next: string) {
+  if (!ORDER_STATUS_VALUES.has(next)) {
+    throw new Error(`不支持的订单状态: ${next}`);
+  }
+  if (current === next) {
+    return;
+  }
+  if (next === 'SHIPPED') throw new Error('订单发货必须通过 shipOrder 执行');
+  if (next === 'COMPLETED') throw new Error('订单完成必须通过 completeOrder 执行');
+  if (next === 'CANCELLED') throw new Error('订单取消必须通过 cancelOrder 执行');
+  if (current === 'SHIPPED' || current === 'COMPLETED' || current === 'CANCELLED') {
+    throw new Error(`已${current === 'SHIPPED' ? '发货' : current === 'COMPLETED' ? '完成' : '取消'}的订单不能手动改为 ${next}`);
+  }
+  if (current === 'PENDING' && next === 'CONFIRMED') return;
+  throw new Error(`订单状态不能从 ${current} 直接改为 ${next}`);
+}
+
 /** Standardized order item shape. */
 export interface OrderItemInput {
   sku_id: number;
@@ -85,7 +118,7 @@ export async function updateOrder(id: number, data: {
   shippingFee?: number; notes?: string; shippingAddress?: string;
 }) {
   // Fetch before state
-  const beforeRows = await prisma.$queryRawUnsafe<any[]>(`SELECT * FROM erp_orders WHERE id = $1`, id);
+  const beforeRows = await fetchAuditSnapshot(id);
   const before = beforeRows[0] || null;
 
   const existing = await prisma.erpOrder.findUnique({ where: { id } });
@@ -110,7 +143,7 @@ export async function updateOrder(id: number, data: {
 
 export async function shipOrder(id: number) {
   // Fetch before state
-  const beforeRows = await prisma.$queryRawUnsafe<any[]>(`SELECT * FROM erp_orders WHERE id = $1`, id);
+  const beforeRows = await fetchAuditSnapshot(id);
   const before = beforeRows[0] || null;
 
   const order = await prisma.erpOrder.findUnique({
@@ -174,7 +207,7 @@ export async function shipOrder(id: number) {
 
 export async function completeOrder(id: number) {
   // Fetch before state
-  const beforeRows = await prisma.$queryRawUnsafe<any[]>(`SELECT * FROM erp_orders WHERE id = $1`, id);
+  const beforeRows = await fetchAuditSnapshot(id);
   const before = beforeRows[0] || null;
 
   const order = await prisma.erpOrder.findUnique({
@@ -196,7 +229,7 @@ export async function completeOrder(id: number) {
 
 export async function cancelOrder(id: number) {
   // Fetch before state
-  const beforeRows = await prisma.$queryRawUnsafe<any[]>(`SELECT * FROM erp_orders WHERE id = $1`, id);
+  const beforeRows = await fetchAuditSnapshot(id);
   const before = beforeRows[0] || null;
 
   const order = await prisma.erpOrder.findUnique({
@@ -220,7 +253,7 @@ export async function cancelOrder(id: number) {
 
 export async function deleteOrder(id: number) {
   // Fetch before state
-  const beforeRows = await prisma.$queryRawUnsafe<any[]>(`SELECT * FROM erp_orders WHERE id = $1`, id);
+  const beforeRows = await fetchAuditSnapshot(id);
   const before = beforeRows[0] || null;
 
   const order = await prisma.erpOrder.findUnique({ where: { id } });
@@ -236,8 +269,12 @@ export async function deleteOrder(id: number) {
 
 export async function updateOrderStatus(id: number, status: string) {
   // Fetch before state
-  const beforeRows = await prisma.$queryRawUnsafe<any[]>(`SELECT * FROM erp_orders WHERE id = $1`, id);
+  const beforeRows = await fetchAuditSnapshot(id);
   const before = beforeRows[0] || null;
+
+  const currentOrder = await prisma.erpOrder.findUnique({ where: { id } });
+  if (!currentOrder) throw new Error('订单不存在');
+  assertManualOrderStatusTransition(currentOrder.status, status);
 
   const order = await prisma.erpOrder.update({
     where: { id },

@@ -79,4 +79,6 @@ export const authOptions: NextAuthOptions = {
   pages: { signIn: "/login" },
   session: { strategy: "jwt" },
   secret: process.env.NEXTAUTH_SECRET,
+  // NEXTAUTH_URL may be unset in CI/build environments; only pass a value when present.
+  ...(process.env.NEXTAUTH_URL?.trim() ? { url: process.env.NEXTAUTH_URL } : {}),
 };

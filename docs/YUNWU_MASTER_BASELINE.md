@@ -2,7 +2,7 @@
 
 > **Single Source of Truth** for 允物 (Yunwu) Project
 >
-> Last updated: 2026-06-27
+> Last updated: 2026-06-29
 >
 > Everything below this line is authoritative.
 
@@ -14,76 +14,122 @@
 |-----------|-------|
 | **Project Name** | 允物 (Yunwu) — Eastern Cultural Brand |
 | **Founder** | Ryan 迟硕 |
-| **Git Remote** | `git@github.com:RYAN-CHIS/platform-os.git` |
-| **Production Branch** | `main` |
-| **Package Manager** | `pnpm` |
+| **Git Remote (Platform OS)** | `git@github.com:RYAN-CHIS/platform-os.git` |
+| **Git Remote (Storefront)** | `git@github.com:RYAN-CHIS/yunwu-origin.git` |
+| **Production Branch** | `main` (both repos) |
+| **Package Manager** | `pnpm` (platform-os monorepo) |
 | **Monorepo Engine** | pnpm workspace (`pnpm-workspace.yaml`) |
 | **Root Lock File** | `pnpm-lock.yaml` |
-| **Node Version** | 22.22.2 (managed) |
+| **Node Version** | 24.x (Vercel Production) |
 | **Build Output** | `.next/` (renewable, gitignored) |
 
 ---
 
 ## 2. Architecture Overview
 
-### 2.1 Monorepo Structure
+### 2.1 Two Project Structure (2026-06-29 Cleanup)
+
+After Yunwu Project Cleanup (2026-06-29), the project converged to exactly two active directories:
 
 ```
-yunwu/
+/Users/ryan/Workbuddy/
+├── platform-os/              ← Backend: ERP OS + Brand OS + Media Library
+│   └── apps/platform/        ← Vercel Production (Root: apps/platform)
+│       ├── app/login/        ← Admin login
+│       ├── app/(platform)/brand/media/  ← Brand media library
+│       ├── app/(platform)/brand/products/
+│       ├── app/(platform)/brand/series/
+│       ├── app/(platform)/brand/journal/
+│       ├── app/(platform)/brand/materials/
+│       ├── app/(platform)/brand/settings/
+│       └── app/(platform)/erp/
+└── yunwu-origin/             ← Frontend: Storefront (Product OS)
+    └── src/app/
+        ├── products/
+        ├── series/
+        ├── journal/
+        ├── materials/
+        └── about/
+```
+
+### 2.2 Monorepo Structure (platform-os)
+
+```
+platform-os/
 ├── apps/
-│   ├── platform/     → Platform OS (unified admin entry, Next.js 16, port 3100, /erp/*)
-│   ├── erp/          → ERP legacy app (Next.js 16, port 3001, being migrated to Platform)
-│   ├── web/          → Public website (Next.js 15, port 3002, SEO/product showcase)
-│   └── brand-os/     → Brand OS legacy admin (Next.js 15, port 3003, pending deprecation)
+│   └── platform/     → Platform OS (unified admin entry, Next.js, port 3100)
 ├── packages/
-│   ├── auth/         → Identity, session, NextAuth, permission middleware (active)
-│   ├── db/           → Unified Prisma entry, Domain/Control/Fabric/Canonical layers (active)
-│   ├── platform/     → Sidebar, permission config, gateway, service layer, CRM (partially wired)
-│   ├── ui/           → Unified UI components, design tokens, permission boundaries (active)
-│   └── shared/       → Date, amount, order number utilities (no current imports)
+│   ├── auth/         → Identity, session, NextAuth, permission middleware
+│   ├── db/           → Unified Prisma entry (41 models)
+│   ├── platform/     → Sidebar, permission config, gateway, service layer
+│   ├── ui/           → Unified UI components, design tokens
+│   └── shared/       → Date, amount, order number utilities
 └── docs/             → Project documentation & reports
 ```
 
-### 2.2 App Roles
+### 2.3 App Roles
 
-| App | Role | Current Status | Port |
-|-----|------|----------------|------|
-| **Platform** | Unified management entry for Brand OS → ERP → full control | **Active, primary** | 3100 |
-| **ERP** | Inventory, production, orders, customers, BOM | Active, being migrated to Platform | 3001 |
-| **Web** | Public website: product showcase, SEO, order API | Active, separate deploy | 3002 |
-| **Brand OS** | Brand backend + brand API | Marked for deprecation, still proxied by Platform | 3003 |
+| App | Role | Current Status |
+|-----|------|----------------|
+| **Platform** | Unified management: ERP OS + Brand OS + Media Library | **Active, production** |
+| **Storefront (yunwu-origin)** | Public website: product showcase, PDP, journal, series | **Active, production** |
 
-### 2.3 Backend
+### 2.4 Backend
 
-- No standalone Python/Java/Go backend.
+- No standalone backend service.
 - All backend logic via:
   - Next.js Route Handlers (`app/api/**/route.ts`)
-  - Next.js Server Actions (`apps/*/src/lib/actions`, `apps/platform/modules/**/actions.ts`)
-  - Prisma ORM (`packages/db/schema.prisma` + per-app schemas)
+  - Next.js Server Actions
+  - Prisma ORM (`packages/db/schema.prisma`)
   - NextAuth (authentication, via `packages/auth`)
-  - Platform data gateway + ERP service layer (`packages/platform`)
 
-### 2.4 Database
+### 2.5 Database
 
 | Database | Provider | URL Env Var | Location |
 |----------|----------|-------------|----------|
-| **ERP Main DB** | Neon (PostgreSQL) | `DATABASE_URL` | `ep-polished-unit-ajk5rq34`, us-east-2 |
-| **Brand DB** | Neon (PostgreSQL) | `BRAND_DATABASE_URL` | Linked to Brand OS |
-| **Prisma Schema** | `packages/db/schema.prisma` | — | Monorepo root managed |
-| **Local Dev** | SQLite (historical) | — | Historical workspaces |
+| **ERP Main DB** | Neon (PostgreSQL) | `DATABASE_URL` | ap-southeast-1 |
+| **Brand DB** | Neon (PostgreSQL) | `BRAND_DATABASE_URL` | Shared Neon |
+| **Storefront DB** | Neon (PostgreSQL) | `DATABASE_URL` (yunwu-origin) | ap-southeast-1, independent |
 
-### 2.5 Infrastructure
+### 2.6 Infrastructure
 
 | Service | Provider | Config |
 |---------|----------|--------|
-| **Deployment** | Vercel | Per-app `vercel.json`; Platform uses pnpm |
-| **Production URL (Platform)** | Vercel | Connected to RYAN-CHIS/platform-os |
-| **Production URL (Web)** | `www.yunwuorigin.com` | Vercel, separate repo `yunwu-origin` |
-| **No Docker/PM2** | — | All service entry via Next.js CLI + Vercel |
+| **Deployment** | Vercel (2 projects only) | platform-os + yunwu-origin |
+| **Production URL (Platform OS)** | `https://platform-os-eosin.vercel.app` | Vercel, connected to RYAN-CHIS/platform-os |
+| **Production URL (Storefront)** | `https://www.yunwuorigin.com` | Vercel, connected to RYAN-CHIS/yunwu-origin |
+| **Blob Store** | Vercel Blob | `store_aX5AkCAHGANaFqRv` (shared) |
 
 ---
 
-## 3. Permission Model (RBAC v2)
+## 3. Active Directories (FORBIDDEN list below)
+
+### 3.1 Active ONLY
+
+| Directory | Purpose | Git Remote | Vercel Project |
+|-----------|---------|------------|----------------|
+| `/Users/ryan/Workbuddy/platform-os/` | Backend (ERP + Brand OS + Media) | `RYAN-CHIS/platform-os.git` | `platform-os` |
+| `/Users/ryan/Workbuddy/yunwu-origin/` | Frontend (Storefront + Product OS) | `RYAN-CHIS/yunwu-origin.git` | `yunwu-origin` |
+
+### 3.2 FORBIDDEN
+
+The following paths are **forbidden** as active development sources (archived to `/Users/ryan/Archives/yunwu-cleanup-20260629/`):
+
+- ~~`/Users/ryan/yunwu-origin`~~ — **Duplicate clone archived**
+- ~~`/Users/ryan/yunwu-brand-os`~~ — **Old standalone ERP, repo `yunwu-erp` archived**
+- ~~`/Users/ryan/Workbuddy/yunwu`~~ — **Renamed to platform-os**
+- ~~`/Users/ryan/Workbuddy/yunwu-admin`~~ — **Renamed to yunwu-origin**
+- ~~`StudyBuddy/APP/` — **Deleted from active** | **STUDY_ARTIFACT**~~
+
+**Rules:**
+- No development from legacy snapshots
+- No use of `yunwu-admin` or `yunwu-brand-os` as active source
+- No creation of new Vercel projects outside platform-os / yunwu-origin
+- All historical snapshots archived only; restore by retrieving from Archives
+
+---
+
+## 4. Permission Model (RBAC v2)
 
 | Role | Scope |
 |------|-------|
@@ -96,7 +142,7 @@ Permission matrix: Role × Module × Operation (create/read/update/delete/manage
 
 ---
 
-## 4. Brand Identity (Yunwu Charter — Highest Fact Source)
+## 5. Brand Identity (Yunwu Charter — Highest Fact Source)
 
 | Item | Value |
 |------|-------|
@@ -112,83 +158,82 @@ Permission matrix: Role × Module × Operation (create/read/update/delete/manage
 
 ---
 
-## 5. Product & Data Structure
+## 6. Vercel Projects (Final, 2026-06-29)
 
-### 5.1 Core Entities
+| Project | Production URL | Git Repo | Root Dir | Status |
+|---------|---------------|----------|----------|--------|
+| **platform-os** | `https://platform-os-eosin.vercel.app` | `RYAN-CHIS/platform-os` | `apps/platform` | ✅ Production |
+| **yunwu-origin** | `https://www.yunwuorigin.com` | `RYAN-CHIS/yunwu-origin` | `.` | ✅ Production |
+| ~~platform~~ | — | — | — | ❌ Deleted |
+| ~~archive-yunwu-erp~~ | — | — | — | ❌ Deleted |
 
-- **Works** (34 imported) — Product series/collections
-- **Products** (82 imported) — Individual products/artifacts
-- **Raw Materials** (108 imported) — BOM ingredients
-- **Purchase Records** (204 imported) — Procurement history
-- **BOM** — Bill of Materials (product × raw material × quantity)
-- **Inventory** — Stock tracking per SKU
-- **Orders** — Customer orders
-- **Cost Records** — Product cost calculation
+### Domain & Alias
 
-### 5.2 Key Business Rules
-
-- Product creation: initial inventory = 0, requires cost record + showcase status
-- No new feature modifications to Product, SKU, Inventory, BOM, Cost, Purchase, Order, Permission, or Audit core modules (protected status)
+| Alias | Target | Status |
+|-------|--------|--------|
+| `platform-os-eosin.vercel.app` | `platform-os` production deploy | ✅ Active |
+| `www.yunwuorigin.com` | `yunwu-origin` production deploy | ✅ Active |
 
 ---
 
-## 6. Work Order Protocol V2
+## 7. Product & Data Structure
 
-| ID | Title | Priority | Status |
-|----|-------|----------|--------|
-| WO-P7A | ERP Platform Migration Audit | — | Historical |
-| WO-P7B | Product Core Unification | — | Historical |
-| WO-P7C | Schema Map ProductService Activation | — | Historical |
-| WO-P7D | Runtime Decoupling | — | Historical |
-| WO-P7E | Orders-Customers Takeover | — | Historical |
-| WO-P7F | Inventory-Production Takeover | — | Historical |
-| WO-P10A | Platform Real Operational Buildout | — | Phase 8: Productionization |
-| WO-P13B | Platform OS Audit System Full Wiring | **Active** | Brand CRUD + Settings audit coverage |
-| ... | (full list in root P*.md reports) | | |
+### 7.1 Core Entities
 
-**Process:**
-1. Read audit state before changes
-2. No destructive operations without approval
-3. Error chain output for root cause analysis
-4. Every write operation triggers audit log
+- **Series** — Product series/collections
+- **Product** — Individual products/artifacts
+- **Batch** — Limited editions with serial numbers
+- **RitualTaxonomy** — Ritual classification navigation
+- **CustomerQuote** — Customer quotation system
+- **CrossSellRelation** — Cross-sell recommendations
+- **JournalEntry** — Brand journal entries
+- **Material** — Material definitions
+- **ProductMaterial** — Product-material relationships
+- **Order** — Customer orders
+- **JournalPost** — Published journal posts
+- **ContactLead** — Customer leads
 
----
+### 7.2 Schema Models (platform-os)
 
-## 7. Deployment & Git Workflow
+41 models in `packages/db/schema.prisma`:
+- Auth & Permission: User, PermissionGroup, Permission, UserPermission, PermissionTemplate, PermissionTemplateItem, TemporaryPermission, AuditLog
+- ERP Core: ErpSeries, ErpWork, ErpWorkAsset, ErpProduct, ErpProductSku, ErpProductCost, ErpProductionRecord, ErpMaterial, ErpPurchaseRecord, ErpInventoryTransaction, ErpBom, ErpCustomer, ErpOrder, ErpMediaAsset, ErpMediaReference, ErpBanner
+- Brand OS: BrandSeries, BrandProduct, BrandProductContent, BrandProductMaterial, BrandProductTag, BrandMaterial, BrandOrder, JournalPost, ContactLead, PageContent, SeoConfig, SiteSetting, ContentVersion, PublishJob, SeoSnapshot, BrandTag, BrandJournalTag
 
-### 7.1 Git
+### 7.3 Schema Models (yunwu-origin)
 
-- Remote: `git@github.com:RYAN-CHIS/platform-os.git`
-- Branch: `main` (production)
-- Protected modules: Product, SKU, Inventory, BOM, Cost, Purchase, Order, Permission, Audit
-- Production baseline commit (yunwu-origin): `4d55ba7`
-
-### 7.2 Vercel
-
-- Platform: pnpm build, Vercel project `platform`
-- ERP: uses `npm` in vercel.json (legacy, needs alignment)
-- Web: uses `npm` in vercel.json (legacy)
-- Brand OS: Vercel config pending clarification
-
-### 7.3 Port Convention
-
-| App | Dev | Start |
-|-----|-----|-------|
-| Platform | 3100 | 3100 |
-| ERP | 3001 | 3000 (⚠️ conflict risk) |
-| Web | 3002 | 3000 (⚠️ conflict risk) |
-| Brand OS | 3003 | 3000 (⚠️ conflict risk) |
+12 models in `prisma/schema.prisma`:
+- Series, Product, Batch, RitualTaxonomy, CustomerQuote, CrossSellRelation, JournalEntry, Material, ProductMaterial, Order, JournalPost, ContactLead
 
 ---
 
-## 8. Testing
+## 8. Deployment & Git Workflow
 
-- No test files exist currently (`*.test.*`, `*.spec.*`, `tests/`, `__tests__/` all absent).
-- Future requirement: build verification for all 4 apps + smoke tests for core routes + Prisma schema smoke tests.
+### 8.1 Git
+
+- **platform-os**: `git@github.com:RYAN-CHIS/platform-os.git`, branch `main`
+- **yunwu-origin**: `git@github.com:RYAN-CHIS/yunwu-origin.git`, branch `main`
+
+### 8.2 Vercel Build Commands
+
+- **platform-os**: `cd ../.. && pnpm db:generate && cd apps/platform && next build`
+- **yunwu-origin**: `npx prisma generate && npx prisma db push --accept-data-loss && next build`
+
+### 8.3 Vercel Node Version
+
+Both projects: 24.x
 
 ---
 
-## 9. YUNWU Baseline Synchronization Law
+## 9. Blob Store
+
+| Store ID | Projects | Purpose |
+|----------|----------|---------|
+| `store_aX5AkCAHGANaFqRv` | platform-os + yunwu-origin | Product images, media assets |
+
+---
+
+## 10. YUNWU Baseline Synchronization Law
 
 > **Code < Baseline → Update Baseline**
 >
@@ -196,19 +241,19 @@ Permission matrix: Role × Module × Operation (create/read/update/delete/manage
 >
 > **Forbidden:** Code changes without Baseline updates.
 
-### 9.1 Before Every Task
+### 10.1 Before Every Task
 
 1. Read this document
 2. Confirm current baseline state
 3. If code differs from baseline: output Delta Report; do not proceed
 
-### 9.2 After Every Task
+### 10.2 After Every Task
 
 1. Check: `Code == Baseline?`
 2. If no: immediately update this document
 3. Then end task
 
-### 9.3 Scope
+### 10.3 Scope
 
 Any modification to:
 - Architecture
@@ -225,8 +270,45 @@ Any modification to:
 - AI Workflow
 - New features / modules
 - Build / Environment
+- Active directories
 
 All require this baseline to be synchronized.
+
+---
+
+## 11. Baseline History
+
+| Date | Event |
+|------|-------|
+| **2026-06-27** | Master Baseline created (v1.0) |
+| **2026-06-29** | **Project Cleanup PHASE 1-6 completed** |
+| | — Code directories audited: 5 directories → **2 active** |
+| | — archiving: `/Users/ryan/yunwu-origin` (duplicate clone) |
+| | — archiving: `/Users/ryan/yunwu-brand-os` (old standalone ERP, 19 uncommitted changes preserved) |
+| | — archiving: 7 legacy snapshots (3.1 GB total) |
+| | — Renamed: `Workbuddy/yunwu` → `platform-os` |
+| | — Renamed: `Workbuddy/yunwu-admin` → `yunwu-origin` |
+| | — Re-linked: both projects to correct Vercel projects |
+| | — Deleted Vercel projects: `platform`, `archive-yunwu-erp` confirmed |
+| | — Vercel projects remaining: `platform-os` + `yunwu-origin` only |
+| | — FORBIDDEN list established for dead code paths |
+| | — Active directories: `/Users/ryan/Workbuddy/platform-os/` + `/Users/ryan/Workbuddy/yunwu-origin/` |
+
+---
+
+## Appendix A: Safety Notes
+
+- This document contains **no** keys, tokens, or password values
+- Environment variables listed by **name only**
+- Database connections verified for **existence** only
+- Blob Store token not exposed
+
+## Appendix B: Maintenance
+
+- Update this file after every major change
+- Never add new active directories outside the two permitted paths
+- Adding new Vercel project requires updating section 6
+- Archive any new legacy assets to `/Users/ryan/Archives/`
 
 ---
 

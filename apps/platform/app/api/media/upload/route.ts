@@ -58,21 +58,6 @@ function formString(value: FormDataEntryValue | null, fallback = "") {
   return typeof value === "string" && value.trim() ? value.trim() : fallback;
 }
 
-function parseBlobStoreIdFromToken(token: string) {
-  // V1 format: vercel_blob_rw_{storeId}_{secret}
-  // V2 format: vcp_{random_string}
-  // Token parsing is best-effort. If it fails, BLOB_STORE_ID is the fallback.
-  const parts = token.split("_");
-  if (parts.length >= 5 && parts[0] === "vercel" && parts[1] === "blob") {
-    return parts[3] || "";
-  }
-  // V2 vcp_ format
-  if (parts.length >= 2 && parts[0] === "vcp") {
-    return parts[1] || "";
-  }
-  return "";
-}
-
 function getBlobReadWriteToken() {
   const token = process.env.BLOB_READ_WRITE_TOKEN?.trim() || "";
   if (!token) return { token: "", error: "missing" as const };
@@ -106,22 +91,6 @@ async function cleanupUpload(storage: string, url: string, blobToken: string) {
 
 export async function POST(request: NextRequest) {
   try {
-    // 🩺 Diagnostic: log env context (safe values only)
-    const diag = {
-      VERCEL_ENV: process.env.VERCEL_ENV || "local",
-      VERCEL_URL: process.env.VERCEL_URL || "",
-      BLOB_STORE_ID_exists: !!process.env.BLOB_STORE_ID,
-      BLOB_STORE_ID: process.env.BLOB_STORE_ID || "MISSING",
-      BLOB_RW_TOKEN_prefix: process.env.BLOB_READ_WRITE_TOKEN
-        ? process.env.BLOB_READ_WRITE_TOKEN.substring(0, 20) + "..."
-        : "MISSING",
-      BLOB_RW_TOKEN_parsed_store_id: parseBlobStoreIdFromToken(
-        process.env.BLOB_READ_WRITE_TOKEN || ""
-      ),
-      BLOB_WEBHOOK_PUBLIC_KEY_exists: !!process.env.BLOB_WEBHOOK_PUBLIC_KEY,
-    };
-    console.log("[media-upload] 🩺 diag", JSON.stringify(diag));
-
     const formData = await request.formData();
     const file = formData.get("file") as File | null;
     const menuGroup = formString(formData.get("menuGroup"), "other");
@@ -170,9 +139,8 @@ export async function POST(request: NextRequest) {
         const errMsg = error instanceof Error ? error.message : "未知错误";
         console.error("[media-upload] Vercel Blob upload failed:", errMsg);
 
-        // 🩺 Diagnostic: log raw error details
         if (error instanceof Error) {
-          console.log("[media-upload] 🩺 blob put error", JSON.stringify({
+          console.log("[media-upload] blob put error", JSON.stringify({
             name: error.name,
             message: error.message.substring(0, 200),
             cause: typeof (error as any).cause === "string"
@@ -184,15 +152,8 @@ export async function POST(request: NextRequest) {
         }
 
         if (isBlobAuthError(errMsg) || errMsg.includes("not found")) {
-          // 🩺 Include store ID in error so we know which store was targeted
-          const storeId = process.env.BLOB_STORE_ID || "(unknown)";
-          const tokenStoreId = parseBlobStoreIdFromToken(blobToken);
-          console.log("[media-upload] 🩺 store mismatch check", JSON.stringify({
-            BLOB_STORE_ID: storeId,
-            tokenParsedStoreId: tokenStoreId || "(unparseable)",
-          }));
           return jsonError(
-            `Vercel Blob Token 无法访问 platform-os-blob，请确认 Production/Preview 的 BLOB_READ_WRITE_TOKEN 来自同一个 Blob Store。`,
+            "Vercel Blob Token 无法完成上传，请确认当前环境的 BLOB_READ_WRITE_TOKEN 来自同一个 Blob Store，并已同步到 Production / Preview / Development 后重新部署。",
             500,
             {
               stage: "config",
@@ -200,8 +161,6 @@ export async function POST(request: NextRequest) {
               requiredEnv: "BLOB_READ_WRITE_TOKEN",
               code: "BLOB_TOKEN_ACCESS_DENIED",
               detail: errMsg,
-              storeId,
-              tokenStoreId: tokenStoreId || "(unparseable)",
             }
           );
         }

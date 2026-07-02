@@ -24,6 +24,8 @@ import {
 } from "@/lib/publisher";
 
 const TABLE = "products";
+const ERP_PRODUCT_TABLE = "products";
+const ERP_PRODUCT_SKU_TABLE = "product_skus";
 
 type ProductColumn =
   | "sku"
@@ -335,6 +337,43 @@ async function syncProductMediaReferencesBestEffort(row: Record<string, any>) {
   }
 }
 
+async function fetchLinkedErpProduct(erpProductId: number) {
+  const products = await prisma.$queryRawUnsafe<Array<{ id: number; code: string; name: string; status: string }>>(
+    `SELECT id, code, name, status FROM ${ERP_PRODUCT_TABLE} WHERE id = $1`,
+    erpProductId,
+  );
+  return products[0] || null;
+}
+
+async function fetchPrimaryErpSku(erpProductId: number) {
+  const skus = await prisma.$queryRawUnsafe<Array<{ id: number; code: string; name: string; price: number; finished_stock: number }>>(
+    `SELECT id, code, name, price, finished_stock FROM ${ERP_PRODUCT_SKU_TABLE} WHERE product_id = $1 ORDER BY id ASC LIMIT 1`,
+    erpProductId,
+  );
+  return skus[0] || null;
+}
+
+async function refreshLinkedErpFields(row: Record<string, any>) {
+  const erpProductId = Number(row.erp_product_id ?? row.erpProductId ?? 0);
+  if (!erpProductId) return row;
+
+  const [erpProduct, erpSku] = await Promise.all([
+    fetchLinkedErpProduct(erpProductId),
+    fetchPrimaryErpSku(erpProductId),
+  ]);
+
+  if (!erpProduct || !erpSku) {
+    throw new Error("已关联 ERP 产品，但无法读取主产品或默认 SKU");
+  }
+
+  // ERP remains the source of truth for sale price and stock when a Brand product is linked.
+  return {
+    ...row,
+    sale_price: Number(erpSku.price ?? 0),
+    stock: Number(erpSku.finished_stock ?? 0),
+  };
+}
+
 function normalizeProductValue(column: ProductColumn, value: unknown) {
   switch (column) {
     case "object_category":
@@ -477,10 +516,10 @@ export async function listErpProductsForSelect() {
         s.code AS "skuCode",
         s.price AS "skuPrice",
         s.finished_stock AS "skuStock"
-      FROM erp_products p
+      FROM products p
       LEFT JOIN LATERAL (
         SELECT code, price, finished_stock
-        FROM erp_product_skus
+        FROM product_skus
         WHERE product_id = p.id
         ORDER BY id ASC
         LIMIT 1
@@ -497,6 +536,8 @@ export async function listErpProductsForSelect() {
 export async function createProduct(data: Record<string, unknown>) {
   try {
     const enriched = normalizeProductData(data, "create");
+    const linkedErpFields = await refreshLinkedErpFields(enriched);
+    Object.assign(enriched, linkedErpFields);
     const columns = Object.keys(enriched);
     const rows: any[] = await brandPrisma.$queryRaw(Prisma.sql`
       INSERT INTO products (${Prisma.join(columns.map(sqlIdentifier))})
@@ -525,6 +566,14 @@ export async function updateProduct(id: number | string, data: Record<string, un
     const before = beforeRows[0] || null;
 
     const enriched = normalizeProductData(data, "update");
+    const existingRows: any[] = await brandPrisma.$queryRawUnsafe(`SELECT * FROM ${TABLE} WHERE id = $1::integer`, productId);
+    const existing = existingRows[0] || null;
+    const merged = { ...(existing || {}), ...enriched };
+    const linkedErpFields = await refreshLinkedErpFields(merged);
+    if (linkedErpFields !== merged) {
+      if (linkedErpFields.sale_price !== undefined) enriched.sale_price = linkedErpFields.sale_price;
+      if (linkedErpFields.stock !== undefined) enriched.stock = linkedErpFields.stock;
+    }
     const columns = Object.keys(enriched);
     const sets = columns.map((column) =>
       Prisma.sql`${sqlIdentifier(column)} = ${sqlValue(column, enriched[column])}`
@@ -536,7 +585,23 @@ export async function updateProduct(id: number | string, data: Record<string, un
       RETURNING *
     `);
     const after = afterRows[0] || null;
-    if (after) await syncProductMediaReferencesBestEffort(after);
+    if (after) {
+      const synced = await refreshLinkedErpFields(after);
+      if (synced.sale_price !== after.sale_price || synced.stock !== after.stock) {
+        const refreshedRows: any[] = await brandPrisma.$queryRaw(Prisma.sql`
+          UPDATE products
+          SET sale_price = ${synced.sale_price}::double precision,
+              stock = ${synced.stock}::integer
+          WHERE id = ${productId}::integer
+          RETURNING *
+        `);
+        if (refreshedRows[0]) {
+          await syncProductMediaReferencesBestEffort(refreshedRows[0]);
+        }
+      } else {
+        await syncProductMediaReferencesBestEffort(after);
+      }
+    }
 
     // Audit
     try {

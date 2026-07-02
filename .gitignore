@@ -7,3 +7,4 @@ node_modules/
 .env.production
 .vercel
 apps/platform/public/uploads/
+.env*
