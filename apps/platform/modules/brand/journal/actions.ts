@@ -153,7 +153,7 @@ export async function getPostStatus(cuid: string) {
 
 export async function savePostSeoSnapshot(cuid: string) {
   const rows = await brandPrisma.$queryRawUnsafe<any[]>(
-    `SELECT title, slug, seo_title, seo_description, excerpt FROM journal_posts WHERE id = $1`,
+    `SELECT title, slug, seo_title, seo_description, excerpt, seo_keywords, og_image FROM journal_posts WHERE id = $1`,
     cuid
   );
   if (!rows.length) return;
@@ -162,8 +162,53 @@ export async function savePostSeoSnapshot(cuid: string) {
     title: p.seo_title || p.title,
     slug: p.slug,
     description: p.seo_description || p.excerpt || "",
-    keywords: "",
+    keywords: p.seo_keywords || "",
+    ogImage: p.og_image || undefined,
   });
+}
+
+/**
+ * Update SEO fields on a journal post and create a SEO snapshot.
+ * Writes seo_title / seo_description to journal_posts, and saves all SEO
+ * data (including seo_keywords / og_image) to seo_snapshots.
+ */
+export async function updatePostSeo(
+  cuid: string,
+  seoData: {
+    seo_title?: string;
+    seo_description?: string;
+    seo_keywords?: string;
+    og_image?: string;
+  }
+): Promise<{ success: boolean; error: string | null }> {
+  try {
+    await brandPrisma.$executeRawUnsafe(
+      `UPDATE journal_posts SET seo_title = $1, seo_description = $2, updated_at = NOW() WHERE id = $3`,
+      seoData.seo_title || null,
+      seoData.seo_description || null,
+      cuid
+    );
+
+    // Also create a SEO snapshot for history
+    const rows = await brandPrisma.$queryRawUnsafe<any[]>(
+      `SELECT slug, excerpt FROM journal_posts WHERE id = $1`,
+      cuid
+    );
+    if (rows.length > 0) {
+      const p = rows[0];
+      await createSeoSnapshot("journal", cuid, {
+        title: seoData.seo_title || "",
+        slug: p.slug,
+        description: seoData.seo_description || p.excerpt || "",
+        keywords: seoData.seo_keywords || "",
+        ogImage: seoData.og_image || undefined,
+      });
+    }
+
+    return { success: true, error: null };
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
 }
 
 // ── Status toggle (uses publisher engine) ──

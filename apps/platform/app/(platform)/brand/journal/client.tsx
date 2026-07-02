@@ -2,7 +2,7 @@
 /**
  * BrandJournalClient — WO-P12B (wired to Publisher Engine)
  */
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { ActionBar } from "@/components/ActionBar";
 import { ConfirmModal } from "@/components/BrandCrudModal";
@@ -23,7 +23,7 @@ import {
   submitPostForReview, approvePost, rejectPost, publishPostNow,
   schedulePost, unpublishPost, archivePost,
   getPostVersions, rollbackPost, getPostPreviewToken,
-  savePostSeoSnapshot,
+  updatePostSeo,
 } from "@/modules/brand/journal/actions";
 
 // ── Constants ──
@@ -171,18 +171,20 @@ function VersionHistoryModal({ row, onClose }: { row: any; onClose: () => void }
   const [rollbacking, setRollbacking] = useState<number | null>(null);
   const router = useRouter();
 
-  useState(() => {
+  useEffect(() => {
+    let cancelled = false;
     (async () => {
       try {
         const data = await getPostVersions(row.id);
-        setVersions(data);
+        if (!cancelled) setVersions(data);
       } catch (e: any) {
-        setError(e.message || "加载版本历史失败");
+        if (!cancelled) setError(e.message || "加载版本历史失败");
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     })();
-  });
+    return () => { cancelled = true; };
+  }, [row.id]);
 
   async function handleRollback(version: number) {
     setRollbacking(version);
@@ -367,6 +369,80 @@ function RejectDialog({ row, onClose, onSuccess }: { row: any; onClose: () => vo
   );
 }
 
+// ── SEO Edit Modal ──
+
+function SeoEditModal({ row, onClose }: { row: any; onClose: () => void }) {
+  const [seoTitle, setSeoTitle] = useState(row.seo_title || "");
+  const [seoDescription, setSeoDescription] = useState(row.seo_description || "");
+  const [seoKeywords, setSeoKeywords] = useState("");
+  const [ogImage, setOgImage] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const router = useRouter();
+
+  async function handleSave() {
+    setSaving(true);
+    setError("");
+    try {
+      const r = await updatePostSeo(row.id, {
+        seo_title: seoTitle,
+        seo_description: seoDescription,
+        seo_keywords: seoKeywords,
+        og_image: ogImage,
+      });
+      if (!r.success) {
+        setError(r.error || "保存失败");
+      } else {
+        onClose();
+        router.refresh();
+      }
+    } catch (e: any) {
+      setError(e.message || "保存失败");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div style={modalOverlay} onClick={onClose}>
+      <div style={{ ...modalBox, minWidth: 520 }} onClick={(e) => e.stopPropagation()}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+          <h3 style={{ fontSize: 16, fontWeight: 500, color: "#1c1917", margin: 0 }}>SEO 设置 — {row.title}</h3>
+          <button onClick={onClose} style={{ background: "none", border: "none", fontSize: 18, cursor: "pointer", color: "#a8a29e" }}>×</button>
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <div>
+            <label style={{ display: "block", fontSize: 13, color: "#57534e", marginBottom: 4 }}>SEO 标题</label>
+            <input value={seoTitle} onChange={(e) => setSeoTitle(e.target.value)} placeholder="SEO 优化标题" style={inputStyle} />
+          </div>
+          <div>
+            <label style={{ display: "block", fontSize: 13, color: "#57534e", marginBottom: 4 }}>SEO 描述</label>
+            <textarea value={seoDescription} onChange={(e) => setSeoDescription(e.target.value)} placeholder="SEO 优化描述..." rows={3} style={inputStyle} />
+          </div>
+          <div>
+            <label style={{ display: "block", fontSize: 13, color: "#57534e", marginBottom: 4 }}>SEO 关键词</label>
+            <input value={seoKeywords} onChange={(e) => setSeoKeywords(e.target.value)} placeholder="关键词1, 关键词2, ..." style={inputStyle} />
+          </div>
+          <div>
+            <label style={{ display: "block", fontSize: 13, color: "#57534e", marginBottom: 4 }}>OG 图片 URL</label>
+            <input value={ogImage} onChange={(e) => setOgImage(e.target.value)} placeholder="https://..." style={inputStyle} />
+          </div>
+        </div>
+
+        {error && <div style={{ padding: 8, background: "#fef2f2", borderRadius: 6, marginTop: 12, fontSize: 12, color: "#dc2626" }}>{error}</div>}
+
+        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 16 }}>
+          <button onClick={onClose} style={{ height: 36, padding: "0 16px", borderRadius: 6, fontSize: 13, cursor: "pointer", background: "#fff", color: "#44403c", border: "1px solid #e7e5e4" }}>取消</button>
+          <button onClick={handleSave} disabled={saving} style={{ height: 36, padding: "0 16px", borderRadius: 6, fontSize: 13, cursor: "pointer", background: "#0891b2", color: "#fff", border: "none" }}>
+            {saving ? "保存中…" : "保存 SEO"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Main Client ──
 
 export function BrandJournalClient({ rows, error: serverError, searchQ }: { rows: any[]; error: string | null; searchQ: string; }) {
@@ -380,6 +456,7 @@ export function BrandJournalClient({ rows, error: serverError, searchQ }: { rows
   const [previewRow, setPreviewRow] = useState<any>(null);
   const [previewToken, setPreviewToken] = useState<string | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
+  const [seoEditRow, setSeoEditRow] = useState<any>(null);
   const [actionError, setActionError] = useState("");
 
   async function handleDelete() { if (!deleteRow) return; await deletePost(deleteRow.id); setDeleteRow(null); router.refresh(); }
@@ -445,6 +522,8 @@ export function BrandJournalClient({ rows, error: serverError, searchQ }: { rows
     try {
       const token = await getPostPreviewToken(row.id);
       setPreviewToken(token);
+      // Open internal preview page in a new tab
+      window.open(`/preview/journal/${row.id}?token=${token}`, "_blank");
     } catch (e: any) {
       setActionError("生成预览令牌失败");
     } finally {
@@ -452,15 +531,8 @@ export function BrandJournalClient({ rows, error: serverError, searchQ }: { rows
     }
   }
 
-  async function handleSeoSnapshot(row: any) {
-    setActionError("");
-    try {
-      await savePostSeoSnapshot(row.id);
-      setActionError("SEO 快照已保存");
-      setTimeout(() => setActionError(""), 2000);
-    } catch {
-      setActionError("SEO 快照保存失败");
-    }
+  function handleSeoEdit(row: any) {
+    setSeoEditRow(row);
   }
 
   function handleScheduleSuccess() { setScheduleRow(null); setActionError(""); router.refresh(); }
@@ -518,7 +590,7 @@ export function BrandJournalClient({ rows, error: serverError, searchQ }: { rows
                   <button onClick={() => handlePreview(r)} style={{ ...actionStyle, color: "#2563eb" }}>预览</button>
                   <button onClick={() => setEditRow(r)} style={actionStyle}>编辑</button>
                   <button onClick={() => setVersionsRow(r)} style={{ ...actionStyle, color: "#7c3aed" }}>版本</button>
-                  <button onClick={() => handleSeoSnapshot(r)} style={{ ...actionStyle, color: "#0891b2" }}>SEO</button>
+                  <button onClick={() => handleSeoEdit(r)} style={{ ...actionStyle, color: "#0891b2" }}>SEO</button>
                   <button onClick={() => setDeleteRow(r)} style={{ ...actionStyle, color: "#dc2626" }}>删除</button>
                 </td>
               </tr>
@@ -547,6 +619,9 @@ export function BrandJournalClient({ rows, error: serverError, searchQ }: { rows
 
       {/* Version History Modal */}
       {versionsRow && <VersionHistoryModal row={versionsRow} onClose={() => setVersionsRow(null)} />}
+
+      {/* SEO Edit Modal */}
+      {seoEditRow && <SeoEditModal row={seoEditRow} onClose={() => setSeoEditRow(null)} />}
 
       {/* Preview Modal */}
       {previewRow && (
