@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Pencil, Trash2, Plus, ShoppingCart, Download, RefreshCw, Search, ChevronLeft, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
+import { Pencil, Trash2, Plus, ShoppingCart, Download, RefreshCw, Search, ChevronLeft, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown, Upload, FileSpreadsheet } from "lucide-react";
 import Modal from "@/components/ui/Modal";
 import { useSort } from "@/hooks/useSort";
 
@@ -189,6 +189,12 @@ export default function MaterialsClient({
   const router = useRouter();
   const [modalOpen, setModalOpen] = useState(false);
   const [purchaseModalOpen, setPurchaseModalOpen] = useState(false);
+  const [importModalOpen, setImportModalOpen] = useState(false);
+  const [importStep, setImportStep] = useState<"upload" | "preview" | "result">("upload");
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importPreview, setImportPreview] = useState<any[]>([]);
+  const [importErrors, setImportErrors] = useState<string[]>([]);
+  const [importResults, setImportResults] = useState<any>(null);
   const [editing, setEditing] = useState<RawMaterial | null>(null);
   const [form, setForm] = useState<MaterialForm>(emptyMaterialForm());
   const [purchaseForm, setPurchaseForm] = useState<PurchaseForm>(emptyPurchaseForm());
@@ -298,6 +304,123 @@ export default function MaterialsClient({
   // 导出 Excel
   function handleExport() {
     window.open("/api/export?type=materials", "_blank");
+  }
+
+  // 下载导入模板
+  function handleDownloadTemplate() {
+    const headers = ["编码", "名称", "库存", "最小单位单价", "备注"];
+    const exampleRow = ["MAT-001", "白水晶", "100", "5.00", "示例数据"];
+    
+    // 创建 CSV 内容（使用 BOM 以支持中文）
+    const BOM = "\uFEFF";
+    const csvContent = BOM + [headers.join(","), exampleRow.join(",")].join("\n");
+    
+    // 下载文件
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "材料导入模板.csv";
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
+  // 处理导入文件上传
+  async function handleImportFile(file: File) {
+    if (!file) return;
+
+    setImportFile(file);
+    setImportStep("upload");
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      const res = await fetch("/api/materials/import", {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        alert(`导入失败: ${data.error}`);
+        return;
+      }
+
+      setImportPreview(data.preview || []);
+      setImportErrors(data.errors || []);
+      setImportStep("preview");
+    } catch (error: any) {
+      alert(`导入失败: ${error.message}`);
+    }
+  }
+
+  // 切换导入行的操作
+  function toggleImportAction(index: number) {
+    setImportPreview((prev) => {
+      const updated = [...prev];
+      const item = updated[index];
+      
+      if (item.action === "unmatched") {
+        // 未匹配的行不能更新
+        return prev;
+      }
+      
+      updated[index] = {
+        ...item,
+        action: item.action === "update" ? "skip" : "update",
+      };
+      
+      return updated;
+    });
+  }
+
+  // 应用导入
+  async function handleImportApply() {
+    const itemsToUpdate = importPreview.filter(
+      (item) => item.action === "update" && item.matched
+    );
+
+    if (itemsToUpdate.length === 0) {
+      alert("没有需要更新的数据");
+      return;
+    }
+
+    if (!confirm(`确认更新 ${itemsToUpdate.length} 条材料数据？`)) {
+      return;
+    }
+
+    try {
+      const res = await fetch("/api/materials/import", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ items: importPreview }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        alert(`导入失败: ${data.error}`);
+        return;
+      }
+
+      setImportResults(data.results);
+      setImportStep("result");
+      router.refresh();
+    } catch (error: any) {
+      alert(`导入失败: ${error.message}`);
+    }
+  }
+
+  // 关闭导入弹窗
+  function closeImportModal() {
+    setImportModalOpen(false);
+    setImportStep("upload");
+    setImportFile(null);
+    setImportPreview([]);
+    setImportErrors([]);
+    setImportResults(null);
   }
 
   // 打开编辑材料弹窗
@@ -489,6 +612,21 @@ export default function MaterialsClient({
             </button>
             <button onClick={handleExport} className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border" style={{ borderColor: "var(--border)" }}>
               <Download size={16} />导出
+            </button>
+            <button
+              onClick={() => setImportModalOpen(true)}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border"
+              style={{ borderColor: "var(--border)" }}
+            >
+              <Upload size={16} />导入库存
+            </button>
+            <button
+              onClick={handleDownloadTemplate}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border"
+              style={{ borderColor: "var(--border)" }}
+              title="下载导入模板"
+            >
+              <FileSpreadsheet size={16} />模板
             </button>
             <button
               onClick={openNew}
@@ -1232,6 +1370,214 @@ export default function MaterialsClient({
             </button>
           </div>
         </form>
+      </Modal>
+
+      {/* 导入库存弹窗 */}
+      <Modal open={importModalOpen} onClose={closeImportModal} title="导入库存 Excel">
+        <div className="space-y-4">
+          {/* 步骤 1: 上传文件 */}
+          {importStep === "upload" && (
+            <div className="space-y-4">
+              <div
+                className="border-2 border-dashed rounded-xl p-8 text-center cursor-pointer hover:bg-[rgba(245,240,230,0.3)]"
+                style={{ borderColor: "var(--border)" }}
+                onClick={() => document.getElementById("import-file-input")?.click()}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  const file = e.dataTransfer.files[0];
+                  if (file) handleImportFile(file);
+                }}
+                onDragOver={(e) => e.preventDefault()}
+              >
+                <Upload size={32} className="mx-auto mb-2" style={{ color: "var(--ink-light)" }} />
+                <p className="text-sm" style={{ color: "var(--ink)" }}>
+                  点击或拖拽文件到此处上传
+                </p>
+                <p className="text-xs mt-1" style={{ color: "var(--ink-light)" }}>
+                  支持 .xlsx 格式
+                </p>
+                <input
+                  id="import-file-input"
+                  type="file"
+                  accept=".xlsx,.xls"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleImportFile(file);
+                  }}
+                />
+              </div>
+              <div className="flex justify-between items-center">
+                <button
+                  onClick={handleDownloadTemplate}
+                  className="flex items-center gap-2 text-sm"
+                  style={{ color: "#b45309" }}
+                >
+                  <FileSpreadsheet size={14} />下载导入模板
+                </button>
+                <button
+                  onClick={closeImportModal}
+                  className="px-4 py-2 rounded-lg text-sm border"
+                  style={{ borderColor: "var(--border)" }}
+                >
+                  取消
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* 步骤 2: 预览数据 */}
+          {importStep === "preview" && (
+            <div className="space-y-4">
+              <div className="p-3 rounded-lg bg-blue-50 text-sm" style={{ color: "#1e40af" }}>
+                共 {importPreview.length} 条数据：
+                <span className="font-medium">{importPreview.filter((i) => i.matched).length}</span> 条匹配，
+                <span className="font-medium">{importPreview.filter((i) => i.matched && i.action === "update").length}</span> 条待更新，
+                <span className="font-medium">{importPreview.filter((i) => i.action === "skip").length}</span> 条跳过，
+                <span className="font-medium text-red-600">{importPreview.filter((i) => !i.matched).length}</span> 条未匹配
+              </div>
+
+              {importErrors.length > 0 && (
+                <div className="p-3 rounded-lg bg-red-50 text-sm" style={{ color: "#dc2626" }}>
+                  <p className="font-medium mb-1">错误：</p>
+                  <ul className="list-disc list-inside space-y-1">
+                    {importErrors.map((err, i) => (
+                      <li key={i}>{err}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              <div className="max-h-96 overflow-auto border rounded-lg" style={{ borderColor: "var(--border)" }}>
+                <table className="w-full text-xs">
+                  <thead className="sticky top-0" style={{ background: "rgba(245,240,230,0.95)" }}>
+                    <tr>
+                      <th className="p-2 text-left">行号</th>
+                      <th className="p-2 text-left">编码</th>
+                      <th className="p-2 text-left">名称</th>
+                      <th className="p-2 text-right">当前库存</th>
+                      <th className="p-2 text-right">Excel库存</th>
+                      <th className="p-2 text-right">差异</th>
+                      <th className="p-2 text-center">操作</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {importPreview.map((item, index) => (
+                      <tr
+                        key={index}
+                        className="border-t"
+                        style={{ borderColor: "var(--border)" }}
+                      >
+                        <td className="p-2">{item.rowNum}</td>
+                        <td className="p-2 font-mono">{item.code}</td>
+                        <td className="p-2">{item.name}</td>
+                        <td className="p-2 text-right font-mono">
+                          {item.currentRemaining !== null ? item.currentRemaining : "-"}
+                        </td>
+                        <td className="p-2 text-right font-mono font-medium">{item.excelRemaining}</td>
+                        <td className="p-2 text-right font-mono">
+                          <span style={{ color: item.difference > 0 ? "#16a34a" : item.difference < 0 ? "#dc2626" : "var(--ink-light)" }}>
+                            {item.difference !== null ? (item.difference > 0 ? "+" : "") + item.difference : "-"}
+                          </span>
+                        </td>
+                        <td className="p-2 text-center">
+                          {item.matched ? (
+                            <button
+                              onClick={() => toggleImportAction(index)}
+                              className="px-2 py-1 rounded text-xs font-medium"
+                              style={{
+                                background: item.action === "update" ? "#16a34a" : "#9ca3af",
+                                color: "#fff",
+                              }}
+                            >
+                              {item.action === "update" ? "更新" : "跳过"}
+                            </button>
+                          ) : (
+                            <span className="text-red-500">未匹配</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="flex justify-end gap-3">
+                <button
+                  onClick={() => setImportStep("upload")}
+                  className="px-4 py-2 rounded-lg text-sm border"
+                  style={{ borderColor: "var(--border)" }}
+                >
+                  重新上传
+                </button>
+                <button
+                  onClick={closeImportModal}
+                  className="px-4 py-2 rounded-lg text-sm border"
+                  style={{ borderColor: "var(--border)" }}
+                >
+                  取消
+                </button>
+                <button
+                  onClick={handleImportApply}
+                  className="px-4 py-2 rounded-lg text-sm text-white"
+                  style={{ background: "#b45309" }}
+                  disabled={importPreview.filter((i) => i.matched && i.action === "update").length === 0}
+                >
+                  确认导入
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* 步骤 3: 导入结果 */}
+          {importStep === "result" && importResults && (
+            <div className="space-y-4">
+              <div className="p-4 rounded-xl border" style={{ borderColor: "#16a34a", background: "rgba(22,163,74,0.05)" }}>
+                <p className="text-lg font-medium mb-3" style={{ color: "#16a34a" }}>
+                  导入完成
+                </p>
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <span style={{ color: "var(--ink-light)" }}>匹配：</span>
+                    <span className="font-medium">{importResults.matched}</span>
+                  </div>
+                  <div>
+                    <span style={{ color: "var(--ink-light)" }}>更新：</span>
+                    <span className="font-medium" style={{ color: "#16a34a" }}>{importResults.updated}</span>
+                  </div>
+                  <div>
+                    <span style={{ color: "var(--ink-light)" }}>跳过：</span>
+                    <span className="font-medium">{importResults.skipped}</span>
+                  </div>
+                  <div>
+                    <span style={{ color: "var(--ink-light)" }}>未匹配：</span>
+                    <span className="font-medium" style={{ color: "#dc2626" }}>{importResults.unmatched}</span>
+                  </div>
+                </div>
+                {importResults.errors && importResults.errors.length > 0 && (
+                  <div className="mt-3 p-3 rounded-lg bg-red-50 text-sm" style={{ color: "#dc2626" }}>
+                    <p className="font-medium mb-1">错误：</p>
+                    <ul className="list-disc list-inside space-y-1">
+                      {importResults.errors.map((err: string, i: number) => (
+                        <li key={i}>{err}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex justify-end">
+                <button
+                  onClick={closeImportModal}
+                  className="px-4 py-2 rounded-lg text-sm text-white"
+                  style={{ background: "#b45309" }}
+                >
+                  完成
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
       </Modal>
     </div>
   );
