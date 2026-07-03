@@ -129,16 +129,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, error: "文件为空或格式不正确" }, { status: 400 });
     }
 
-    const erpMaterialModel = (prisma as any).erpMaterial;
-    const erpInventoryTransactionModel = (prisma as any).erpInventoryTransaction;
-    const usePrismaModels = Boolean(erpMaterialModel && erpInventoryTransactionModel);
-    const existingMaterials = usePrismaModels
-      ? await erpMaterialModel.findMany({
-          select: { id: true, code: true, name: true, remaining: true, unitCost: true },
-        })
-      : await prisma.$queryRawUnsafe<Array<{ id: number; code: string; name: string; remaining: number; unitcost: number | null }>>(
-          `SELECT id, code, name, remaining, unit_cost AS unitcost FROM raw_materials`
-        );
+    const existingMaterials = await prisma.erpMaterial.findMany({
+      select: { id: true, code: true, name: true, remaining: true, unitCost: true },
+      take: 5000,
+      orderBy: { code: "asc" },
+    });
 
     const preview = rows.map((row, index) => {
       const rowNum = index + 2;
@@ -168,7 +163,7 @@ export async function POST(req: NextRequest) {
       const remaining = totalPieces ?? purchaseQty ?? 0;
       const materialType = classifyMaterial({ code, name, category, supplier, spec, shape });
       const canCreate = Boolean(code || name);
-      let matched = null as null | { id: number; code: string; name: string; remaining: number; unitCost?: number | null; unitcost?: number | null };
+      let matched = null as null | { id: number; code: string; name: string; remaining: number; unitCost: number | null };
       let matchMethod: "编码" | "名称" | "未匹配" = "未匹配";
       if (code) {
         matched = existingMaterials.find((m) => m.code === code) || null;
@@ -234,7 +229,7 @@ export async function POST(req: NextRequest) {
         excelRemaining: remaining,
         excelUnitCost: unitCost,
         currentRemaining: matched.remaining,
-          currentUnitCost: matched.unitCost ?? matched.unitcost ?? null,
+          currentUnitCost: matched.unitCost,
         matched: true,
         matchedId: matched.id,
         difference: remaining - matched.remaining,
@@ -297,9 +292,8 @@ export async function PUT(req: NextRequest) {
             pricingMethod: toText(item.pricingMethod) || "by_weight",
           };
 
-          if (usePrismaModels) {
-            const createdMaterial = await erpMaterialModel.create({ data: createData as any });
-            await erpInventoryTransactionModel.create({
+          const createdMaterial = await tx.erpMaterial.create({ data: createData as any });
+          await tx.erpInventoryTransaction.create({
               data: {
                 materialId: createdMaterial.id,
                 type: TransactionType.ADJUST,
@@ -310,40 +304,6 @@ export async function PUT(req: NextRequest) {
                 remark: item.remark || `Excel导入新增：库存 0 → ${Number(item.excelRemaining) || 0}`,
               },
             });
-          } else {
-            const createdRows = await tx.$queryRawUnsafe<Array<{ id: number }>>(
-              `INSERT INTO raw_materials
-                (code, name, category, material_type, specification, inventory_unit, remaining, unit_cost, supplier, pricing_method, shape, created_at, updated_at)
-               VALUES ($1, $2, $3, $4, $5, '颗', $6, $7, $8, $9, $10, NOW(), NOW())
-               RETURNING id`,
-              code,
-              name,
-              toText(item.category),
-              item.materialType || "OTHER",
-              toText(item.spec),
-              Number(item.excelRemaining) || 0,
-              item.excelUnitCost === null || item.excelUnitCost === undefined || item.excelUnitCost === ""
-                ? null
-                : Number(item.excelUnitCost),
-              toText(item.supplier),
-              toText(item.pricingMethod) || "by_weight",
-              toText(item.shape)
-            );
-            const createdMaterialId = createdRows[0]?.id;
-            if (!createdMaterialId) throw new Error("创建材料失败，未返回 ID");
-            await tx.$executeRawUnsafe(
-              `INSERT INTO inventory_transactions
-                (material_id, type, quantity, before_qty, after_qty, related_doc, remark, created_at)
-               VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())`,
-              createdMaterialId,
-              TransactionType.ADJUST,
-              Number(item.excelRemaining) || 0,
-              0,
-              Number(item.excelRemaining) || 0,
-              "Excel导入新增",
-              item.remark || `Excel导入新增：库存 0 → ${Number(item.excelRemaining) || 0}`
-            );
-          }
 
           results.created++;
           results.matched++;
@@ -357,12 +317,7 @@ export async function PUT(req: NextRequest) {
 
         if (item.action !== "update" || !item.matchedId) continue;
 
-        const material = usePrismaModels
-          ? await erpMaterialModel.findUnique({ where: { id: item.matchedId }, select: { remaining: true } })
-          : (await tx.$queryRawUnsafe<Array<{ remaining: number }>>(
-              `SELECT remaining FROM raw_materials WHERE id = $1 LIMIT 1`,
-              item.matchedId
-            ))[0] || null;
+        const material = await tx.erpMaterial.findUnique({ where: { id: item.matchedId }, select: { remaining: true } });
         if (!material) {
           results.errors.push(`材料 ID ${item.matchedId} 不存在`);
           continue;
@@ -377,45 +332,18 @@ export async function PUT(req: NextRequest) {
           updateData.unitCost = Number(item.excelUnitCost);
         }
 
-        if (usePrismaModels) {
-          await erpMaterialModel.update({ where: { id: item.matchedId }, data: updateData });
-          await erpInventoryTransactionModel.create({
-            data: {
-              materialId: item.matchedId,
-              type: TransactionType.ADJUST,
-              quantity: quantityDiff,
-              beforeQty,
-              afterQty,
-              relatedDoc: "Excel导入调整",
-              remark: item.remark || `Excel导入调整：库存 ${beforeQty} → ${afterQty}`,
-            },
-          });
-        } else {
-          await tx.$executeRawUnsafe(
-            `UPDATE raw_materials
-             SET remaining = $1,
-                 unit_cost = COALESCE($2, unit_cost),
-                 updated_at = NOW()
-             WHERE id = $3`,
-            afterQty,
-            item.excelUnitCost !== null && item.excelUnitCost !== undefined && item.excelUnitCost !== ""
-              ? Number(item.excelUnitCost)
-              : null,
-            item.matchedId
-          );
-          await tx.$executeRawUnsafe(
-            `INSERT INTO inventory_transactions
-              (material_id, type, quantity, before_qty, after_qty, related_doc, remark, created_at)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())`,
-            item.matchedId,
-            TransactionType.ADJUST,
-            quantityDiff,
+        await tx.erpMaterial.update({ where: { id: item.matchedId }, data: updateData });
+        await tx.erpInventoryTransaction.create({
+          data: {
+            materialId: item.matchedId,
+            type: TransactionType.ADJUST,
+            quantity: quantityDiff,
             beforeQty,
             afterQty,
-            "Excel导入调整",
-            item.remark || `Excel导入调整：库存 ${beforeQty} → ${afterQty}`
-          );
-        }
+            relatedDoc: "Excel导入调整",
+            remark: item.remark || `Excel导入调整：库存 ${beforeQty} → ${afterQty}`,
+          },
+        });
 
         results.updated++;
         results.matched++;
