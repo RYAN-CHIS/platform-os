@@ -111,10 +111,46 @@ export default function MaterialsClient({
   const handleDownloadTemplate = () => {
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.aoa_to_sheet([
-      ['编码', '名称', '库存', '最小单位单价', '备注'],
-      ['RM-001', '示例材料', 120, 3.5, '可选'],
+      [
+        '原料编码',
+        '品类',
+        '名称',
+        '供应商',
+        '规格mm',
+        '形状',
+        '备注',
+        '计价方式',
+        '进货串数/个数',
+        '计价单价',
+        '计价单位',
+        '采购总价',
+        '每串颗数',
+        '每串克重',
+        '总颗数',
+        '总克重',
+        '单颗成本（颗）',
+      ],
+      [
+        'RM-001',
+        '配件',
+        '示例材料',
+        '示例供应商',
+        '8mm',
+        '圆珠',
+        '可选',
+        '按颗',
+        10,
+        3.5,
+        '颗',
+        35,
+        0,
+        0,
+        100,
+        0,
+        0.35,
+      ],
     ]);
-    XLSX.utils.book_append_sheet(wb, ws, '材料导入模板');
+    XLSX.utils.book_append_sheet(wb, ws, '01原料采购库');
     const buffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
     const blob = new Blob([buffer], {
       type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -122,7 +158,7 @@ export default function MaterialsClient({
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = '材料库存导入模板.xlsx';
+    a.download = '01原料采购库.xlsx';
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -425,6 +461,7 @@ export default function MaterialsClient({
                   <p style={{ margin: 0 }}>匹配规则：先按编码，找不到再按名称精确匹配。</p>
                   <p style={{ margin: 0 }}>未匹配的行会被跳过，不会创建新材料。</p>
                   <p style={{ margin: 0 }}>导入将更新 `raw_materials.remaining` 和 `unitCost`，并写入 `inventory_transactions` 调整记录。</p>
+                  <p style={{ margin: 0 }}>支持允物采购库格式：原料编码、名称、总颗数、单颗成本（颗）</p>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
                   <button onClick={() => setImportModalOpen(false)} style={{ padding: '8px 14px', border: '1px solid #e7e5e4', borderRadius: 6, background: '#fff' }}>取消</button>
@@ -446,7 +483,7 @@ export default function MaterialsClient({
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                     <thead style={{ background: '#fafaf9' }}>
                       <tr>
-                        {['行号', '编码', '名称', 'Excel库存', '当前库存', 'Excel单价', '状态'].map((h) => (
+                        {['原料编码', '名称', '当前库存', 'Excel库存', '差异', '当前单价', 'Excel单价', '匹配方式'].map((h) => (
                           <th key={h} style={{ textAlign: 'left', padding: '10px 12px', borderBottom: '1px solid #e7e5e4' }}>{h}</th>
                         ))}
                       </tr>
@@ -454,13 +491,14 @@ export default function MaterialsClient({
                     <tbody>
                       {importPreview.map((row) => (
                         <tr key={row.rowNum} style={{ borderBottom: '1px solid #f5f5f4' }}>
-                          <td style={{ padding: '10px 12px' }}>{row.rowNum}</td>
                           <td style={{ padding: '10px 12px' }}>{row.code}</td>
                           <td style={{ padding: '10px 12px' }}>{row.name}</td>
-                          <td style={{ padding: '10px 12px' }}>{row.excelRemaining}</td>
                           <td style={{ padding: '10px 12px' }}>{row.currentRemaining ?? '—'}</td>
+                          <td style={{ padding: '10px 12px' }}>{row.excelRemaining}</td>
+                          <td style={{ padding: '10px 12px' }}>{row.difference ?? '—'}</td>
+                          <td style={{ padding: '10px 12px' }}>{row.currentUnitCost ?? '—'}</td>
                           <td style={{ padding: '10px 12px' }}>{row.excelUnitCost ?? '—'}</td>
-                          <td style={{ padding: '10px 12px' }}>{row.matched ? '待更新' : '已跳过'}</td>
+                          <td style={{ padding: '10px 12px' }}>{row.matchMethod || (row.matched ? '编码' : '未匹配')}</td>
                         </tr>
                       ))}
                     </tbody>

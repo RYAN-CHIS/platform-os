@@ -3,25 +3,54 @@ import { prisma } from "@yunwu/db";
 import * as XLSX from "xlsx";
 
 const COLUMN_ALIASES: Record<string, string> = {
+  "原料编码": "code",
   "编码": "code",
   code: "code",
   material_code: "code",
   "材料编码": "code",
+  "品类": "category",
+  category: "category",
+  "供应商": "supplier",
+  supplier: "supplier",
+  "规格mm": "spec",
+  spec: "spec",
+  "形状": "shape",
+  shape: "shape",
   "名称": "name",
   name: "name",
   material_name: "name",
   "材料名称": "name",
+  "备注": "remark",
+  remark: "remark",
+  "计价方式": "pricingMethod",
+  pricing_method: "pricingMethod",
+  "进货串数/个数": "purchaseQty",
+  purchase_qty: "purchaseQty",
+  "采购数量/串数": "purchaseQty",
+  "计价单价": "unitCost",
+  unit_cost: "unitCost",
+  price: "unitCost",
+  "单价": "unitCost",
+  "计价单位": "pricingUnit",
+  pricing_unit: "pricingUnit",
+  "采购总价": "purchaseTotalPrice",
+  purchase_total_price: "purchaseTotalPrice",
+  "每串颗数": "beadsPerStrand",
+  beads_per_strand: "beadsPerStrand",
+  "每串克重": "weightPerStrand",
+  weight_per_strand: "weightPerStrand",
+  "总颗数": "totalPieces",
+  total_pieces: "totalPieces",
+  "总克重": "totalWeightG",
+  total_weight_g: "totalWeightG",
+  "单颗成本（颗）": "costPerUsageUnit",
+  "单颗成本": "costPerUsageUnit",
+  cost_per_usage_unit: "costPerUsageUnit",
   "库存": "remaining",
   remaining: "remaining",
   stock: "remaining",
   quantity: "remaining",
   "数量": "remaining",
-  "最小单位单价": "unitCost",
-  unit_cost: "unitCost",
-  price: "unitCost",
-  "单价": "unitCost",
-  "备注": "remark",
-  remark: "remark",
 };
 
 const TransactionType = {
@@ -38,6 +67,10 @@ function toNumber(value: unknown): number | null {
   if (value == null || value === "") return null;
   const num = Number(value);
   return Number.isFinite(num) ? num : null;
+}
+
+function toText(value: unknown): string {
+  return normalizeCell(value);
 }
 
 export async function POST(req: NextRequest) {
@@ -81,19 +114,51 @@ export async function POST(req: NextRequest) {
 
       const code = normalizeCell(normalized.code);
       const name = normalizeCell(normalized.name);
-      const remaining = toNumber(normalized.remaining) ?? 0;
-      const unitCost = toNumber(normalized.unitCost);
-      const remark = normalizeCell(normalized.remark);
+      const category = toText(normalized.category);
+      const supplier = toText(normalized.supplier);
+      const spec = toText(normalized.spec);
+      const shape = toText(normalized.shape);
+      const remark = toText(normalized.remark);
+      const pricingMethod = toText(normalized.pricingMethod);
+      const purchaseQty = toNumber(normalized.purchaseQty);
+      const unitCost = toNumber(normalized.costPerUsageUnit) ?? toNumber(normalized.unitCost);
+      const pricingUnit = toText(normalized.pricingUnit);
+      const purchaseTotalPrice = toNumber(normalized.purchaseTotalPrice);
+      const beadsPerStrand = toNumber(normalized.beadsPerStrand);
+      const weightPerStrand = toNumber(normalized.weightPerStrand);
+      const totalPieces = toNumber(normalized.totalPieces);
+      const totalWeightG = toNumber(normalized.totalWeightG);
+      const remaining = totalPieces ?? purchaseQty ?? 0;
 
       let matched = null as null | { id: number; code: string; name: string; remaining: number; unitCost: number | null };
-      if (code) matched = existingMaterials.find((m) => m.code === code) || null;
-      if (!matched && name) matched = existingMaterials.find((m) => m.name === name) || null;
+      let matchMethod: "编码" | "名称" | "未匹配" = "未匹配";
+      if (code) {
+        matched = existingMaterials.find((m) => m.code === code) || null;
+        if (matched) matchMethod = "编码";
+      }
+      if (!matched && name) {
+        matched = existingMaterials.find((m) => m.name === name) || null;
+        if (matched) matchMethod = "名称";
+      }
 
       if (!matched) {
         return {
           rowNum,
           code: code || "-",
           name: name || "-",
+          category: category || "-",
+          supplier: supplier || "-",
+          spec: spec || "-",
+          shape: shape || "-",
+          remark: remark || "-",
+          pricingMethod: pricingMethod || "-",
+          purchaseQty,
+          pricingUnit: pricingUnit || "-",
+          purchaseTotalPrice,
+          beadsPerStrand,
+          weightPerStrand,
+          totalPieces,
+          totalWeightG,
           excelRemaining: remaining,
           excelUnitCost: unitCost,
           currentRemaining: null,
@@ -101,6 +166,7 @@ export async function POST(req: NextRequest) {
           matched: false,
           matchedId: null,
           difference: null,
+          matchMethod: "未匹配",
           action: "unmatched",
           remark,
         };
@@ -110,6 +176,19 @@ export async function POST(req: NextRequest) {
         rowNum,
         code: matched.code,
         name: matched.name,
+        category,
+        supplier,
+        spec,
+        shape,
+        remark,
+        pricingMethod,
+        purchaseQty,
+        pricingUnit,
+        purchaseTotalPrice,
+        beadsPerStrand,
+        weightPerStrand,
+        totalPieces,
+        totalWeightG,
         excelRemaining: remaining,
         excelUnitCost: unitCost,
         currentRemaining: matched.remaining,
@@ -117,6 +196,7 @@ export async function POST(req: NextRequest) {
         matched: true,
         matchedId: matched.id,
         difference: remaining - matched.remaining,
+        matchMethod,
         action: "update",
         remark,
       };
