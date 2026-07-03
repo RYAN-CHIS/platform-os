@@ -152,6 +152,7 @@ export async function POST(req: NextRequest) {
       const totalWeightG = toNumber(normalized.totalWeightG);
       const remaining = totalPieces ?? purchaseQty ?? 0;
       const materialType = classifyMaterial({ code, name, category, supplier, spec, shape });
+      const canCreate = Boolean(code || name);
       let matched = null as null | { id: number; code: string; name: string; remaining: number; unitCost: number | null };
       let matchMethod: "编码" | "名称" | "未匹配" = "未匹配";
       if (code) {
@@ -189,7 +190,8 @@ export async function POST(req: NextRequest) {
           matchedId: null,
           difference: null,
           matchMethod: "未匹配",
-          action: "skip",
+          action: canCreate ? "create" : "skip",
+          canCreate,
           materialType,
           remark,
         };
@@ -221,6 +223,7 @@ export async function POST(req: NextRequest) {
         difference: remaining - matched.remaining,
         matchMethod,
         action: "update",
+        canCreate: false,
         materialType,
         remark,
       };
@@ -245,12 +248,53 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ ok: false, error: "无效的数据格式" }, { status: 400 });
     }
 
-    const results = { matched: 0, updated: 0, skipped: 0, unmatched: 0, errors: [] as string[] };
+    const results = { matched: 0, updated: 0, created: 0, skipped: 0, unmatched: 0, errors: [] as string[] };
 
     await prisma.$transaction(async (tx) => {
       for (const item of items) {
         if (item.action === "skip") {
           results.skipped++;
+          continue;
+        }
+
+        if (item.action === "create") {
+          const code = normalizeCell(item.code);
+          const name = normalizeCell(item.name);
+          if (!code && !name) {
+            results.skipped++;
+            continue;
+          }
+
+          const createData = {
+            code,
+            name,
+            category: toText(item.category),
+            materialType: item.materialType || "OTHER",
+            supplier: toText(item.supplier),
+            specification: toText(item.spec),
+            shape: toText(item.shape),
+            remaining: Number(item.excelRemaining) || 0,
+            unitCost: item.excelUnitCost === null || item.excelUnitCost === undefined || item.excelUnitCost === ""
+              ? null
+              : Number(item.excelUnitCost),
+            pricingMethod: toText(item.pricingMethod) || "by_weight",
+          };
+
+          const createdMaterial = await tx.rawMaterial.create({ data: createData as any });
+          await tx.inventoryTransaction.create({
+            data: {
+              materialId: createdMaterial.id,
+              type: TransactionType.ADJUST,
+              quantity: Number(item.excelRemaining) || 0,
+              beforeQty: 0,
+              afterQty: Number(item.excelRemaining) || 0,
+              relatedDoc: "Excel导入新增",
+              remark: item.remark || `Excel导入新增：库存 0 → ${Number(item.excelRemaining) || 0}`,
+            },
+          });
+
+          results.created++;
+          results.matched++;
           continue;
         }
 

@@ -217,7 +217,7 @@ export default function MaterialsClient({
       }
       setImportPreview((data.preview || []).map((row: any) => ({
         ...row,
-        action: row.matched ? 'update' : 'skip',
+        action: row.action || (row.matched ? 'update' : 'skip'),
       })));
       setImportStep('preview');
       if (!res.ok) console.error(rawText.slice(0, 200));
@@ -235,7 +235,7 @@ export default function MaterialsClient({
     try {
       const items = importPreview.map((item) => ({
         ...item,
-        action: item.matched ? 'update' : 'skip',
+        action: item.action || (item.matched ? 'update' : 'skip'),
       }));
       const res = await fetch('/api/materials/import', {
         method: 'PUT',
@@ -250,7 +250,7 @@ export default function MaterialsClient({
         throw new Error(data.error || '导入应用失败');
       }
       setImportResults(data.results);
-      setImportNotice(`已更新 ${data.results?.updated || 0} 条，已新建 0 条，跳过 ${data.results?.skipped || 0} 条`);
+      setImportNotice(`已更新 ${data.results?.updated || 0} 条，已新建 ${data.results?.created || 0} 条，跳过 ${data.results?.skipped || 0} 条`);
       setImportStep('result');
       router.refresh();
     } catch (error: any) {
@@ -545,7 +545,7 @@ export default function MaterialsClient({
                           <td style={{ padding: '10px 12px' }}>{row.difference ?? '—'}</td>
                           <td style={{ padding: '10px 12px' }}>{row.currentUnitCost ?? '—'}</td>
                           <td style={{ padding: '10px 12px' }}>{row.excelUnitCost ?? '—'}</td>
-                          <td style={{ padding: '10px 12px' }}>{row.matched ? '更新' : '跳过'}</td>
+                          <td style={{ padding: '10px 12px' }}>{row.action === 'create' ? '新建' : row.matched ? '更新' : '跳过'}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -566,7 +566,7 @@ export default function MaterialsClient({
             {importStep === 'result' && (
               <div style={{ display: 'grid', gap: 16 }}>
                 <div style={{ background: '#f0fdf4', color: '#166534', padding: 12, borderRadius: 8, fontSize: 12 }}>
-                  导入完成：已更新 {importResults?.updated || 0} 条，已新建 0 条，跳过 {importResults?.skipped || 0} 条。
+                  导入完成：已更新 {importResults?.updated || 0} 条，已新建 {importResults?.created || 0} 条，跳过 {importResults?.skipped || 0} 条。
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
                   <button onClick={() => setImportModalOpen(false)} style={{ padding: '8px 14px', border: 'none', borderRadius: 6, background: '#292524', color: '#fff' }}>关闭</button>
