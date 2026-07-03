@@ -292,4 +292,4 @@ export default async function ProductDetailPage({ params }: Props) {
   );
 }
 
-export const revalidate = 3600;
+export const revalidate = 60;

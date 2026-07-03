@@ -92,4 +92,4 @@ export async function generateStaticParams() {
   return series.map((s) => ({ slug: s.slug }));
 }
 
-export const revalidate = 3600;
+export const revalidate = 60;

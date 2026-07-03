@@ -267,7 +267,7 @@ export async function deleteOrder(id: number) {
   revalidatePath('/erp/orders');
 }
 
-export async function updateOrderStatus(id: number, status: string) {
+async function updateOrderStatusInternal(id: number, status: string) {
   // Fetch before state
   const beforeRows = await fetchAuditSnapshot(id);
   const before = beforeRows[0] || null;

@@ -8,5 +8,9 @@ export async function GET() {
       _count: { select: { products: true } },
     },
   });
-  return NextResponse.json(series);
+  return NextResponse.json(series, {
+    headers: {
+      'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300',
+    },
+  });
 }

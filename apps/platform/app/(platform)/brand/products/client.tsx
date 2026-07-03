@@ -191,6 +191,7 @@ function ProductFormContent({
   erpProductsLoading: boolean;
 }) {
   const noErpLink = !form.erp_product_id || String(form.erp_product_id) === "";
+  const hasErpLink = !noErpLink;
   return (
     <>
       {/* 基础信息 */}
@@ -216,7 +217,11 @@ function ProductFormContent({
         <BrandField label="关联 ERP 产品">
           <BrandSelect value={String(form.erp_product_id ?? "")} onChange={(e) => setField("erp_product_id", e.target.value ? Number(e.target.value) : "")} options={erpProducts} disabled={erpProductsLoading} />
         </BrandField>
-        {noErpLink && (
+        {hasErpLink ? (
+          <div style={{ padding: "8px 12px", background: "#fffbeb", borderRadius: 6, fontSize: 12, color: "#92400e", border: "1px solid #fde68a", marginTop: 4 }}>
+            Price and stock are controlled by ERP. Manual changes will be overwritten.
+          </div>
+        ) : (
           <div style={{ padding: "8px 12px", background: "#fffbeb", borderRadius: 6, fontSize: 12, color: "#92400e", border: "1px solid #fde68a", marginTop: 4 }}>
             ⚠️ 未关联 ERP 产品，成本/库存不会自动同步。
           </div>
@@ -359,6 +364,9 @@ function ProductFormModal({
       : await createProduct(form);
     setSaving(false);
     if (r.error) { toast({ message: r.error, type: "error" }); return; }
+    if (r.drift && (r.drift.sale_price || r.drift.stock)) {
+      toast({ message: "ERP latest price/stock has been applied.", type: "success" });
+    }
     toast({ message: id ? "已保存" : "已创建", type: "success" });
     onClose();
     router.refresh();

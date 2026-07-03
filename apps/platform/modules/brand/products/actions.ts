@@ -366,11 +366,21 @@ async function refreshLinkedErpFields(row: Record<string, any>) {
     throw new Error("已关联 ERP 产品，但无法读取主产品或默认 SKU");
   }
 
+  const erpStatusMap: Record<string, string> = {
+    DESIGNING: "DRAFT",
+    READY: "APPROVED",
+    ACTIVE: "PUBLISHED",
+    ARCHIVED: "ARCHIVED",
+  };
+
   // ERP remains the source of truth for sale price and stock when a Brand product is linked.
   return {
     ...row,
+    name: erpProduct.name ?? row.name,
+    cost_price: Number(erpSku.price ?? 0),
     sale_price: Number(erpSku.price ?? 0),
     stock: Number(erpSku.finished_stock ?? 0),
+    status: erpStatusMap[String(erpProduct.status ?? "").toUpperCase()] ?? row.status,
   };
 }
 
@@ -537,6 +547,10 @@ export async function createProduct(data: Record<string, unknown>) {
   try {
     const enriched = normalizeProductData(data, "create");
     const linkedErpFields = await refreshLinkedErpFields(enriched);
+    const drift = {
+      sale_price: enriched.sale_price !== linkedErpFields.sale_price ? { before: enriched.sale_price, after: linkedErpFields.sale_price } : null,
+      stock: enriched.stock !== linkedErpFields.stock ? { before: enriched.stock, after: linkedErpFields.stock } : null,
+    };
     Object.assign(enriched, linkedErpFields);
     const columns = Object.keys(enriched);
     const rows: any[] = await brandPrisma.$queryRaw(Prisma.sql`
@@ -552,7 +566,7 @@ export async function createProduct(data: Record<string, unknown>) {
       await createCrudAudit({ action: "CREATE", system: "BRAND", module: "products", targetId: row.id, after: row });
     } catch {}
 
-    return { row: withProductOsOutput(row), error: null };
+    return { row: withProductOsOutput(row), drift, error: null };
   } catch (e: any) {
     return { row: null, error: e.message };
   }
@@ -570,9 +584,16 @@ export async function updateProduct(id: number | string, data: Record<string, un
     const existing = existingRows[0] || null;
     const merged = { ...(existing || {}), ...enriched };
     const linkedErpFields = await refreshLinkedErpFields(merged);
+    const drift = {
+      sale_price: merged.sale_price !== linkedErpFields.sale_price ? { before: merged.sale_price, after: linkedErpFields.sale_price } : null,
+      stock: merged.stock !== linkedErpFields.stock ? { before: merged.stock, after: linkedErpFields.stock } : null,
+    };
     if (linkedErpFields !== merged) {
       if (linkedErpFields.sale_price !== undefined) enriched.sale_price = linkedErpFields.sale_price;
       if (linkedErpFields.stock !== undefined) enriched.stock = linkedErpFields.stock;
+      if (linkedErpFields.name !== undefined) enriched.name = linkedErpFields.name;
+      if (linkedErpFields.cost_price !== undefined) enriched.cost_price = linkedErpFields.cost_price;
+      if (linkedErpFields.status !== undefined) enriched.status = linkedErpFields.status;
     }
     const columns = Object.keys(enriched);
     const sets = columns.map((column) =>
@@ -608,7 +629,7 @@ export async function updateProduct(id: number | string, data: Record<string, un
       await createCrudAudit({ action: "UPDATE", system: "BRAND", module: "products", targetId: productId, before, after });
     } catch {}
 
-    return { error: null };
+    return { drift, error: null };
   } catch (e: any) {
     return { error: e.message };
   }
