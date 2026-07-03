@@ -57,6 +57,14 @@ const TransactionType = {
   ADJUST: "ADJUST",
 } as const;
 
+const MATERIAL_CLASS_RULES: Array<{ type: string; keywords: string[] }> = [
+  { type: "BEAD", keywords: ["珠子", "水晶", "玛瑙", "珍珠", "玉石", "月光石", "草莓晶", "宝石"] },
+  { type: "METAL", keywords: ["配件", "三通", "金珠", "银件", "隔片", "吊坠", "扣头", "链", "环"] },
+  { type: "CERAMIC", keywords: ["瓷", "陶瓷", "杯", "碗"] },
+  { type: "LEATHER", keywords: ["皮革", "牛皮", "羊皮", "皮绳"] },
+  { type: "PACKAGING", keywords: ["包装", "袋", "盒"] },
+];
+
 function normalizeCell(value: unknown) {
   if (value == null) return "";
   if (typeof value === "string") return value.trim();
@@ -73,13 +81,27 @@ function toText(value: unknown): string {
   return normalizeCell(value);
 }
 
+function classifyMaterial(input: { code: string; name: string; category: string; supplier: string; spec: string; shape: string }) {
+  const haystack = [input.code, input.name, input.category, input.supplier, input.spec, input.shape]
+    .filter(Boolean)
+    .join(" ");
+
+  for (const rule of MATERIAL_CLASS_RULES) {
+    if (rule.keywords.some((keyword) => haystack.includes(keyword))) {
+      return rule.type;
+    }
+  }
+
+  return "OTHER";
+}
+
 export async function POST(req: NextRequest) {
   try {
     const formData = await req.formData();
     const file = formData.get("file");
 
     if (!(file instanceof File)) {
-      return NextResponse.json({ error: "请上传文件" }, { status: 400 });
+      return NextResponse.json({ ok: false, error: "请上传文件" }, { status: 400 });
     }
 
     const validTypes = [
@@ -87,7 +109,7 @@ export async function POST(req: NextRequest) {
       "application/vnd.ms-excel",
     ];
     if (!validTypes.includes(file.type) && !file.name.endsWith(".xlsx")) {
-      return NextResponse.json({ error: "只支持 .xlsx 格式文件" }, { status: 400 });
+      return NextResponse.json({ ok: false, error: "只支持 .xlsx 格式文件" }, { status: 400 });
     }
 
     const buffer = await file.arrayBuffer();
@@ -96,7 +118,7 @@ export async function POST(req: NextRequest) {
     const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: "" });
 
     if (rows.length === 0) {
-      return NextResponse.json({ error: "文件为空或格式不正确" }, { status: 400 });
+      return NextResponse.json({ ok: false, error: "文件为空或格式不正确" }, { status: 400 });
     }
 
     const existingMaterials = await prisma.rawMaterial.findMany({
@@ -129,6 +151,8 @@ export async function POST(req: NextRequest) {
       const totalPieces = toNumber(normalized.totalPieces);
       const totalWeightG = toNumber(normalized.totalWeightG);
       const remaining = totalPieces ?? purchaseQty ?? 0;
+      const materialType = classifyMaterial({ code, name, category, supplier, spec, shape });
+      const canCreate = Boolean(code || name);
 
       let matched = null as null | { id: number; code: string; name: string; remaining: number; unitCost: number | null };
       let matchMethod: "编码" | "名称" | "未匹配" = "未匹配";
@@ -167,7 +191,9 @@ export async function POST(req: NextRequest) {
           matchedId: null,
           difference: null,
           matchMethod: "未匹配",
-          action: "unmatched",
+          action: canCreate ? "create" : "skip",
+          canCreate,
+          materialType,
           remark,
         };
       }
@@ -198,14 +224,19 @@ export async function POST(req: NextRequest) {
         difference: remaining - matched.remaining,
         matchMethod,
         action: "update",
+        canCreate: false,
+        materialType,
         remark,
       };
     });
 
-    return NextResponse.json({ preview });
+    return NextResponse.json({ ok: true, preview });
   } catch (error: any) {
     console.error("Import preview error:", error);
-    return NextResponse.json({ error: `导入预览失败: ${error.message}` }, { status: 500 });
+    return NextResponse.json(
+      { ok: false, error: "导入预览失败", detail: error?.message || String(error) },
+      { status: 500 }
+    );
   }
 }
 
@@ -215,16 +246,20 @@ export async function PUT(req: NextRequest) {
     const items = Array.isArray(body?.items) ? body.items : null;
 
     if (!items) {
-      return NextResponse.json({ error: "无效的数据格式" }, { status: 400 });
+      return NextResponse.json({ ok: false, error: "无效的数据格式" }, { status: 400 });
     }
 
     const results = { matched: 0, updated: 0, skipped: 0, unmatched: 0, errors: [] as string[] };
 
     await prisma.$transaction(async (tx) => {
       for (const item of items) {
-        if (item.action === "skip" || item.action === "unmatched") {
-          if (item.action === "unmatched") results.unmatched++;
-          else results.skipped++;
+        if (item.action === "skip") {
+          results.skipped++;
+          continue;
+        }
+
+        if (item.action === "unmatched") {
+          results.unmatched++;
           continue;
         }
 
@@ -263,9 +298,12 @@ export async function PUT(req: NextRequest) {
       }
     });
 
-    return NextResponse.json({ success: true, results });
+    return NextResponse.json({ ok: true, results });
   } catch (error: any) {
     console.error("Import apply error:", error);
-    return NextResponse.json({ error: `导入失败: ${error.message}` }, { status: 500 });
+    return NextResponse.json(
+      { ok: false, error: "导入失败", detail: error?.message || String(error) },
+      { status: 500 }
+    );
   }
 }

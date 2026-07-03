@@ -29,6 +29,7 @@ export default function MaterialsClient({
   const [importErrors, setImportErrors] = useState<string[]>([]);
   const [importResults, setImportResults] = useState<any>(null);
   const [importBusy, setImportBusy] = useState(false);
+  const [createUnmatched, setCreateUnmatched] = useState(false);
 
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -170,6 +171,7 @@ export default function MaterialsClient({
     setImportPreview([]);
     setImportErrors([]);
     setImportResults(null);
+    setCreateUnmatched(false);
   };
 
   const submitImportPreview = async () => {
@@ -181,7 +183,10 @@ export default function MaterialsClient({
       const res = await fetch('/api/materials/import', { method: 'POST', body: formData });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || '导入预览失败');
-      setImportPreview(json.preview || []);
+      setImportPreview((json.preview || []).map((row: any) => ({
+        ...row,
+        action: row.matched ? 'update' : (createUnmatched && row.canCreate ? 'create' : 'skip'),
+      })));
       setImportErrors(json.errors || []);
       setImportStep('preview');
     } catch (error: any) {
@@ -196,7 +201,7 @@ export default function MaterialsClient({
     try {
       const items = importPreview.map((item) => ({
         ...item,
-        action: item.matched ? 'update' : 'unmatched',
+        action: item.matched ? 'update' : (createUnmatched && item.canCreate ? 'create' : 'skip'),
       }));
       const res = await fetch('/api/materials/import', {
         method: 'PUT',
@@ -444,7 +449,7 @@ export default function MaterialsClient({
               <div>
                 <h3 style={{ margin: 0, fontSize: 18, fontWeight: 600 }}>导入库存 Excel</h3>
                 <p style={{ margin: '6px 0 0', fontSize: 12, color: '#78716c' }}>
-                  先预览匹配结果，默认只更新已匹配材料，不会创建新材料。
+                  先预览匹配结果，未匹配材料可选择自动创建。
                 </p>
               </div>
               <button onClick={() => setImportModalOpen(false)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 16 }}>×</button>
@@ -459,10 +464,26 @@ export default function MaterialsClient({
                 />
                 <div style={{ fontSize: 12, color: '#78716c', lineHeight: 1.6 }}>
                   <p style={{ margin: 0 }}>匹配规则：先按编码，找不到再按名称精确匹配。</p>
-                  <p style={{ margin: 0 }}>未匹配的行会被跳过，不会创建新材料。</p>
+                  <p style={{ margin: 0 }}>自动分类：珠子/水晶/玛瑙/珍珠/玉石/月光石/草莓晶/宝石 → BEAD，配件/三通/金珠/银件/隔片/吊坠/扣头/链/环 → METAL，瓷/陶瓷/杯/碗 → CERAMIC，皮革/牛皮/羊皮/皮绳 → LEATHER，包装/袋/盒 → PACKAGING，其余为 OTHER。</p>
+                  <p style={{ margin: 0 }}>未匹配且勾选创建时，会新增 raw_materials，并继续写入 inventory_transactions。</p>
                   <p style={{ margin: 0 }}>导入将更新 `raw_materials.remaining` 和 `unitCost`，并写入 `inventory_transactions` 调整记录。</p>
                   <p style={{ margin: 0 }}>支持允物采购库格式：原料编码、名称、总颗数、单颗成本（颗）</p>
                 </div>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#44403c' }}>
+                  <input
+                    type="checkbox"
+                    checked={createUnmatched}
+                    onChange={(e) => {
+                      const next = e.target.checked;
+                      setCreateUnmatched(next);
+                      setImportPreview((prev) => prev.map((row) => ({
+                        ...row,
+                        action: row.matched ? 'update' : (next && row.canCreate ? 'create' : 'skip'),
+                      })));
+                    }}
+                  />
+                  未匹配材料自动创建
+                </label>
                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
                   <button onClick={() => setImportModalOpen(false)} style={{ padding: '8px 14px', border: '1px solid #e7e5e4', borderRadius: 6, background: '#fff' }}>取消</button>
                   <button onClick={submitImportPreview} disabled={!importFile || importBusy} style={{ padding: '8px 14px', border: 'none', borderRadius: 6, background: '#292524', color: '#fff', cursor: 'pointer', opacity: !importFile || importBusy ? 0.6 : 1 }}>
@@ -483,7 +504,7 @@ export default function MaterialsClient({
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                     <thead style={{ background: '#fafaf9' }}>
                       <tr>
-                        {['原料编码', '名称', '当前库存', 'Excel库存', '差异', '当前单价', 'Excel单价', '匹配方式'].map((h) => (
+                        {['原料编码', '名称', '自动分类', '动作', '当前库存', 'Excel库存', '差异', '当前单价', 'Excel单价', '匹配方式'].map((h) => (
                           <th key={h} style={{ textAlign: 'left', padding: '10px 12px', borderBottom: '1px solid #e7e5e4' }}>{h}</th>
                         ))}
                       </tr>
@@ -493,6 +514,8 @@ export default function MaterialsClient({
                         <tr key={row.rowNum} style={{ borderBottom: '1px solid #f5f5f4' }}>
                           <td style={{ padding: '10px 12px' }}>{row.code}</td>
                           <td style={{ padding: '10px 12px' }}>{row.name}</td>
+                          <td style={{ padding: '10px 12px' }}>{row.materialType || 'OTHER'}</td>
+                          <td style={{ padding: '10px 12px' }}>{row.action || 'skip'}</td>
                           <td style={{ padding: '10px 12px' }}>{row.currentRemaining ?? '—'}</td>
                           <td style={{ padding: '10px 12px' }}>{row.excelRemaining}</td>
                           <td style={{ padding: '10px 12px' }}>{row.difference ?? '—'}</td>
@@ -519,7 +542,7 @@ export default function MaterialsClient({
             {importStep === 'result' && (
               <div style={{ display: 'grid', gap: 16 }}>
                 <div style={{ background: '#f0fdf4', color: '#166534', padding: 12, borderRadius: 8, fontSize: 12 }}>
-                  导入完成：更新 {importResults?.updated || 0} 条，跳过 {importResults?.skipped || 0} 条，未匹配 {importResults?.unmatched || 0} 条。
+                  导入完成：更新 {importResults?.updated || 0} 条，创建 {importResults?.created || 0} 条，跳过 {importResults?.skipped || 0} 条，未匹配 {importResults?.unmatched || 0} 条。
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
                   <button onClick={() => setImportModalOpen(false)} style={{ padding: '8px 14px', border: 'none', borderRadius: 6, background: '#292524', color: '#fff' }}>关闭</button>
