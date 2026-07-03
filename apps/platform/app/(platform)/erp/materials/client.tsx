@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import * as XLSX from 'xlsx';
+import { Download, Upload } from 'lucide-react';
 import ErpToolbar from '@/components/ErpToolbar';
 import ErpDataTable, { type Column } from '@/components/ErpDataTable';
 import MaterialFormModal from './MaterialFormModal';
@@ -20,6 +22,13 @@ export default function MaterialsClient({
   const [modalOpen, setModalOpen] = useState(false);
   const [editItem, setEditItem] = useState<MaterialRow | null>(null);
   const [statusFilter, setStatusFilter] = useState('');
+  const [importModalOpen, setImportModalOpen] = useState(false);
+  const [importStep, setImportStep] = useState<'upload' | 'preview' | 'result'>('upload');
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importPreview, setImportPreview] = useState<any[]>([]);
+  const [importErrors, setImportErrors] = useState<string[]>([]);
+  const [importResults, setImportResults] = useState<any>(null);
+  const [importBusy, setImportBusy] = useState(false);
 
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -33,17 +42,6 @@ export default function MaterialsClient({
     PAUSED: { bg: '#f5f5f4', color: '#78716c' },
     ARCHIVED: { bg: '#fef2f2', color: '#dc2626' },
   };
-
-  const materialTypes = [
-    { value: 'BEAD', label: '珠子' },
-    { value: 'METAL', label: '金属' },
-    { value: 'CERAMIC', label: '陶瓷' },
-    { value: 'LEATHER', label: '皮革' },
-    { value: 'INCENSE', label: '香' },
-    { value: 'CORD', label: '绳线' },
-    { value: 'PACKAGING', label: '包装' },
-    { value: 'OTHER', label: '其他' },
-  ];
 
   const statusOptions = [
     { value: 'ACTIVE', label: '启用' },
@@ -60,14 +58,12 @@ export default function MaterialsClient({
       } else {
         await createMaterial(formData);
       }
-      // Save succeeded — close modal and refresh
       setModalOpen(false);
       setEditItem(null);
-      // Use router.refresh instead of full reload for better UX
       router.refresh();
       return { ok: true };
     } catch (e: any) {
-      return { ok: false, error: e.message || "保存失败" };
+      return { ok: false, error: e.message || '保存失败' };
     }
   }, [editItem, router]);
 
@@ -112,6 +108,77 @@ export default function MaterialsClient({
     URL.revokeObjectURL(url);
   };
 
+  const handleDownloadTemplate = () => {
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet([
+      ['编码', '名称', '库存', '最小单位单价', '备注'],
+      ['RM-001', '示例材料', 120, 3.5, '可选'],
+    ]);
+    XLSX.utils.book_append_sheet(wb, ws, '材料导入模板');
+    const buffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+    const blob = new Blob([buffer], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = '材料库存导入模板.xlsx';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const openImportModal = () => {
+    setImportModalOpen(true);
+    setImportStep('upload');
+    setImportFile(null);
+    setImportPreview([]);
+    setImportErrors([]);
+    setImportResults(null);
+  };
+
+  const submitImportPreview = async () => {
+    if (!importFile) return;
+    setImportBusy(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', importFile);
+      const res = await fetch('/api/materials/import', { method: 'POST', body: formData });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || '导入预览失败');
+      setImportPreview(json.preview || []);
+      setImportErrors(json.errors || []);
+      setImportStep('preview');
+    } catch (error: any) {
+      alert(error.message || '导入预览失败');
+    } finally {
+      setImportBusy(false);
+    }
+  };
+
+  const applyImport = async () => {
+    setImportBusy(true);
+    try {
+      const items = importPreview.map((item) => ({
+        ...item,
+        action: item.matched ? 'update' : 'unmatched',
+      }));
+      const res = await fetch('/api/materials/import', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || '导入应用失败');
+      setImportResults(json.results);
+      setImportStep('result');
+      router.refresh();
+    } catch (error: any) {
+      alert(error.message || '导入应用失败');
+    } finally {
+      setImportBusy(false);
+    }
+  };
+
   const filterOptions = [
     { label: '全部', value: '' },
     ...statusOptions.map(s => ({ label: s.label, value: s.value })),
@@ -124,7 +191,6 @@ export default function MaterialsClient({
     const stockUnit = row.inventoryUnit || '';
     const usageUnit = getUsageUnit(row);
 
-    // For bead materials with weight data, show: totalWeight / pieces
     if (row.materialType === 'BEAD' || row.materialType === 'OTHER') {
       const parts: string[] = [];
       if (row.totalWeightG && row.totalWeightG > 0) parts.push(`${row.totalWeightG}g`);
@@ -132,7 +198,6 @@ export default function MaterialsClient({
       if (parts.length > 0) return parts.join(' / ');
     }
 
-    // Standard format with purchase unit conversion
     const purchaseUnit = row.defaultPurchaseUnit || '';
     const rate = row.defaultConversionRate || 1;
     if (purchaseUnit && purchaseUnit !== stockUnit && rate > 0 && rate !== 1) {
@@ -145,7 +210,6 @@ export default function MaterialsClient({
     return `${qty} ${stockUnit}`;
   }
 
-  /** Get display unit for BOM usage (颗 for beads, 个 for metal, etc.) */
   function getUsageUnit(row: any): string {
     if (row.usageUnit) return row.usageUnit;
     const mt = row.materialType;
@@ -156,32 +220,27 @@ export default function MaterialsClient({
   }
 
   function calcUnitPrice(row: any): string {
-    // Priority 1: use costPerUsageUnit (auto-calculated from purchase data)
     if (row.costPerUsageUnit != null && row.costPerUsageUnit > 0) {
       return `¥${Number(row.costPerUsageUnit).toFixed(2)} / ${getUsageUnit(row)}`;
     }
-    // Priority 2: for by_weight pricing, calculate from totalWeightG/pricePerGram/totalPieces
     if (row.pricingMethod === 'by_weight' && row.totalWeightG && row.pricePerGram && row.totalPieces) {
       const totalPrice = row.totalWeightG * row.pricePerGram;
       const perPiece = totalPrice / row.totalPieces;
       return `¥${perPiece.toFixed(2)} / ${getUsageUnit(row)}`;
     }
-    // Fallback: unitCost
     if (row.unitCost != null && row.unitCost > 0) {
       return `¥${Number(row.unitCost).toFixed(2)} / ${row.inventoryUnit || '单位'}`;
     }
-    // Fallback: purchasePrice / conversionRate
     const purchasePrice = row.purchasePrice;
     const rate = row.defaultConversionRate || 1;
     if (purchasePrice != null && purchasePrice > 0 && rate > 0) {
       const unitPrice = purchasePrice / rate;
       return `¥${unitPrice.toFixed(2)} / ${row.inventoryUnit || '单位'}`;
     }
-    return "—";
+    return '—';
   }
 
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
-
   const toggleExpand = (id: number) => {
     setExpandedRows(prev => {
       const next = new Set(prev);
@@ -190,7 +249,7 @@ export default function MaterialsClient({
     });
   };
 
-  const formatDate = (v: any) => v ? new Date(v).toLocaleString("zh-CN") : "—";
+  const formatDate = (v: any) => v ? new Date(v).toLocaleString('zh-CN') : '—';
 
   const columns: Column[] = [
     { key: 'name', label: '名称', sortable: true, render: (v: any, row: any) => <span style={{ fontWeight: 500, color: '#1c1917' }}>{row.name || '—'}</span> },
@@ -235,8 +294,8 @@ export default function MaterialsClient({
   return (
     <div style={{ maxWidth: 1200, margin: '0 auto', padding: 24 }}>
       <ErpToolbar
-        title={title || "材料管理"}
-        subtitle={category ? `${title} · 分类筛选` : "原材料 / 半成品 / 包材"}
+        title={title || '材料管理'}
+        subtitle={category ? `${title} · 分类筛选` : '原材料 / 半成品 / 包材'}
         total={data.length}
         entityLabel="条材料"
         searchPlaceholder="搜索编码 / 名称 / 分类…"
@@ -247,6 +306,24 @@ export default function MaterialsClient({
         filterOptions={filterOptions}
         activeFilter={statusFilter}
         onFilterChange={setStatusFilter}
+        extraButtons={(
+          <>
+            <button
+              onClick={handleDownloadTemplate}
+              style={{ padding: '6px 12px', border: '1px solid #e7e5e4', borderRadius: 6, background: '#fff', cursor: 'pointer', fontSize: 13, color: '#57534e' }}
+            >
+              <Download size={14} style={{ display: 'inline-block', marginRight: 4, verticalAlign: '-2px' }} />
+              下载导入模板
+            </button>
+            <button
+              onClick={openImportModal}
+              style={{ padding: '6px 12px', border: '1px solid #e7e5e4', borderRadius: 6, background: '#fff', cursor: 'pointer', fontSize: 13, color: '#57534e' }}
+            >
+              <Upload size={14} style={{ display: 'inline-block', marginRight: 4, verticalAlign: '-2px' }} />
+              导入库存 Excel
+            </button>
+          </>
+        )}
       />
 
       <ErpDataTable
@@ -261,7 +338,6 @@ export default function MaterialsClient({
           };
           return (
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:"6px 20px",fontSize:12,color:"#57534e",padding:"10px 0"}}>
-              {/* 基础信息 */}
               <div style={{fontWeight:500,color:"#292524",borderBottom:"1px solid #f5f5f4",paddingBottom:4,gridColumn:"1/-1",marginBottom:2}}>
                 基础信息
               </div>
@@ -272,7 +348,6 @@ export default function MaterialsClient({
               <div><span style={{color:"#a8a29e"}}>规格mm:</span> {row.specification || "—"}</div>
               <div><span style={{color:"#a8a29e"}}>形状:</span> {row.shape || "—"}</div>
 
-              {/* 采购信息 */}
               <div style={{fontWeight:500,color:"#292524",borderBottom:"1px solid #f5f5f4",paddingBottom:4,gridColumn:"1/-1",marginTop:8,marginBottom:2}}>
                 采购信息
               </div>
@@ -288,7 +363,6 @@ export default function MaterialsClient({
                 </>
               )}
 
-              {/* 珠子明细 */}
               <div style={{fontWeight:500,color:"#292524",borderBottom:"1px solid #f5f5f4",paddingBottom:4,gridColumn:"1/-1",marginTop:8,marginBottom:2}}>
                 珠子明细
               </div>
@@ -297,7 +371,6 @@ export default function MaterialsClient({
               <div><span style={{color:"#a8a29e"}}>总颗数:</span> {row.totalPieces ? `${row.totalPieces}${usageUnit}` : "—"}</div>
               <div><span style={{color:"#a8a29e"}}>总克重:</span> {row.totalWeightG ? `${row.totalWeightG}g` : "—"}</div>
 
-              {/* 成本 */}
               <div style={{fontWeight:500,color:"#292524",borderBottom:"1px solid #f5f5f4",paddingBottom:4,gridColumn:"1/-1",marginTop:8,marginBottom:2}}>
                 成本
               </div>
@@ -308,7 +381,6 @@ export default function MaterialsClient({
                 </strong>
               </div>
 
-              {/* 时间与备注 */}
               <div style={{fontWeight:500,color:"#292524",borderBottom:"1px solid #f5f5f4",paddingBottom:4,gridColumn:"1/-1",marginTop:8,marginBottom:2}}>
                 时间与备注
               </div>
@@ -322,11 +394,102 @@ export default function MaterialsClient({
 
       {modalOpen && (
         <MaterialFormModal
-          mode={editItem ? "edit" : "add"}
+          mode={editItem ? 'edit' : 'add'}
           initialData={editItem || undefined}
           onSave={handleSave}
           onClose={() => { setModalOpen(false); setEditItem(null); }}
         />
+      )}
+
+      {importModalOpen && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(41,37,36,0.45)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div style={{ background: '#fff', borderRadius: 12, maxWidth: 960, width: '100%', maxHeight: '85vh', overflow: 'auto', padding: 24 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, marginBottom: 16 }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: 18, fontWeight: 600 }}>导入库存 Excel</h3>
+                <p style={{ margin: '6px 0 0', fontSize: 12, color: '#78716c' }}>
+                  先预览匹配结果，默认只更新已匹配材料，不会创建新材料。
+                </p>
+              </div>
+              <button onClick={() => setImportModalOpen(false)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 16 }}>×</button>
+            </div>
+
+            {importStep === 'upload' && (
+              <div style={{ display: 'grid', gap: 16 }}>
+                <input
+                  type="file"
+                  accept=".xlsx"
+                  onChange={(e) => setImportFile(e.target.files?.[0] || null)}
+                />
+                <div style={{ fontSize: 12, color: '#78716c', lineHeight: 1.6 }}>
+                  <p style={{ margin: 0 }}>匹配规则：先按编码，找不到再按名称精确匹配。</p>
+                  <p style={{ margin: 0 }}>未匹配的行会被跳过，不会创建新材料。</p>
+                  <p style={{ margin: 0 }}>导入将更新 `raw_materials.remaining` 和 `unitCost`，并写入 `inventory_transactions` 调整记录。</p>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                  <button onClick={() => setImportModalOpen(false)} style={{ padding: '8px 14px', border: '1px solid #e7e5e4', borderRadius: 6, background: '#fff' }}>取消</button>
+                  <button onClick={submitImportPreview} disabled={!importFile || importBusy} style={{ padding: '8px 14px', border: 'none', borderRadius: 6, background: '#292524', color: '#fff', cursor: 'pointer', opacity: !importFile || importBusy ? 0.6 : 1 }}>
+                    {importBusy ? '预览中...' : '预览导入'}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {importStep === 'preview' && (
+              <div style={{ display: 'grid', gap: 16 }}>
+                {importErrors.length > 0 && (
+                  <div style={{ background: '#fef2f2', color: '#b91c1c', padding: 12, borderRadius: 8, fontSize: 12 }}>
+                    {importErrors.map((err) => <div key={err}>{err}</div>)}
+                  </div>
+                )}
+                <div style={{ maxHeight: 420, overflow: 'auto', border: '1px solid #e7e5e4', borderRadius: 8 }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                    <thead style={{ background: '#fafaf9' }}>
+                      <tr>
+                        {['行号', '编码', '名称', 'Excel库存', '当前库存', 'Excel单价', '状态'].map((h) => (
+                          <th key={h} style={{ textAlign: 'left', padding: '10px 12px', borderBottom: '1px solid #e7e5e4' }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {importPreview.map((row) => (
+                        <tr key={row.rowNum} style={{ borderBottom: '1px solid #f5f5f4' }}>
+                          <td style={{ padding: '10px 12px' }}>{row.rowNum}</td>
+                          <td style={{ padding: '10px 12px' }}>{row.code}</td>
+                          <td style={{ padding: '10px 12px' }}>{row.name}</td>
+                          <td style={{ padding: '10px 12px' }}>{row.excelRemaining}</td>
+                          <td style={{ padding: '10px 12px' }}>{row.currentRemaining ?? '—'}</td>
+                          <td style={{ padding: '10px 12px' }}>{row.excelUnitCost ?? '—'}</td>
+                          <td style={{ padding: '10px 12px' }}>{row.matched ? '待更新' : '已跳过'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+                  <button onClick={() => setImportStep('upload')} style={{ padding: '8px 14px', border: '1px solid #e7e5e4', borderRadius: 6, background: '#fff' }}>重新选择文件</button>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button onClick={() => setImportModalOpen(false)} style={{ padding: '8px 14px', border: '1px solid #e7e5e4', borderRadius: 6, background: '#fff' }}>取消</button>
+                    <button onClick={applyImport} disabled={importBusy} style={{ padding: '8px 14px', border: 'none', borderRadius: 6, background: '#292524', color: '#fff', cursor: 'pointer', opacity: importBusy ? 0.6 : 1 }}>
+                      {importBusy ? '应用中...' : '确认并应用'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {importStep === 'result' && (
+              <div style={{ display: 'grid', gap: 16 }}>
+                <div style={{ background: '#f0fdf4', color: '#166534', padding: 12, borderRadius: 8, fontSize: 12 }}>
+                  导入完成：更新 {importResults?.updated || 0} 条，跳过 {importResults?.skipped || 0} 条，未匹配 {importResults?.unmatched || 0} 条。
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                  <button onClick={() => setImportModalOpen(false)} style={{ padding: '8px 14px', border: 'none', borderRadius: 6, background: '#292524', color: '#fff' }}>关闭</button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );

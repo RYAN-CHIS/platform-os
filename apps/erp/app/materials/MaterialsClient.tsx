@@ -1,5 +1,8 @@
 "use client";
 
+// Legacy ERP app client.
+// Active production materials UI lives under apps/platform/app/(platform)/erp/materials/client.tsx.
+
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Pencil, Trash2, Plus, ShoppingCart, Download, RefreshCw, Search, ChevronLeft, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown, Upload, FileSpreadsheet } from "lucide-react";

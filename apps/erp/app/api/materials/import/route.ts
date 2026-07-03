@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import * as XLSX from "xlsx";
 
+// Legacy ERP app route.
+// Active production import lives under apps/platform/app/api/materials/import/route.ts.
+
 // 允许的列名映射
 const COLUMN_ALIASES: Record<string, string> = {
   "编码": "code",
