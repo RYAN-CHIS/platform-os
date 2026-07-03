@@ -152,8 +152,6 @@ export async function POST(req: NextRequest) {
       const totalWeightG = toNumber(normalized.totalWeightG);
       const remaining = totalPieces ?? purchaseQty ?? 0;
       const materialType = classifyMaterial({ code, name, category, supplier, spec, shape });
-      const canCreate = Boolean(code || name);
-
       let matched = null as null | { id: number; code: string; name: string; remaining: number; unitCost: number | null };
       let matchMethod: "编码" | "名称" | "未匹配" = "未匹配";
       if (code) {
@@ -191,8 +189,7 @@ export async function POST(req: NextRequest) {
           matchedId: null,
           difference: null,
           matchMethod: "未匹配",
-          action: canCreate ? "create" : "skip",
-          canCreate,
+          action: "skip",
           materialType,
           remark,
         };
@@ -224,7 +221,6 @@ export async function POST(req: NextRequest) {
         difference: remaining - matched.remaining,
         matchMethod,
         action: "update",
-        canCreate: false,
         materialType,
         remark,
       };

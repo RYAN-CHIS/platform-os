@@ -13,6 +13,31 @@ import {
 
 type MaterialRow = Record<string, any>;
 
+type ImportApiError = {
+  ok?: boolean;
+  error?: string;
+  detail?: string;
+  preview?: any[];
+  results?: any;
+};
+
+function parseMaybeJson(text: string): ImportApiError | null {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+}
+
+async function readJsonResponse(res: Response): Promise<{ ok: boolean; data: ImportApiError | null; rawText: string }> {
+  const rawText = await res.text();
+  const data = parseMaybeJson(rawText);
+  if (!data) {
+    console.error('[materials/import] non-JSON response:', rawText.slice(0, 200));
+  }
+  return { ok: res.ok, data, rawText };
+}
+
 export default function MaterialsClient({
   initialData, csvColumns, csvData, category, title,
 }: {
@@ -26,10 +51,10 @@ export default function MaterialsClient({
   const [importStep, setImportStep] = useState<'upload' | 'preview' | 'result'>('upload');
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importPreview, setImportPreview] = useState<any[]>([]);
-  const [importErrors, setImportErrors] = useState<string[]>([]);
   const [importResults, setImportResults] = useState<any>(null);
   const [importBusy, setImportBusy] = useState(false);
-  const [createUnmatched, setCreateUnmatched] = useState(false);
+  const [importNotice, setImportNotice] = useState<string>('');
+  const [importError, setImportError] = useState<string>('');
 
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -169,28 +194,35 @@ export default function MaterialsClient({
     setImportStep('upload');
     setImportFile(null);
     setImportPreview([]);
-    setImportErrors([]);
     setImportResults(null);
-    setCreateUnmatched(false);
+    setImportNotice('');
+    setImportError('');
   };
 
   const submitImportPreview = async () => {
     if (!importFile) return;
     setImportBusy(true);
+    setImportError('');
+    setImportNotice('');
     try {
       const formData = new FormData();
       formData.append('file', importFile);
       const res = await fetch('/api/materials/import', { method: 'POST', body: formData });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || '导入预览失败');
-      setImportPreview((json.preview || []).map((row: any) => ({
+      const { data, rawText } = await readJsonResponse(res);
+      if (!data) {
+        throw new Error('导入接口返回异常，请检查服务端日志');
+      }
+      if (!res.ok || data.ok === false) {
+        throw new Error(data.error || '导入预览失败');
+      }
+      setImportPreview((data.preview || []).map((row: any) => ({
         ...row,
-        action: row.matched ? 'update' : (createUnmatched && row.canCreate ? 'create' : 'skip'),
+        action: row.matched ? 'update' : 'skip',
       })));
-      setImportErrors(json.errors || []);
       setImportStep('preview');
+      if (!res.ok) console.error(rawText.slice(0, 200));
     } catch (error: any) {
-      alert(error.message || '导入预览失败');
+      setImportError(error.message || '导入预览失败');
     } finally {
       setImportBusy(false);
     }
@@ -198,23 +230,31 @@ export default function MaterialsClient({
 
   const applyImport = async () => {
     setImportBusy(true);
+    setImportError('');
+    setImportNotice('');
     try {
       const items = importPreview.map((item) => ({
         ...item,
-        action: item.matched ? 'update' : (createUnmatched && item.canCreate ? 'create' : 'skip'),
+        action: item.matched ? 'update' : 'skip',
       }));
       const res = await fetch('/api/materials/import', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ items }),
       });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || '导入应用失败');
-      setImportResults(json.results);
+      const { data } = await readJsonResponse(res);
+      if (!data) {
+        throw new Error('导入接口返回异常，请检查服务端日志');
+      }
+      if (!res.ok || data.ok === false) {
+        throw new Error(data.error || '导入应用失败');
+      }
+      setImportResults(data.results);
+      setImportNotice(`已更新 ${data.results?.updated || 0} 条，已新建 0 条，跳过 ${data.results?.skipped || 0} 条`);
       setImportStep('result');
       router.refresh();
     } catch (error: any) {
-      alert(error.message || '导入应用失败');
+      setImportError(error.message || '导入应用失败');
     } finally {
       setImportBusy(false);
     }
@@ -449,11 +489,17 @@ export default function MaterialsClient({
               <div>
                 <h3 style={{ margin: 0, fontSize: 18, fontWeight: 600 }}>导入库存 Excel</h3>
                 <p style={{ margin: '6px 0 0', fontSize: 12, color: '#78716c' }}>
-                  先预览匹配结果，未匹配材料可选择自动创建。
+                  第 1 步上传 Excel，第 2 步预览匹配结果，第 3 步确认导入。
                 </p>
               </div>
               <button onClick={() => setImportModalOpen(false)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 16 }}>×</button>
             </div>
+
+            {(importError || importNotice) && (
+              <div style={{ marginBottom: 16, padding: 12, borderRadius: 8, background: importError ? '#fef2f2' : '#f0fdf4', color: importError ? '#b91c1c' : '#166534', fontSize: 12, lineHeight: 1.6 }}>
+                {importError || importNotice}
+              </div>
+            )}
 
             {importStep === 'upload' && (
               <div style={{ display: 'grid', gap: 16 }}>
@@ -464,30 +510,13 @@ export default function MaterialsClient({
                 />
                 <div style={{ fontSize: 12, color: '#78716c', lineHeight: 1.6 }}>
                   <p style={{ margin: 0 }}>匹配规则：先按编码，找不到再按名称精确匹配。</p>
-                  <p style={{ margin: 0 }}>自动分类：珠子/水晶/玛瑙/珍珠/玉石/月光石/草莓晶/宝石 → BEAD，配件/三通/金珠/银件/隔片/吊坠/扣头/链/环 → METAL，瓷/陶瓷/杯/碗 → CERAMIC，皮革/牛皮/羊皮/皮绳 → LEATHER，包装/袋/盒 → PACKAGING，其余为 OTHER。</p>
-                  <p style={{ margin: 0 }}>未匹配且勾选创建时，会新增 raw_materials，并继续写入 inventory_transactions。</p>
                   <p style={{ margin: 0 }}>导入将更新 `raw_materials.remaining` 和 `unitCost`，并写入 `inventory_transactions` 调整记录。</p>
                   <p style={{ margin: 0 }}>支持允物采购库格式：原料编码、名称、总颗数、单颗成本（颗）</p>
                 </div>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#44403c' }}>
-                  <input
-                    type="checkbox"
-                    checked={createUnmatched}
-                    onChange={(e) => {
-                      const next = e.target.checked;
-                      setCreateUnmatched(next);
-                      setImportPreview((prev) => prev.map((row) => ({
-                        ...row,
-                        action: row.matched ? 'update' : (next && row.canCreate ? 'create' : 'skip'),
-                      })));
-                    }}
-                  />
-                  未匹配材料自动创建
-                </label>
                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
                   <button onClick={() => setImportModalOpen(false)} style={{ padding: '8px 14px', border: '1px solid #e7e5e4', borderRadius: 6, background: '#fff' }}>取消</button>
                   <button onClick={submitImportPreview} disabled={!importFile || importBusy} style={{ padding: '8px 14px', border: 'none', borderRadius: 6, background: '#292524', color: '#fff', cursor: 'pointer', opacity: !importFile || importBusy ? 0.6 : 1 }}>
-                    {importBusy ? '预览中...' : '预览导入'}
+                    {importBusy ? '生成中...' : '生成预览'}
                   </button>
                 </div>
               </div>
@@ -495,33 +524,28 @@ export default function MaterialsClient({
 
             {importStep === 'preview' && (
               <div style={{ display: 'grid', gap: 16 }}>
-                {importErrors.length > 0 && (
-                  <div style={{ background: '#fef2f2', color: '#b91c1c', padding: 12, borderRadius: 8, fontSize: 12 }}>
-                    {importErrors.map((err) => <div key={err}>{err}</div>)}
-                  </div>
-                )}
                 <div style={{ maxHeight: 420, overflow: 'auto', border: '1px solid #e7e5e4', borderRadius: 8 }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                     <thead style={{ background: '#fafaf9' }}>
                       <tr>
-                        {['原料编码', '名称', '自动分类', '动作', '当前库存', 'Excel库存', '差异', '当前单价', 'Excel单价', '匹配方式'].map((h) => (
+                        {['原料编码', '名称', '自动分类', '匹配方式', '当前库存', 'Excel库存', '差异', '当前单价', 'Excel单价', '动作'].map((h) => (
                           <th key={h} style={{ textAlign: 'left', padding: '10px 12px', borderBottom: '1px solid #e7e5e4' }}>{h}</th>
                         ))}
                       </tr>
                     </thead>
                     <tbody>
-                      {importPreview.map((row) => (
-                        <tr key={row.rowNum} style={{ borderBottom: '1px solid #f5f5f4' }}>
+                      {importPreview.map((row, idx) => (
+                        <tr key={row.rowNum || idx} style={{ borderBottom: '1px solid #f5f5f4' }}>
                           <td style={{ padding: '10px 12px' }}>{row.code}</td>
                           <td style={{ padding: '10px 12px' }}>{row.name}</td>
                           <td style={{ padding: '10px 12px' }}>{row.materialType || 'OTHER'}</td>
-                          <td style={{ padding: '10px 12px' }}>{row.action || 'skip'}</td>
+                          <td style={{ padding: '10px 12px' }}>{row.matchMethod || (row.matched ? '编码' : '未匹配')}</td>
                           <td style={{ padding: '10px 12px' }}>{row.currentRemaining ?? '—'}</td>
                           <td style={{ padding: '10px 12px' }}>{row.excelRemaining}</td>
                           <td style={{ padding: '10px 12px' }}>{row.difference ?? '—'}</td>
                           <td style={{ padding: '10px 12px' }}>{row.currentUnitCost ?? '—'}</td>
                           <td style={{ padding: '10px 12px' }}>{row.excelUnitCost ?? '—'}</td>
-                          <td style={{ padding: '10px 12px' }}>{row.matchMethod || (row.matched ? '编码' : '未匹配')}</td>
+                          <td style={{ padding: '10px 12px' }}>{row.matched ? '更新' : '跳过'}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -532,7 +556,7 @@ export default function MaterialsClient({
                   <div style={{ display: 'flex', gap: 8 }}>
                     <button onClick={() => setImportModalOpen(false)} style={{ padding: '8px 14px', border: '1px solid #e7e5e4', borderRadius: 6, background: '#fff' }}>取消</button>
                     <button onClick={applyImport} disabled={importBusy} style={{ padding: '8px 14px', border: 'none', borderRadius: 6, background: '#292524', color: '#fff', cursor: 'pointer', opacity: importBusy ? 0.6 : 1 }}>
-                      {importBusy ? '应用中...' : '确认并应用'}
+                      {importBusy ? '导入中...' : '确认导入'}
                     </button>
                   </div>
                 </div>
@@ -542,7 +566,7 @@ export default function MaterialsClient({
             {importStep === 'result' && (
               <div style={{ display: 'grid', gap: 16 }}>
                 <div style={{ background: '#f0fdf4', color: '#166534', padding: 12, borderRadius: 8, fontSize: 12 }}>
-                  导入完成：更新 {importResults?.updated || 0} 条，创建 {importResults?.created || 0} 条，跳过 {importResults?.skipped || 0} 条，未匹配 {importResults?.unmatched || 0} 条。
+                  导入完成：已更新 {importResults?.updated || 0} 条，已新建 0 条，跳过 {importResults?.skipped || 0} 条。
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
                   <button onClick={() => setImportModalOpen(false)} style={{ padding: '8px 14px', border: 'none', borderRadius: 6, background: '#292524', color: '#fff' }}>关闭</button>
