@@ -29,6 +29,14 @@ function parseMaybeJson(text: string): ImportApiError | null {
   }
 }
 
+function displayMaterialType(type: string) {
+  if (type === 'BEAD') return '珠子';
+  if (type === 'METAL') return '配件';
+  if (type === 'CERAMIC') return '瓷器';
+  if (type === 'LEATHER') return '皮具';
+  return '其他';
+}
+
 async function readJsonResponse(res: Response): Promise<{ ok: boolean; data: ImportApiError | null; rawText: string }> {
   const rawText = await res.text();
   const data = parseMaybeJson(rawText);
@@ -538,7 +546,7 @@ export default function MaterialsClient({
                         <tr key={row.rowNum || idx} style={{ borderBottom: '1px solid #f5f5f4' }}>
                           <td style={{ padding: '10px 12px' }}>{row.code}</td>
                           <td style={{ padding: '10px 12px' }}>{row.name}</td>
-                          <td style={{ padding: '10px 12px' }}>{row.materialType || 'OTHER'}</td>
+                          <td style={{ padding: '10px 12px' }}>{displayMaterialType(row.materialType)}</td>
                           <td style={{ padding: '10px 12px' }}>{row.matchMethod || (row.matched ? '编码' : '未匹配')}</td>
                           <td style={{ padding: '10px 12px' }}>{row.currentRemaining ?? '—'}</td>
                           <td style={{ padding: '10px 12px' }}>{row.excelRemaining}</td>

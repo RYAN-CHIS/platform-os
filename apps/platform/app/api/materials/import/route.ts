@@ -58,12 +58,51 @@ const TransactionType = {
 } as const;
 
 const MATERIAL_CLASS_RULES: Array<{ type: string; keywords: string[] }> = [
-  { type: "BEAD", keywords: ["珠子", "水晶", "玛瑙", "珍珠", "玉石", "月光石", "草莓晶", "宝石"] },
+  {
+    type: "BEAD",
+    keywords: [
+      "珠子",
+      "水晶",
+      "玛瑙",
+      "珍珠",
+      "玉石",
+      "月光石",
+      "草莓晶",
+      "宝石",
+      "猛犸",
+      "猛犸象牙",
+      "沉香",
+      "老山檀",
+      "檀香",
+      "大漆珠",
+      "蜜蜡",
+      "南红",
+      "青金石",
+      "绿松",
+      "绿松石",
+      "海纹石",
+      "翡翠",
+      "白水晶",
+      "粉水晶",
+      "紫水晶",
+      "茶晶",
+      "堇青石",
+      "白兔毛",
+    ],
+  },
   { type: "METAL", keywords: ["配件", "三通", "金珠", "银件", "隔片", "吊坠", "扣头", "链", "环"] },
   { type: "CERAMIC", keywords: ["瓷", "陶瓷", "杯", "碗"] },
   { type: "LEATHER", keywords: ["皮革", "牛皮", "羊皮", "皮绳"] },
   { type: "PACKAGING", keywords: ["包装", "袋", "盒"] },
 ];
+
+function displayMaterialType(type: string) {
+  if (type === "BEAD") return "珠子";
+  if (type === "METAL") return "配件";
+  if (type === "CERAMIC") return "瓷器";
+  if (type === "LEATHER") return "皮具";
+  return "其他";
+}
 
 function normalizeCell(value: unknown) {
   if (value == null) return "";
@@ -204,7 +243,7 @@ export async function POST(req: NextRequest) {
           matchMethod: "未匹配",
           action: canCreate ? "create" : "skip",
           canCreate,
-          materialType,
+          materialType: displayMaterialType(materialType),
           remark,
         };
       }
@@ -236,7 +275,7 @@ export async function POST(req: NextRequest) {
         matchMethod,
         action: "update",
         canCreate: false,
-        materialType,
+        materialType: displayMaterialType(materialType),
         remark,
       };
     });
