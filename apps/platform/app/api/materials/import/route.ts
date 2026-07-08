@@ -120,6 +120,71 @@ function toText(value: unknown): string {
   return normalizeCell(value);
 }
 
+function toNullableText(value: unknown): string | null {
+  const text = normalizeCell(value);
+  return text === "" ? null : text;
+}
+
+function toNullableNumber(value: unknown): number | null {
+  const num = toNumber(value);
+  return num === null ? null : num;
+}
+
+function parsePricingMethod(value: unknown): string | null {
+  const text = normalizeCell(value);
+  if (!text) return null;
+  if (text.includes("重量") || text.includes("按克")) return "by_weight";
+  if (text.includes("串")) return "by_strand";
+  if (text.includes("个") || text.includes("件") || text.includes("颗")) return "by_piece";
+  return text;
+}
+
+function buildImportMaterialData(normalized: Record<string, unknown>, materialType: string) {
+  const code = normalizeCell(normalized.code);
+  const name = normalizeCell(normalized.name);
+  const category = toText(normalized.category);
+  const supplier = toText(normalized.supplier);
+  const specification = toNullableText(normalized.spec);
+  const shape = toNullableText(normalized.shape);
+  const remark = toNullableText(normalized.remark);
+  const pricingMethod = parsePricingMethod(normalized.pricingMethod);
+  const purchaseQty = toNullableNumber(normalized.purchaseQty);
+  const pricingUnitPrice = toNullableNumber(normalized.unitCost) ?? toNullableNumber(normalized.pricingUnitPrice) ?? toNullableNumber(normalized.costPerUsageUnit);
+  const pricingUnit = toNullableText(normalized.pricingUnit);
+  const purchaseTotalPrice = toNullableNumber(normalized.purchaseTotalPrice);
+  const beadsPerStrand = toNullableNumber(normalized.beadsPerStrand);
+  const weightPerStrand = toNullableNumber(normalized.weightPerStrand);
+  const totalPieces = toNullableNumber(normalized.totalPieces);
+  const totalWeightG = toNullableNumber(normalized.totalWeightG);
+  const costPerUsageUnit = toNullableNumber(normalized.costPerUsageUnit);
+  const remaining = totalPieces ?? purchaseQty ?? 0;
+  const resolvedUnitCost = costPerUsageUnit ?? pricingUnitPrice;
+
+  return {
+    code,
+    name,
+    category,
+    materialType,
+    supplier,
+    specification,
+    shape,
+    remark,
+    pricingMethod: pricingMethod || "by_weight",
+    purchaseQty,
+    unitCost: resolvedUnitCost,
+    unitPrice: pricingUnitPrice,
+    pricingUnit,
+    purchaseTotalPrice,
+    purchasePrice: purchaseTotalPrice,
+    beadsPerStrand,
+    weightPerStrand,
+    totalPieces,
+    totalWeightG,
+    costPerUsageUnit,
+    remaining,
+  };
+}
+
 function classifyMaterial(input: { code: string; name: string; category: string; supplier: string; spec: string; shape: string }) {
   const haystack = [input.code, input.name, input.category, input.supplier, input.spec, input.shape]
     .filter(Boolean)
@@ -185,22 +250,30 @@ export async function POST(req: NextRequest) {
 
       const code = normalizeCell(normalized.code);
       const name = normalizeCell(normalized.name);
-      const category = toText(normalized.category);
-      const supplier = toText(normalized.supplier);
-      const spec = toText(normalized.spec);
-      const shape = toText(normalized.shape);
-      const remark = toText(normalized.remark);
-      const pricingMethod = toText(normalized.pricingMethod);
-      const purchaseQty = toNumber(normalized.purchaseQty);
-      const unitCost = toNumber(normalized.costPerUsageUnit) ?? toNumber(normalized.unitCost);
-      const pricingUnit = toText(normalized.pricingUnit);
-      const purchaseTotalPrice = toNumber(normalized.purchaseTotalPrice);
-      const beadsPerStrand = toNumber(normalized.beadsPerStrand);
-      const weightPerStrand = toNumber(normalized.weightPerStrand);
-      const totalPieces = toNumber(normalized.totalPieces);
-      const totalWeightG = toNumber(normalized.totalWeightG);
-      const remaining = totalPieces ?? purchaseQty ?? 0;
-      const materialType = classifyMaterial({ code, name, category, supplier, spec, shape });
+      const previewCategory = toText(normalized.category);
+      const previewSupplier = toText(normalized.supplier);
+      const previewSpec = toNullableText(normalized.spec) || "";
+      const previewShape = toNullableText(normalized.shape) || "";
+      const materialType = classifyMaterial({
+        code,
+        name,
+        category: previewCategory,
+        supplier: previewSupplier,
+        spec: previewSpec,
+        shape: previewShape,
+      });
+      const parsed = buildImportMaterialData(normalized, materialType);
+      const completeFields = [
+        parsed.supplier,
+        parsed.specification,
+        parsed.shape,
+        parsed.purchaseTotalPrice,
+        parsed.beadsPerStrand,
+        parsed.weightPerStrand,
+        parsed.totalPieces,
+        parsed.totalWeightG,
+        parsed.costPerUsageUnit,
+      ].filter((value) => value !== null && value !== undefined && value !== "").length;
       const canCreate = Boolean(code || name);
       let matched = null as null | { id: number; code: string; name: string; remaining: number; unitCost: number | null };
       let matchMethod: "编码" | "名称" | "未匹配" = "未匹配";
@@ -220,21 +293,21 @@ export async function POST(req: NextRequest) {
           rowNum,
           code: code || "-",
           name: name || "-",
-          category: category || "-",
-          supplier: supplier || "-",
-          spec: spec || "-",
-          shape: shape || "-",
-          remark: remark || "-",
-          pricingMethod: pricingMethod || "-",
-          purchaseQty,
-          pricingUnit: pricingUnit || "-",
-          purchaseTotalPrice,
-          beadsPerStrand,
-          weightPerStrand,
-          totalPieces,
-          totalWeightG,
-          excelRemaining: remaining,
-          excelUnitCost: unitCost,
+          category: parsed.category || "-",
+          supplier: parsed.supplier || "-",
+          spec: parsed.specification || "-",
+          shape: parsed.shape || "-",
+          remark: parsed.remark || "-",
+          pricingMethod: parsed.pricingMethod || "-",
+          purchaseQty: parsed.purchaseQty,
+          pricingUnit: parsed.pricingUnit || "-",
+          purchaseTotalPrice: parsed.purchaseTotalPrice,
+          beadsPerStrand: parsed.beadsPerStrand,
+          weightPerStrand: parsed.weightPerStrand,
+          totalPieces: parsed.totalPieces,
+          totalWeightG: parsed.totalWeightG,
+          excelRemaining: parsed.remaining,
+          excelUnitCost: parsed.unitCost,
           currentRemaining: null,
           currentUnitCost: null,
           matched: false,
@@ -244,7 +317,9 @@ export async function POST(req: NextRequest) {
           action: canCreate ? "create" : "skip",
           canCreate,
           materialType: displayMaterialType(materialType),
-          remark,
+          remark: parsed.remark,
+          completeFields,
+          fullFieldStatus: completeFields >= 5 ? "已读取供应商/规格/形状/采购价/珠子明细" : "字段不完整",
         };
       }
 
@@ -252,31 +327,33 @@ export async function POST(req: NextRequest) {
         rowNum,
         code: matched.code,
         name: matched.name,
-        category,
-        supplier,
-        spec,
-        shape,
-        remark,
-        pricingMethod,
-        purchaseQty,
-        pricingUnit,
-        purchaseTotalPrice,
-        beadsPerStrand,
-        weightPerStrand,
-        totalPieces,
-        totalWeightG,
-        excelRemaining: remaining,
-        excelUnitCost: unitCost,
+        category: parsed.category,
+        supplier: parsed.supplier,
+        spec: parsed.specification,
+        shape: parsed.shape,
+        remark: parsed.remark,
+        pricingMethod: parsed.pricingMethod,
+        purchaseQty: parsed.purchaseQty,
+        pricingUnit: parsed.pricingUnit,
+        purchaseTotalPrice: parsed.purchaseTotalPrice,
+        beadsPerStrand: parsed.beadsPerStrand,
+        weightPerStrand: parsed.weightPerStrand,
+        totalPieces: parsed.totalPieces,
+        totalWeightG: parsed.totalWeightG,
+        excelRemaining: parsed.remaining,
+        excelUnitCost: parsed.unitCost,
         currentRemaining: matched.remaining,
-          currentUnitCost: matched.unitCost,
+        currentUnitCost: matched.unitCost,
         matched: true,
         matchedId: matched.id,
-        difference: remaining - matched.remaining,
+        difference: parsed.remaining - matched.remaining,
         matchMethod,
         action: "update",
         canCreate: false,
         materialType: displayMaterialType(materialType),
-        remark,
+        remark: parsed.remark,
+        completeFields,
+        fullFieldStatus: completeFields >= 5 ? "已读取供应商/规格/形状/采购价/珠子明细" : "字段不完整",
       };
     });
 
@@ -316,19 +393,32 @@ export async function PUT(req: NextRequest) {
             continue;
           }
 
-          const createData = {
-            code,
-            name,
+        const createData = {
+          code,
+          name,
             category: toText(item.category),
             materialType: item.materialType || "OTHER",
             supplier: toText(item.supplier),
-            specification: toText(item.spec),
-            shape: toText(item.shape),
+            specification: toNullableText(item.spec),
+            shape: toNullableText(item.shape),
+            remark: toNullableText(item.remark),
             remaining: Number(item.excelRemaining) || 0,
             unitCost: item.excelUnitCost === null || item.excelUnitCost === undefined || item.excelUnitCost === ""
               ? null
               : Number(item.excelUnitCost),
-            pricingMethod: toText(item.pricingMethod) || "by_weight",
+            unitPrice: item.excelUnitCost === null || item.excelUnitCost === undefined || item.excelUnitCost === ""
+              ? null
+              : Number(item.excelUnitCost),
+            pricingMethod: parsePricingMethod(item.pricingMethod) || "by_weight",
+            purchaseQty: toNullableNumber(item.purchaseQty),
+            pricingUnit: toNullableText(item.pricingUnit),
+            purchaseTotalPrice: toNullableNumber(item.purchaseTotalPrice),
+            purchasePrice: toNullableNumber(item.purchaseTotalPrice),
+            beadsPerStrand: toNullableNumber(item.beadsPerStrand),
+            weightPerStrand: toNullableNumber(item.weightPerStrand),
+            totalPieces: toNullableNumber(item.totalPieces),
+            totalWeightG: toNullableNumber(item.totalWeightG),
+            costPerUsageUnit: toNullableNumber(item.excelUnitCost) ?? toNullableNumber(item.costPerUsageUnit),
           };
 
           const createdMaterial = await tx.erpMaterial.create({ data: createData as any });
@@ -365,24 +455,59 @@ export async function PUT(req: NextRequest) {
         const beforeQty = material.remaining;
         const afterQty = Number(item.excelRemaining) || 0;
         const quantityDiff = afterQty - beforeQty;
-        const updateData: Record<string, unknown> = { remaining: afterQty };
+        const updateData: Record<string, unknown> = {};
+
+        for (const [key, value] of Object.entries({
+          category: toText(item.category),
+          supplier: toText(item.supplier),
+          specification: toNullableText(item.spec),
+          shape: toNullableText(item.shape),
+          remark: toNullableText(item.remark),
+          pricingMethod: parsePricingMethod(item.pricingMethod) || "by_weight",
+          purchaseQty: toNullableNumber(item.purchaseQty),
+          pricingUnit: toNullableText(item.pricingUnit),
+          purchaseTotalPrice: toNullableNumber(item.purchaseTotalPrice),
+          beadsPerStrand: toNullableNumber(item.beadsPerStrand),
+          weightPerStrand: toNullableNumber(item.weightPerStrand),
+          totalPieces: toNullableNumber(item.totalPieces),
+          totalWeightG: toNullableNumber(item.totalWeightG),
+          costPerUsageUnit: toNullableNumber(item.excelUnitCost) ?? toNullableNumber(item.costPerUsageUnit),
+        })) {
+          if (value !== null && value !== undefined && value !== "") {
+            updateData[key] = value;
+          }
+        }
+
+        if (item.excelUnitCost !== null && item.excelUnitCost !== undefined && item.excelUnitCost !== "") {
+          updateData.unitPrice = Number(item.excelUnitCost);
+        }
+
+        if (item.purchaseTotalPrice !== null && item.purchaseTotalPrice !== undefined && item.purchaseTotalPrice !== "") {
+          updateData.purchasePrice = Number(item.purchaseTotalPrice);
+        }
 
         if (item.excelUnitCost !== null && item.excelUnitCost !== undefined && item.excelUnitCost !== "") {
           updateData.unitCost = Number(item.excelUnitCost);
         }
 
+        if (item.excelRemaining !== null && item.excelRemaining !== undefined && item.excelRemaining !== "") {
+          updateData.remaining = afterQty;
+        }
+
         await tx.erpMaterial.update({ where: { id: item.matchedId }, data: updateData });
-        await tx.erpInventoryTransaction.create({
-          data: {
-            materialId: item.matchedId,
-            type: TransactionType.ADJUST,
-            quantity: quantityDiff,
-            beforeQty,
-            afterQty,
-            relatedDoc: "Excel导入调整",
-            remark: item.remark || `Excel导入调整：库存 ${beforeQty} → ${afterQty}`,
-          },
-        });
+        if (quantityDiff !== 0) {
+          await tx.erpInventoryTransaction.create({
+            data: {
+              materialId: item.matchedId,
+              type: TransactionType.ADJUST,
+              quantity: quantityDiff,
+              beforeQty,
+              afterQty,
+              relatedDoc: "Excel导入调整",
+              remark: item.remark || `Excel导入调整：库存 ${beforeQty} → ${afterQty}`,
+            },
+          });
+        }
 
         results.updated++;
         results.matched++;

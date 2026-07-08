@@ -518,8 +518,8 @@ export default function MaterialsClient({
                 />
                 <div style={{ fontSize: 12, color: '#78716c', lineHeight: 1.6 }}>
                   <p style={{ margin: 0 }}>匹配规则：先按编码，找不到再按名称精确匹配。</p>
-                  <p style={{ margin: 0 }}>导入将更新 `raw_materials.remaining` 和 `unitCost`，并写入 `inventory_transactions` 调整记录。</p>
-                  <p style={{ margin: 0 }}>支持允物采购库格式：原料编码、名称、总颗数、单颗成本（颗）</p>
+                  <p style={{ margin: 0 }}>导入会写入供应商、规格、形状、计价方式、采购数量、采购总价、珠子明细、单颗成本等完整字段。</p>
+                  <p style={{ margin: 0 }}>只有库存数量变化时，才会写入 `inventory_transactions` 调整记录。</p>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
                   <button onClick={() => setImportModalOpen(false)} style={{ padding: '8px 14px', border: '1px solid #e7e5e4', borderRadius: 6, background: '#fff' }}>取消</button>
@@ -536,7 +536,7 @@ export default function MaterialsClient({
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                     <thead style={{ background: '#fafaf9' }}>
                       <tr>
-                        {['原料编码', '名称', '自动分类', '匹配方式', '当前库存', 'Excel库存', '差异', '当前单价', 'Excel单价', '动作'].map((h) => (
+                        {['原料编码', '名称', '完整字段', '自动分类', '匹配方式', '当前库存', 'Excel库存', '差异', '当前单价', 'Excel单价', '动作'].map((h) => (
                           <th key={h} style={{ textAlign: 'left', padding: '10px 12px', borderBottom: '1px solid #e7e5e4' }}>{h}</th>
                         ))}
                       </tr>
@@ -546,6 +546,9 @@ export default function MaterialsClient({
                         <tr key={row.rowNum || idx} style={{ borderBottom: '1px solid #f5f5f4' }}>
                           <td style={{ padding: '10px 12px' }}>{row.code}</td>
                           <td style={{ padding: '10px 12px' }}>{row.name}</td>
+                          <td style={{ padding: '10px 12px', color: row.completeFields >= 5 ? '#16a34a' : '#d97706' }}>
+                            {row.fullFieldStatus || (row.completeFields >= 5 ? '已读取供应商/规格/形状/采购价/珠子明细' : '字段不完整')}
+                          </td>
                           <td style={{ padding: '10px 12px' }}>{displayMaterialType(row.materialType)}</td>
                           <td style={{ padding: '10px 12px' }}>{row.matchMethod || (row.matched ? '编码' : '未匹配')}</td>
                           <td style={{ padding: '10px 12px' }}>{row.currentRemaining ?? '—'}</td>
