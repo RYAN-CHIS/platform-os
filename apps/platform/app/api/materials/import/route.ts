@@ -400,6 +400,13 @@ export async function POST(req: NextRequest) {
   }
 }
 
+function materialTypeFromDisplay(display: string): string {
+  const valid = ["BEAD", "METAL", "CERAMIC", "LEATHER", "OTHER", "PACKAGING"];
+  if (valid.includes(display)) return display;
+  const map: Record<string, string> = { 珠子: "BEAD", 配件: "METAL", 瓷器: "CERAMIC", 皮具: "LEATHER" };
+  return map[display] || "OTHER";
+}
+
 export async function PUT(req: NextRequest) {
   try {
     const body = await req.json();
@@ -411,10 +418,33 @@ export async function PUT(req: NextRequest) {
 
     const results = { matched: 0, updated: 0, created: 0, skipped: 0, unmatched: 0, errors: [] as string[] };
 
-    await prisma.$transaction(async (tx) => {
-      for (const item of items) {
+    // Pre-fetch current remaining quantities for all matched materials in ONE
+    // query. This avoids holding an interactive transaction open across a long
+    // loop, which fails on Neon with "Transaction not found".
+    const matchedIds = items
+      .filter((it: any) => it.action === "update" && it.matchedId)
+      .map((it: any) => it.matchedId as number);
+    const currentRemaining = new Map<number, number>();
+    if (matchedIds.length) {
+      const rows = await prisma.erpMaterial.findMany({
+        where: { id: { in: matchedIds } },
+        select: { id: true, remaining: true },
+      });
+      for (const r of rows) currentRemaining.set(r.id, r.remaining);
+    }
+
+    const CHUNK_SIZE = 10;
+    for (let start = 0; start < items.length; start += CHUNK_SIZE) {
+      const chunk = items.slice(start, start + CHUNK_SIZE);
+      const ops: any[] = [];
+
+      for (const item of chunk) {
         if (item.action === "skip") {
           results.skipped++;
+          continue;
+        }
+        if (item.action === "unmatched") {
+          results.unmatched++;
           continue;
         }
 
@@ -425,12 +455,11 @@ export async function PUT(req: NextRequest) {
             results.skipped++;
             continue;
           }
-
-        const createData = {
-          code,
-          name,
+          const createData = {
+            code,
+            name,
             category: toText(item.category),
-            materialType: item.materialType || "OTHER",
+            materialType: materialTypeFromDisplay(item.materialType) || "OTHER",
             supplier: toText(item.supplier),
             specification: toNullableText(item.spec),
             shape: toNullableText(item.shape),
@@ -453,42 +482,41 @@ export async function PUT(req: NextRequest) {
             totalWeightG: toNullableNumber(item.totalWeightG),
             costPerUsageUnit: toNullableNumber(item.excelUnitCost) ?? toNullableNumber(item.costPerUsageUnit),
           };
-
-          const createdMaterial = await tx.erpMaterial.create({ data: createData as any });
-          await tx.erpInventoryTransaction.create({
+          // Create the material together with its initial ADJUST transaction as a
+          // single nested operation (batch transactions can't reference a prior
+          // op's generated id).
+          ops.push(
+            prisma.erpMaterial.create({
               data: {
-                materialId: createdMaterial.id,
-                type: TransactionType.ADJUST,
-                quantity: Number(item.excelRemaining) || 0,
-                beforeQty: 0,
-                afterQty: Number(item.excelRemaining) || 0,
-                relatedDoc: "Excel导入新增",
-                remark: item.remark || `Excel导入新增：库存 0 → ${Number(item.excelRemaining) || 0}`,
-              },
-            });
-
+                ...createData,
+                transactions: {
+                  create: {
+                    type: TransactionType.ADJUST,
+                    quantity: Number(item.excelRemaining) || 0,
+                    beforeQty: 0,
+                    afterQty: Number(item.excelRemaining) || 0,
+                    relatedDoc: "Excel导入新增",
+                    remark: item.remark || `Excel导入新增：库存 0 → ${Number(item.excelRemaining) || 0}`,
+                  },
+                },
+              } as any,
+            })
+          );
           results.created++;
           results.matched++;
           continue;
         }
 
-        if (item.action === "unmatched") {
-          results.unmatched++;
-          continue;
-        }
-
         if (item.action !== "update" || !item.matchedId) continue;
 
-        const material = await tx.erpMaterial.findUnique({ where: { id: item.matchedId }, select: { remaining: true } });
-        if (!material) {
-          results.errors.push(`材料 ID ${item.matchedId} 不存在`);
-          continue;
-        }
-
-        const beforeQty = material.remaining;
+        const beforeQty = currentRemaining.get(item.matchedId) ?? 0;
         const afterQty = Number(item.excelRemaining) || 0;
         const quantityDiff = afterQty - beforeQty;
         const updateData: Record<string, unknown> = {};
+
+        // Persist the auto-classified material type (preview computes it but the
+        // update payload must carry it through).
+        updateData.materialType = materialTypeFromDisplay(item.materialType) || "OTHER";
 
         for (const [key, value] of Object.entries({
           category: toText(item.category),
@@ -514,38 +542,40 @@ export async function PUT(req: NextRequest) {
         if (item.excelUnitCost !== null && item.excelUnitCost !== undefined && item.excelUnitCost !== "") {
           updateData.unitPrice = Number(item.excelUnitCost);
         }
-
         if (item.purchaseTotalPrice !== null && item.purchaseTotalPrice !== undefined && item.purchaseTotalPrice !== "") {
           updateData.purchasePrice = Number(item.purchaseTotalPrice);
         }
-
         if (item.excelUnitCost !== null && item.excelUnitCost !== undefined && item.excelUnitCost !== "") {
           updateData.unitCost = Number(item.excelUnitCost);
         }
-
         if (item.excelRemaining !== null && item.excelRemaining !== undefined && item.excelRemaining !== "") {
           updateData.remaining = afterQty;
         }
 
-        await tx.erpMaterial.update({ where: { id: item.matchedId }, data: updateData });
+        ops.push(prisma.erpMaterial.update({ where: { id: item.matchedId }, data: updateData }));
         if (quantityDiff !== 0) {
-          await tx.erpInventoryTransaction.create({
-            data: {
-              materialId: item.matchedId,
-              type: TransactionType.ADJUST,
-              quantity: quantityDiff,
-              beforeQty,
-              afterQty,
-              relatedDoc: "Excel导入调整",
-              remark: item.remark || `Excel导入调整：库存 ${beforeQty} → ${afterQty}`,
-            },
-          });
+          ops.push(
+            prisma.erpInventoryTransaction.create({
+              data: {
+                materialId: item.matchedId,
+                type: TransactionType.ADJUST,
+                quantity: quantityDiff,
+                beforeQty,
+                afterQty,
+                relatedDoc: "Excel导入调整",
+                remark: item.remark || `Excel导入调整：库存 ${beforeQty} → ${afterQty}`,
+              },
+            })
+          );
         }
-
         results.updated++;
         results.matched++;
       }
-    });
+
+      if (ops.length) {
+        await prisma.$transaction(ops);
+      }
+    }
 
     return NextResponse.json({ ok: true, results });
   } catch (error: any) {

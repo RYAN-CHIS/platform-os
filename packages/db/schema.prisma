@@ -433,6 +433,8 @@ enum ErpMaterialType {
   CORD
   PACKAGING
   OTHER
+
+  @@map("MaterialType")
 }
 
 enum TransactionType {
