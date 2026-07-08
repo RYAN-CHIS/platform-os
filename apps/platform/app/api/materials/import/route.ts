@@ -199,6 +199,44 @@ function classifyMaterial(input: { code: string; name: string; category: string;
   return "OTHER";
 }
 
+function normalizeHeaderText(value: unknown) {
+  return normalizeCell(value)
+    .replace(/\s+/g, "")
+    .replace(/[（(].*?[)）]/g, "")
+    .trim();
+}
+
+function buildNormalizedRow(headerRow: unknown[], dataRow: unknown[]) {
+  const normalized: Record<string, unknown> = {};
+  headerRow.forEach((header, index) => {
+    const rawHeader = normalizeCell(header);
+    const aliasKey = COLUMN_ALIASES[rawHeader] || COLUMN_ALIASES[normalizeHeaderText(header)] || rawHeader;
+    if (!aliasKey) return;
+    normalized[aliasKey] = dataRow[index];
+  });
+  return normalized;
+}
+
+function parseWorkbookRows(sheet: XLSX.WorkSheet) {
+  const matrix = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: "" });
+  const row1 = Array.isArray(matrix[0]) ? matrix[0] : [];
+  const row2 = Array.isArray(matrix[1]) ? matrix[1] : [];
+  const row2HasHeaders = row2.some((cell) => {
+    const text = normalizeHeaderText(cell);
+    return text === "原料编码" || text === "名称" || text === "供应商" || text === "计价方式";
+  });
+
+  if (row2HasHeaders) {
+    const dataRows = matrix.slice(3).filter((row) => Array.isArray(row) && row.some((cell) => normalizeCell(cell) !== ""));
+    return { mode: "double-header" as const, headerRow: row2, dataRows, rowOffset: 4 };
+  }
+
+  const headerRow = row1.some((cell) => normalizeCell(cell) !== "") ? row1 : row2;
+  const dataStart = headerRow === row1 ? 1 : 2;
+  const dataRows = matrix.slice(dataStart).filter((row) => Array.isArray(row) && row.some((cell) => normalizeCell(cell) !== ""));
+  return { mode: "single-header" as const, headerRow, dataRows, rowOffset: dataStart + 1 };
+}
+
 export async function POST(req: NextRequest) {
   try {
     const formData = await req.formData();
@@ -224,12 +262,12 @@ export async function POST(req: NextRequest) {
     if (!sheet) {
       return NextResponse.json({ ok: false, error: "未找到可用工作表" }, { status: 400 });
     }
-    const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: "" });
-    console.info("[materials/import] sheet:", sheetName, "row count:", rows.length);
-    console.info("[materials/import] parsed headers:", Object.keys(rows[0] || {}));
-    console.info("[materials/import] first row:", rows[0] || null);
+    const parsedSheet = parseWorkbookRows(sheet);
+    console.info("[materials/import] sheet:", sheetName, "mode:", parsedSheet.mode, "row count:", parsedSheet.dataRows.length);
+    console.info("[materials/import] parsed headers:", parsedSheet.headerRow.map((cell) => normalizeCell(cell)));
+    console.info("[materials/import] first data row:", parsedSheet.dataRows[0] || null);
 
-    if (rows.length === 0) {
+    if (parsedSheet.dataRows.length === 0) {
       return NextResponse.json({ ok: false, error: "文件为空或格式不正确" }, { status: 400 });
     }
 
@@ -239,14 +277,9 @@ export async function POST(req: NextRequest) {
       orderBy: { code: "asc" },
     });
 
-    const preview = rows.map((row, index) => {
-      const rowNum = index + 2;
-      const normalized: Record<string, unknown> = {};
-
-      for (const [key, value] of Object.entries(row)) {
-        const normalizedKey = COLUMN_ALIASES[normalizeCell(key)] || normalizeCell(key);
-        normalized[normalizedKey] = value;
-      }
+    const preview = parsedSheet.dataRows.map((dataRow, index) => {
+      const rowNum = index + parsedSheet.rowOffset;
+      const normalized = buildNormalizedRow(parsedSheet.headerRow, dataRow);
 
       const code = normalizeCell(normalized.code);
       const name = normalizeCell(normalized.name);

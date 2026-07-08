@@ -99,6 +99,7 @@ export function middleware(request: NextRequest) {
     pathname.startsWith("/login") ||
     pathname.startsWith("/api/auth") ||
     pathname.startsWith("/api/media") ||
+    pathname.startsWith("/api/materials") ||
     pathname === "/settings" ||
     pathname.startsWith("/settings/")
   ) {
@@ -153,7 +154,8 @@ export function middleware(request: NextRequest) {
       pathname.startsWith("/api/seed-roles") ||
       pathname.startsWith("/api/auth") ||
       pathname.startsWith("/api/media") ||
-      pathname.startsWith("/api/audit")
+      pathname.startsWith("/api/audit") ||
+      pathname.startsWith("/api/materials")
     ) {
       return NextResponse.next();
     }
