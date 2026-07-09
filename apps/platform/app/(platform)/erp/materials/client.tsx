@@ -329,13 +329,11 @@ export default function MaterialsClient({
     return '—';
   }
 
-  const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
+  // 同一时间只能展开一个材料详情：用单个 expandedMaterialId 派生出 expandedRows 集合
+  const [expandedMaterialId, setExpandedMaterialId] = useState<number | null>(null);
+  const expandedRows = expandedMaterialId == null ? new Set<number>() : new Set<number>([expandedMaterialId]);
   const toggleExpand = (id: number) => {
-    setExpandedRows(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
+    setExpandedMaterialId(prev => (prev === id ? null : id));
   };
 
   const formatDate = (v: any) => v ? new Date(v).toLocaleString('zh-CN') : '—';
