@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Fragment, useState } from "react";
 
 export interface Column {
   key: string;
@@ -92,24 +92,27 @@ export default function ErpDataTable({
           </tr>
         </thead>
         <tbody>
-          {displayRows.map((row, i) => (
-            <tr key={row.id || i} style={{borderBottom:"1px solid #f5f5f4"}}>
-              {columns.map(col => (
-                <td key={col.key} style={{padding:"10px 12px",color:"#44403c",whiteSpace:"nowrap",textAlign:col.align||"left",verticalAlign:"middle",height:44}}>
-                  {col.render ? col.render(row[col.key], row) : (row[col.key] ?? "—")}
-                </td>
-              ))}
-            </tr>
-          ))}
-          {expandedRows && renderExpanded && displayRows.map((row, i) => {
+          {displayRows.map((row, i) => {
             const id = row.id || i;
-            if (!expandedRows.has(id)) return null;
+            const isExpanded = Boolean(expandedRows && renderExpanded && expandedRows.has(id));
+
             return (
-              <tr key={`expanded-${id}`} style={{background:"#fafaf9",borderBottom:"2px solid #e7e5e4"}}>
-                <td colSpan={columns.length} style={{padding:"0 12px 12px"}}>
-                  {renderExpanded(row)}
-                </td>
-              </tr>
+              <Fragment key={id}>
+                <tr style={{borderBottom:"1px solid #f5f5f4"}}>
+                  {columns.map(col => (
+                    <td key={col.key} style={{padding:"10px 12px",color:"#44403c",whiteSpace:"nowrap",textAlign:col.align||"left",verticalAlign:"middle",height:44}}>
+                      {col.render ? col.render(row[col.key], row) : (row[col.key] ?? "—")}
+                    </td>
+                  ))}
+                </tr>
+                {isExpanded && (
+                  <tr style={{background:"#fafaf9",borderBottom:"2px solid #e7e5e4"}}>
+                    <td colSpan={columns.length} style={{padding:"0 12px 12px"}}>
+                      {renderExpanded(row)}
+                    </td>
+                  </tr>
+                )}
+              </Fragment>
             );
           })}
         </tbody>
