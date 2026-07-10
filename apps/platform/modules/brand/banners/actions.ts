@@ -3,16 +3,22 @@
 import { brandPrisma } from "@yunwu/db/brand";
 import { createCrudAudit, createStatusAudit } from "@/lib/audit";
 import { transitionStatus } from "@/lib/publisher";
+import { revalidatePath } from "next/cache";
+
+const BANNERS_PATH = "/brand/banners";
 
 function toSnake(s: string) { return s.replace(/[A-Z]/g, m => '_'+m.toLowerCase()); }
 
 export async function listBanners(params?: { status?: string; position?: string; sort?: string; order?: string }) {
   try {
+    // 直接读取真实数据库，不做任何状态过滤 —— 确保 DRAFT / IN_REVIEW / APPROVED /
+    // SCHEDULED / PUBLISHED / ARCHIVED / REJECTED 等所有状态的 Banner 都进入管理列表。
     let sql = `SELECT * FROM banners WHERE 1=1`;
     const vals: any[] = [];
     if (params?.status) { vals.push(params.status); sql += ` AND status = $${vals.length}`; }
     if (params?.position) { vals.push(params.position); sql += ` AND position = $${vals.length}`; }
-    sql += ` ORDER BY sort_order ASC, created_at DESC`;
+    // 排序优先级：sort_order 升序（null 视为 0）；无排序值时按 created_at 倒序
+    sql += ` ORDER BY COALESCE(sort_order, 0) ASC, created_at DESC`;
     const rows = await brandPrisma.$queryRawUnsafe<any[]>(sql, ...vals);
     return { rows, total: rows.length, error: null };
   } catch (e: any) { return { rows: [], total: 0, error: e.message }; }
@@ -26,6 +32,7 @@ export async function createBanner(data: { title: string; image_url?: string; li
       data.sort_order || 0, data.status || 'DRAFT', data.start_at || null, data.end_at || null
     );
     try { await createCrudAudit({ action: "CREATE", system: "BRAND", module: "banners", targetId: rows[0].id, after: rows[0] }); } catch {}
+    revalidatePath(BANNERS_PATH);
     return { row: rows[0], error: null };
   } catch (e: any) { return { row: null, error: e.message }; }
 }
@@ -44,6 +51,7 @@ export async function updateBanner(id: number, data: Record<string, unknown>) {
     await brandPrisma.$executeRawUnsafe(`UPDATE banners SET ${sets.join(', ')}, updated_at = NOW() WHERE id = $1`, ...vals);
     const after = await brandPrisma.$queryRawUnsafe<any[]>(`SELECT * FROM banners WHERE id = $1`, id);
     try { await createCrudAudit({ action: "UPDATE", system: "BRAND", module: "banners", targetId: id, before, after: after[0] }); } catch {}
+    revalidatePath(BANNERS_PATH);
     return { row: after[0], error: null };
   } catch (e: any) { return { row: null, error: e.message }; }
 }
@@ -53,6 +61,7 @@ export async function deleteBanner(id: number) {
     const beforeRows = await brandPrisma.$queryRawUnsafe<any[]>(`SELECT * FROM banners WHERE id = $1`, id);
     await brandPrisma.$executeRawUnsafe(`DELETE FROM banners WHERE id = $1`, id);
     try { await createCrudAudit({ action: "DELETE", system: "BRAND", module: "banners", targetId: id, before: beforeRows[0] }); } catch {}
+    revalidatePath(BANNERS_PATH);
     return { error: null };
   } catch (e: any) { return { error: e.message }; }
 }
@@ -67,6 +76,7 @@ export async function moveBanner(id: number, direction: "up" | "down") {
     const swapIdx = direction === "up" ? idx - 1 : idx + 1;
     await brandPrisma.$executeRawUnsafe(`UPDATE banners SET sort_order = $1 WHERE id = $2`, rows[swapIdx].sort_order, id);
     await brandPrisma.$executeRawUnsafe(`UPDATE banners SET sort_order = $1 WHERE id = $2`, rows[idx].sort_order, rows[swapIdx].id);
+    revalidatePath(BANNERS_PATH);
     return { error: null };
   } catch (e: any) { return { error: e.message }; }
 }
@@ -77,6 +87,7 @@ export async function publishBanner(id: number) {
     const result = await transitionStatus("banners", String(id), "PUBLISHED");
     if (!result.success) return { error: result.error };
     const rows = await brandPrisma.$queryRawUnsafe<any[]>(`SELECT * FROM banners WHERE id = $1`, id);
+    revalidatePath(BANNERS_PATH);
     return { row: rows[0], error: null };
   } catch (e: any) { return { row: null, error: e.message }; }
 }
@@ -86,6 +97,7 @@ export async function unpublishBanner(id: number) {
     const result = await transitionStatus("banners", String(id), "DRAFT");
     if (!result.success) return { error: result.error };
     const rows = await brandPrisma.$queryRawUnsafe<any[]>(`SELECT * FROM banners WHERE id = $1`, id);
+    revalidatePath(BANNERS_PATH);
     return { row: rows[0], error: null };
   } catch (e: any) { return { row: null, error: e.message }; }
 }

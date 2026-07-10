@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { listBanners, createBanner, updateBanner, deleteBanner, moveBanner, publishBanner, unpublishBanner } from "@/modules/brand/banners/actions";
 import {
   BrandFormModal,
@@ -15,7 +16,14 @@ import {
 } from "@/components/brand";
 
 const STATUS_COLORS: Record<string, string> = {
-  DRAFT: "#78716c", PUBLISHED: "#16a34a", SCHEDULED: "#9333ea", ARCHIVED: "#57534e"
+  DRAFT: "#78716c",
+  IN_REVIEW: "#2563eb",
+  PENDING_REVIEW: "#2563eb",
+  APPROVED: "#0891b2",
+  SCHEDULED: "#9333ea",
+  PUBLISHED: "#16a34a",
+  ARCHIVED: "#57534e",
+  REJECTED: "#dc2626",
 };
 
 const POSITION_OPTIONS = [
@@ -24,10 +32,15 @@ const POSITION_OPTIONS = [
   { label: "系列页", value: "series" },
 ];
 
+// 覆盖系统全部状态，确保任何现有 Banner 状态都能正确显示与编辑
 const STATUS_OPTIONS = [
   { label: "草稿", value: "DRAFT" },
+  { label: "待审核", value: "IN_REVIEW" },
+  { label: "已通过", value: "APPROVED" },
+  { label: "已排期", value: "SCHEDULED" },
   { label: "已发布", value: "PUBLISHED" },
   { label: "已归档", value: "ARCHIVED" },
+  { label: "已驳回", value: "REJECTED" },
 ];
 
 function BannerFormContent({ form, setForm }: {
@@ -72,20 +85,33 @@ function BannerFormContent({ form, setForm }: {
 }
 
 export default function BrandBannersClient({ initialData }: { initialData: { rows: any[]; total: number; error: string | null } }) {
+  const router = useRouter();
   const [rows, setRows] = useState(initialData.rows || []);
+  // 计数必须来自真实查询结果，而非客户端 state 长度
+  const [total, setTotal] = useState<number>(initialData.total ?? (initialData.rows || []).length);
   const [loading, setLoading] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [editRow, setEditRow] = useState<any>(null);
   const [msg, setMsg] = useState<{message:string;type:string}|null>(null);
+  // 查询失败必须明确展示，绝不静默显示空列表
+  const [queryError, setQueryError] = useState<string | null>(initialData.error || null);
 
   const [form, setForm] = useState<Record<string, any>>({ title: "", subtitle: "", btn_text: "", image_url: "", link_url: "", position: "home", sort_order: 0, status: "DRAFT" });
 
   const refresh = async () => {
     setLoading(true);
     const r = await listBanners();
-    if (r.error) setMsg({ message: r.error, type: "error" });
-    else setRows(r.rows);
+    if (r.error) {
+      setQueryError(r.error);
+      setMsg({ message: `加载失败：${r.error}`, type: "error" });
+    } else {
+      setQueryError(null);
+      setRows(r.rows);
+      setTotal(r.total);
+    }
     setLoading(false);
+    // 同步服务端缓存，确保硬刷新后数据依然存在
+    router.refresh();
   };
 
   const openCreate = () => {
@@ -142,14 +168,21 @@ export default function BrandBannersClient({ initialData }: { initialData: { row
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
         <div>
           <h1 style={{ fontSize: 20, fontWeight: 300, letterSpacing: "0.1em", color: "#1c1917", margin: 0 }}>Banner 管理</h1>
-          <p style={{ fontSize: 12, color: "#a8a29e", marginTop: 4 }}>共 {rows.length} 条</p>
+          <p style={{ fontSize: 12, color: "#a8a29e", marginTop: 4 }}>共 {total} 条</p>
         </div>
         <button onClick={openCreate} style={{ height: 36, padding: "0 16px", background: "#292524", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontSize: 13 }}>
           + 新增 Banner
         </button>
       </div>
 
-      {rows.length === 0 ? (
+      {queryError && rows.length === 0 ? (
+        // 加载失败：明确报错，不静默空列表
+        <div style={{ background: "#fff7ed", border: "1px solid #fdba74", borderRadius: 8, padding: 24 }}>
+          <div style={{ color: "#c2410c", fontWeight: 500 }}>Banner 数据加载失败</div>
+          <div style={{ fontSize: 12, color: "#9a3412", marginTop: 6, wordBreak: "break-all" }}>{queryError}</div>
+          <button onClick={refresh} style={{ marginTop: 12, height: 32, padding: "0 14px", background: "#292524", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontSize: 13 }}>重试</button>
+        </div>
+      ) : rows.length === 0 ? (
         <div style={{ background: "#fff", border: "1px solid #e7e5e4", borderRadius: 8, padding: 24 }}>
           <div style={{ textAlign: "center", color: "#a8a29e", padding: 40 }}>暂无 Banner</div>
         </div>
@@ -167,7 +200,7 @@ export default function BrandBannersClient({ initialData }: { initialData: { row
                 <button onClick={() => handleMove(row.id, "up")} style={miniBtn}>↑</button>
                 <button onClick={() => handleMove(row.id, "down")} style={miniBtn}>↓</button>
                 <button onClick={() => openEdit(row)} style={miniBtn}>编辑</button>
-                {row.status === "DRAFT" && <button onClick={async () => { await publishBanner(row.id); refresh(); }} style={{ ...miniBtn, color: "#16a34a", borderColor: "#16a34a" }}>发布</button>}
+                {(row.status === "DRAFT" || row.status === "APPROVED" || row.status === "SCHEDULED") && <button onClick={async () => { await publishBanner(row.id); refresh(); }} style={{ ...miniBtn, color: "#16a34a", borderColor: "#16a34a" }}>发布</button>}
                 {row.status === "PUBLISHED" && <button onClick={async () => { await unpublishBanner(row.id); refresh(); }} style={{ ...miniBtn, color: "#d97706", borderColor: "#d97706" }}>下架</button>}
                 <button onClick={() => handleDelete(row.id)} style={{ ...miniBtn, color: "#ef4444", borderColor: "#ef4444" }}>删除</button>
               </div>
