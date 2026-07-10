@@ -24,18 +24,24 @@ export async function listBanners(params?: { status?: string; position?: string;
   } catch (e: any) { return { rows: [], total: 0, error: e.message }; }
 }
 
-export async function createBanner(data: { title: string; image_url?: string; link_url?: string; position?: string; sort_order?: number; status?: string; start_at?: string; end_at?: string }) {
+export async function createBanner(data: { title: string; subtitle?: string; btn_text?: string; image_url?: string; mobile_image_url?: string; link_url?: string; position?: string; sort_order?: number; status?: string; start_at?: string; end_at?: string }) {
   try {
-    const sql = `INSERT INTO banners (title, image_url, link_url, position, sort_order, status, start_at, end_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`;
+    const sql = `INSERT INTO banners (title, subtitle, btn_text, image_url, mobile_image_url, link_url, position, sort_order, status, start_at, end_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`;
     const rows = await brandPrisma.$queryRawUnsafe<any[]>(sql,
-      data.title, data.image_url || null, data.link_url || null, data.position || 'home',
-      data.sort_order || 0, data.status || 'DRAFT', data.start_at || null, data.end_at || null
+      data.title, data.subtitle || null, data.btn_text || null, data.image_url || null, data.mobile_image_url || null,
+      data.link_url || null, data.position || 'home', data.sort_order || 0, data.status || 'DRAFT', data.start_at || null, data.end_at || null
     );
     try { await createCrudAudit({ action: "CREATE", system: "BRAND", module: "banners", targetId: rows[0].id, after: rows[0] }); } catch {}
     revalidatePath(BANNERS_PATH);
     return { row: rows[0], error: null };
   } catch (e: any) { return { row: null, error: e.message }; }
 }
+
+// 仅允许更新 banners 表真实存在的列，防止表单传入多余字段导致 UPDATE 报错
+const BANNER_COLUMNS = new Set([
+  "title", "subtitle", "btn_text", "image_url", "mobile_image_url", "link_url",
+  "position", "sort_order", "status", "start_at", "end_at",
+]);
 
 export async function updateBanner(id: number, data: Record<string, unknown>) {
   try {
@@ -44,7 +50,9 @@ export async function updateBanner(id: number, data: Record<string, unknown>) {
     const sets: string[] = []; const vals: any[] = [id];
     for (const [k, v] of Object.entries(data)) {
       if (k === 'id') continue;
-      sets.push(`${toSnake(k)} = $${vals.length + 1}`);
+      const col = toSnake(k);
+      if (!BANNER_COLUMNS.has(col)) continue;
+      sets.push(`${col} = $${vals.length + 1}`);
       vals.push(v === '' ? null : v);
     }
     if (sets.length === 0) return { row: before, error: null };

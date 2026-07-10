@@ -100,6 +100,35 @@ platform-os/
 | **Production URL (Storefront)** | `https://www.yunwuorigin.com` | Vercel, connected to RYAN-CHIS/yunwu-origin |
 | **Blob Store** | Vercel Blob | `store_aX5AkCAHGANaFqRv` (shared) |
 
+### 2.7 Banner Management — 统一数据源（2026-07-11）
+
+| 项 | 值 |
+|----|----|
+| **Single Source of Truth** | Brand DB `neondb`（`ep-morning-sun-aoo4dk3t`）的 `banners` 表 |
+| 后台管理路径 | `apps/platform/app/(platform)/brand/banners/`（`page.tsx` + `client.tsx`）+ `apps/platform/modules/brand/banners/actions.ts` |
+| 前台读取层 | `yunwu-origin/src/lib/banners.ts` → `getPublishedBannersByPlacement(placement)` |
+| 前台展示组件 | `yunwu-origin/src/components/BannerSection.tsx`（服务端组件）|
+| 前台接入点 | `yunwu-origin/src/app/page.tsx` 首页 `placement="home"` |
+| placement 约定 | `home` / `product` / `series`（可扩展）|
+| 发布过滤 | `status='PUBLISHED'` 且 `start_at <= now` 且 `end_at >= now` |
+| 排序 | `sort_order ASC`（NULL 视为 0），其次 `created_at DESC` |
+| 移动端 | 优先 `mobile_image_url`，缺省回退 `image_url` |
+| 静态 / JSON Banner 是否已迁移 | **无**——网站原计划无图片 Banner；首页 Hero 为纯文字品牌叙事（`src/data/site-settings.json`），保留不纳入 Banner 管理 |
+| 临时 fallback | **无**——前台直连 DB；`BannerSection` 空结果返回 `null`，不存在静态双数据源 |
+| `banners` 表关键列 | id, title, subtitle, btn_text, image_url, mobile_image_url, link_url, position, sort_order, status, start_at, end_at, published_at, created_at, updated_at |
+
+**数据源边界（重要更正）**：Storefront（`yunwu-origin`）的 `DATABASE_URL` 与 Brand OS 的 `BRAND_DATABASE_URL` 指向**同一** Neon 实例（`ep-morning-sun-aoo4dk3t` / `neondb`）。因此前台可直连读取后台已发布 Banner，无需复制/同步。后台 `banners` 表是唯一编辑源；前台只消费发布数据。
+
+**禁止事项**：后台与静态 JSON 长期双数据源；前台复制 Banner 内容；发布后将 Banner 移出主表；为让页面出现而重复创建同一 Banner；将商品图片误迁为 Banner。
+
+**相关 commit**：
+- platform-os（后台 + 本文档）：见本仓库最新 commit
+- yunwu-origin（前台读取层 + 接入）：`bf8fe90aec227690bcd4c0b4e2834fceece57f4a`
+
+**生产部署**：
+- 后台：`https://platform.yunwuorigin.com/brand/banners`
+- 前台：`https://www.yunwuorigin.com`
+
 ---
 
 ## 3. Active Directories (FORBIDDEN list below)

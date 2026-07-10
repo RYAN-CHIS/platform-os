@@ -73,10 +73,13 @@ function BannerFormContent({ form, setForm }: {
         </BrandField>
       </BrandFormSection>
 
-      <BrandFormSection title="背景图" description="Banner 背景图片">
+      <BrandFormSection title="背景图" description="桌面端 / 移动端图片（移动端缺省时回退桌面端）">
         <BrandFormRow>
-          <BrandField label="图片">
+          <BrandField label="桌面端图片">
             <BrandMediaPicker value={form.image_url || ""} onChange={(v) => setForm((p) => ({ ...p, image_url: v }))} />
+          </BrandField>
+          <BrandField label="移动端图片（可选）">
+            <BrandMediaPicker value={form.mobile_image_url || ""} onChange={(v) => setForm((p) => ({ ...p, mobile_image_url: v }))} />
           </BrandField>
         </BrandFormRow>
       </BrandFormSection>
@@ -96,11 +99,15 @@ export default function BrandBannersClient({ initialData }: { initialData: { row
   // 查询失败必须明确展示，绝不静默显示空列表
   const [queryError, setQueryError] = useState<string | null>(initialData.error || null);
 
-  const [form, setForm] = useState<Record<string, any>>({ title: "", subtitle: "", btn_text: "", image_url: "", link_url: "", position: "home", sort_order: 0, status: "DRAFT" });
+  // 筛选状态：默认“全部”，不遗漏任何状态的 Banner（含 PUBLISHED）
+  const [statusFilter, setStatusFilter] = useState<string>("");
+  const [positionFilter, setPositionFilter] = useState<string>("");
 
-  const refresh = async () => {
+  const [form, setForm] = useState<Record<string, any>>({ title: "", subtitle: "", btn_text: "", image_url: "", mobile_image_url: "", link_url: "", position: "home", sort_order: 0, status: "DRAFT" });
+
+  const load = async (params?: { status?: string; position?: string }) => {
     setLoading(true);
-    const r = await listBanners();
+    const r = await listBanners(params);
     if (r.error) {
       setQueryError(r.error);
       setMsg({ message: `加载失败：${r.error}`, type: "error" });
@@ -114,9 +121,13 @@ export default function BrandBannersClient({ initialData }: { initialData: { row
     router.refresh();
   };
 
+  const refresh = () => load({ status: statusFilter || undefined, position: positionFilter || undefined });
+  const onStatusFilter = (v: string) => { setStatusFilter(v); load({ status: v || undefined, position: positionFilter || undefined }); };
+  const onPositionFilter = (v: string) => { setPositionFilter(v); load({ status: statusFilter || undefined, position: v || undefined }); };
+
   const openCreate = () => {
     setEditRow(null);
-    setForm({ title: "", subtitle: "", btn_text: "", image_url: "", link_url: "", position: "home", sort_order: 0, status: "DRAFT" });
+    setForm({ title: "", subtitle: "", btn_text: "", image_url: "", mobile_image_url: "", link_url: "", position: "home", sort_order: 0, status: "DRAFT" });
     setModalOpen(true);
   };
 
@@ -124,7 +135,7 @@ export default function BrandBannersClient({ initialData }: { initialData: { row
     setEditRow(row);
     setForm({
       title: row.title || "", subtitle: row.subtitle || "", btn_text: row.btn_text || "",
-      image_url: row.image_url || "", link_url: row.link_url || "",
+      image_url: row.image_url || "", mobile_image_url: row.mobile_image_url || "", link_url: row.link_url || "",
       position: row.position || "home", sort_order: row.sort_order || 0, status: row.status || "DRAFT",
     });
     setModalOpen(true);
@@ -175,6 +186,30 @@ export default function BrandBannersClient({ initialData }: { initialData: { row
         </button>
       </div>
 
+      {/* 筛选栏：默认“全部”，不遗漏已发布等任何状态 */}
+      <div style={{ display: "flex", gap: 12, marginBottom: 16, flexWrap: "wrap", alignItems: "center" }}>
+        <select value={statusFilter} onChange={(e) => onStatusFilter(e.target.value)} style={filterSel}>
+          <option value="">全部状态</option>
+          <option value="DRAFT">草稿</option>
+          <option value="IN_REVIEW">待审核</option>
+          <option value="APPROVED">已通过</option>
+          <option value="SCHEDULED">已排期</option>
+          <option value="PUBLISHED">已发布</option>
+          <option value="ARCHIVED">已归档</option>
+          <option value="REJECTED">已驳回</option>
+        </select>
+        <select value={positionFilter} onChange={(e) => onPositionFilter(e.target.value)} style={filterSel}>
+          <option value="">全部位置</option>
+          <option value="home">首页</option>
+          <option value="product">产品页</option>
+          <option value="series">系列页</option>
+        </select>
+        {(statusFilter || positionFilter) && (
+          <button onClick={() => { setStatusFilter(""); setPositionFilter(""); load(); }} style={{ ...miniBtn }}>重置筛选</button>
+        )}
+        {loading && <span style={{ fontSize: 12, color: "#a8a29e" }}>加载中…</span>}
+      </div>
+
       {queryError && rows.length === 0 ? (
         // 加载失败：明确报错，不静默空列表
         <div style={{ background: "#fff7ed", border: "1px solid #fdba74", borderRadius: 8, padding: 24 }}>
@@ -190,10 +225,20 @@ export default function BrandBannersClient({ initialData }: { initialData: { row
         <div style={{ display: "grid", gap: 16 }}>
           {rows.map((row: any) => (
             <div key={row.id} style={{ background: "#fff", border: "1px solid #e7e5e4", borderRadius: 8, padding: 16, display: "flex", gap: 16, alignItems: "center" }}>
-              {row.image_url && <img src={row.image_url} alt={row.title} style={{ width: 120, height: 60, objectFit: "cover", borderRadius: 4 }} />}
-              <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 500 }}>{row.title}</div>
-                <div style={{ fontSize: 12, color: "#a8a29e" }}>{row.position} · 排序: {row.sort_order}</div>
+              {(row.image_url || row.mobile_image_url) && <img src={row.image_url || row.mobile_image_url} alt={row.title} style={{ width: 120, height: 60, objectFit: "cover", borderRadius: 4, flexShrink: 0 }} />}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 500 }}>{row.title}{row.subtitle ? <span style={{ fontWeight: 400, color: "#78716c" }}> · {row.subtitle}</span> : ""}</div>
+                <div style={{ fontSize: 12, color: "#a8a29e", marginTop: 2 }}>
+                  {row.position} · 排序 {row.sort_order}
+                  {row.link_url ? ` · 链接 ${row.link_url}` : ""}
+                  {row.btn_text ? ` · CTA ${row.btn_text}` : ""}
+                </div>
+                <div style={{ fontSize: 12, color: "#a8a29e", marginTop: 2 }}>
+                  生效 {row.start_at ? new Date(row.start_at).toLocaleString("zh-CN") : "—"}
+                  {" / "}
+                  失效 {row.end_at ? new Date(row.end_at).toLocaleString("zh-CN") : "—"}
+                  {" · "}{row.mobile_image_url ? "移动图✓" : "移动图✗"}
+                </div>
               </div>
               <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 10, background: STATUS_COLORS[row.status] || "#e7e5e4", color: row.status === "DRAFT" ? "#57534e" : "#fff" }}>{row.status}</span>
               <div style={{ display: "flex", gap: 4 }}>
@@ -222,4 +267,9 @@ export default function BrandBannersClient({ initialData }: { initialData: { row
 const miniBtn: React.CSSProperties = {
   padding: "4px 8px", border: "1px solid #e7e5e4", borderRadius: 4,
   background: "#fff", cursor: "pointer", fontSize: 12, fontFamily: "inherit",
+};
+
+const filterSel: React.CSSProperties = {
+  height: 34, padding: "0 10px", border: "1px solid #e7e5e4", borderRadius: 6,
+  background: "#fff", cursor: "pointer", fontSize: 13, fontFamily: "inherit", color: "#1c1917",
 };
