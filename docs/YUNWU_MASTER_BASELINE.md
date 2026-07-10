@@ -116,14 +116,40 @@ platform-os/
 | 静态 / JSON Banner 是否已迁移 | **无**——网站原计划无图片 Banner；首页 Hero 为纯文字品牌叙事（`src/data/site-settings.json`），保留不纳入 Banner 管理 |
 | 临时 fallback | **无**——前台直连 DB；`BannerSection` 空结果返回 `null`，不存在静态双数据源 |
 | `banners` 表关键列 | id, title, subtitle, btn_text, image_url, mobile_image_url, link_url, position, sort_order, status, start_at, end_at, published_at, created_at, updated_at |
+| 新增列（2026-07-11） | `published_at`(timestamptz)、`subtitle`(varchar 255)、`btn_text`(varchar 120)、`mobile_image_url`(text) —— 均为 nullable，无默认值 |
+| 迁移方式 | Brand DB 手动迁移（Prisma CLI 6.19.3 vs 全局 7.8.0 不兼容，禁用 `db push` / `migrate`）|
+| 正式迁移文件 | `docs/db/migrations/2026-07-11-add-banner-management-columns.sql`（幂等 `IF NOT EXISTS`，含 forward + rollback 注释）|
+| 迁移记录文档 | `docs/db/brand-db-manual-migrations.md` → 迁移 #2 |
+| Rollback | 手动 `ALTER TABLE banners DROP COLUMN IF EXISTS <col>`（4 列，详见迁移文件注释；回滚会丢弃字段内容）|
+| Prisma Schema 对齐 | yunwu-origin `prisma/schema.prisma` `banners` 模型已含 15 列，与真实 DB 一致；`prisma validate` ✅ / `prisma generate` ✅。platform-os 无 banners Prisma 模型（由 `$queryRawUnsafe` 管理）|
+| 测试 Banner 清理 | 已清理——`banners` 表恢复为 1 条正式数据（`个人中心` / home / DRAFT），无测试残留 |
 
 **数据源边界（重要更正）**：Storefront（`yunwu-origin`）的 `DATABASE_URL` 与 Brand OS 的 `BRAND_DATABASE_URL` 指向**同一** Neon 实例（`ep-morning-sun-aoo4dk3t` / `neondb`）。因此前台可直连读取后台已发布 Banner，无需复制/同步。后台 `banners` 表是唯一编辑源；前台只消费发布数据。
 
-**禁止事项**：后台与静态 JSON 长期双数据源；前台复制 Banner 内容；发布后将 Banner 移出主表；为让页面出现而重复创建同一 Banner；将商品图片误迁为 Banner。
+**数据库凭证权限（2026-07-11 核验）**：
+
+| repo | env key | host fingerprint | database | role/username | 权限 |
+|------|---------|------------------|----------|----------------|------|
+| platform-os | `BRAND_DATABASE_URL` | `ep-morning-sun-aoo4dk3t` (ap-southeast-1, Neon) | `neondb` | `neondb_owner` | owner（全权限）|
+| yunwu-origin | `DATABASE_URL` | `ep-morning-sun-aoo4dk3t` (ap-southeast-1, Neon) | `neondb` | `neondb_owner` | owner（全权限）|
+
+- 两仓连接**同一数据库实例**：✅ 是。
+- 前台凭证具备 INSERT / UPDATE / DELETE：`has_table_privilege` 均返回 `t`。
+- 前台**代码**仅执行 `SELECT`（`src/lib/banners.ts` 用 `$queryRawUnsafe` 只读查询），未使用写权限。
+- ⚠️ **RISK：Storefront database credential has write permission.** 凭证为 `neondb_owner`（表所有者），虽当前代码只 SELECT，但凭证过度授权。
+- 是否存在 read-only role：**否**（待办）。**需交给 Claude 做数据库边界与只读角色架构审计**——建立专用只读 role 供 storefront 使用，WorkBuddy 不擅自变更生产凭证。
+
+**后台 UI E2E 验收状态（2026-07-11 补验）**：
+
+> 🚫 **BLOCKED：缺少已登录后台浏览器会话。**
+> `https://platform.yunwuorigin.com/brand/banners` 返回 307 登录墙，本环境无后台账号/ Cookie，无法以真实点击完成新增/编辑/发布/下架 UI 验收，也未用 SQL / curl 替代。
+> 代码链路（actions.ts 列白名单 + `transitionStatus` published_at、client.tsx 筛选/移动图/router.refresh、前台 BannerSection）已完成并通过构建与 Prisma 校验；但**后台真实 UI E2E 尚未验收**，不得声称整体完成。
+
+**禁止事项**：后台与静态 JSON 长期双数据源；前台复制 Banner 内容；发布后将 Banner 移出主表；为让页面出现而重复创建同一 Banner；将商品图片误迁为 Banner；擅自变更生产数据库凭证。
 
 **相关 commit**：
-- platform-os（后台 + 本文档）：见本仓库最新 commit
-- yunwu-origin（前台读取层 + 接入）：`bf8fe90aec227690bcd4c0b4e2834fceece57f4a`
+- platform-os（后台 + 迁移文档 + 本文档）：见本仓库最新 commit（`a0369e1…` 之后本轮新增 `2026-07-11` 迁移记录）
+- yunwu-origin（前台读取层 + 接入）：`bf8fe90aec227690bcd4c0b4e2834fceece57f4a`（本轮无代码/Schema 变更，commit = N/A）
 
 **生产部署**：
 - 后台：`https://platform.yunwuorigin.com/brand/banners`
