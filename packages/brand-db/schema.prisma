@@ -1,0 +1,424 @@
+/// Canonical Brand Runtime schema.
+/// This schema owns the Brand Runtime PostgreSQL contract only; it never shares
+/// the ERP datasource or client generation directory.
+generator client {
+  provider = "prisma-client-js"
+  output   = "./node_modules/@prisma/brand-client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("BRAND_DATABASE_URL")
+}
+
+model LegacyBrandProduct {
+  id              Int                     @id @default(autoincrement())
+  sku             String                  @unique
+  name            String
+  slug            String                  @unique
+  seriesId        Int                     @map("series_id")
+  series          LegacyBrandSeries       @relation(fields: [seriesId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  objectCategory  ObjectCategory          @default(BRACELET) @map("object_category")
+  theme           String                  @default("")
+  story           String                  @default("")
+  materials       String                  @default("")
+  costPrice       Float                   @default(0) @map("cost_price")
+  salePrice       Float                   @default(0) @map("sale_price")
+  coverImage      String                  @default("") @map("cover_image")
+  gallery         String                  @default("[]")
+  stock           Int                     @default(0)
+  /// Workflow state: text CHECK constraint. Values: DRAFT, IN_REVIEW, APPROVED,
+  /// SCHEDULED, PUBLISHED, ARCHIVED, REJECTED. Owner: Publisher. ADR-001 §7.3.
+  status          String                  @default("draft")
+  createdAt       DateTime                @default(now()) @map("created_at")
+  updatedAt       DateTime                @map("updated_at")
+  inspiration     String?
+  keywords        String?
+  lifeStage       String?                 @map("life_stage")
+  suitableFor     String?                 @map("suitable_for")
+  erpProductId    Int?                    @unique @map("erp_product_id")
+  sortOrder       Int                     @default(0) @map("sort_order")
+  publishedAt     DateTime?               @map("published_at") @db.Timestamptz(6)
+  materialOrigin  String?                 @map("material_origin")
+  craftMethod     String?                 @map("craft_method")
+  completionDate  DateTime?               @map("completion_date")
+  serialNumber    String?                 @map("serial_number")
+  creationStory   String?                 @map("creation_story")
+  emotionalState  String?                 @map("emotional_state")
+  companionsCount Int                     @default(0) @map("companions_count")
+  remainingQty    Int?                    @map("remaining_qty")
+  publishStatus   PublishStatus           @default(DRAFT) @map("publish_status")
+  productType     ProductType             @default(STANDARD) @map("product_type")
+  materialLinks   LegacyProductMaterial[]
+
+  @@index([objectCategory])
+  @@index([publishStatus])
+  @@index([seriesId])
+  @@index([status])
+  @@map("products")
+}
+
+model LegacyBrandSeries {
+  id          Int                  @id
+  slug        String               @unique
+  name        String
+  description String
+  coverImage  String               @default("")
+  heroText    String               @default("")
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime
+  isActive    Boolean              @default(true) @map("is_active")
+  longDesc    String?              @map("long_desc")
+  shortDesc   String?              @map("short_desc")
+  sortOrder   Int                  @default(0) @map("sort_order")
+  /// Workflow state: nullable varchar CHECK constraint. Owner: Publisher. ADR-001 §7.3.
+  status      String?              @default("DRAFT")
+  publishedAt DateTime?            @map("published_at") @db.Timestamptz(6)
+  products    LegacyBrandProduct[]
+
+  @@map("series")
+}
+
+model LegacyBrandMaterial {
+  id              Int                     @id
+  name            String                  @unique
+  type            String                  @default("")
+  origin          String                  @default("")
+  description     String                  @default("")
+  image           String                  @default("")
+  createdAt       DateTime                @default(now())
+  updatedAt       DateTime
+  alias           String?
+  features        String?
+  history         String?
+  relatedArticles String                  @default("[]") @map("related_articles")
+  productLinks    LegacyProductMaterial[]
+
+  @@map("materials")
+}
+
+model Tag {
+  id          String   @id
+  name        String   @unique
+  slug        String   @unique
+  description String?
+  type        TagType
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@map("tags")
+}
+
+model ProductTag {
+  id        String @id
+  productId Int    @map("product_id")
+  tagId     String @map("tag_id")
+
+  @@unique([productId, tagId])
+  @@map("product_tags")
+}
+
+model Media {
+  id        String        @id
+  filename  String
+  url       String
+  category  MediaCategory
+  altText   String?       @map("alt_text")
+  size      Int
+  mimeType  String        @map("mime_type")
+  createdAt DateTime      @default(now()) @map("created_at")
+
+  @@map("media")
+}
+
+model JournalPost {
+  id             String          @id
+  title          String
+  slug           String          @unique
+  excerpt        String?
+  content        String
+  coverImage     String?         @map("cover_image")
+  category       JournalCategory
+  status         PublishStatus   @default(DRAFT)
+  seoTitle       String?         @map("seo_title")
+  seoDescription String?         @map("seo_description")
+  publishedAt    DateTime?       @map("published_at")
+  createdAt      DateTime        @default(now()) @map("created_at")
+  updatedAt      DateTime        @map("updated_at")
+  coverAlt       String?         @map("cover_alt")
+  readingTime    Int?            @map("reading_time")
+  sortOrder      Int             @default(0) @map("sort_order")
+
+  @@index([category])
+  @@index([status, publishedAt])
+  @@map("journal_posts")
+}
+
+model Banner {
+  id             Int       @id
+  title          String
+  imageUrl       String?   @map("image_url")
+  linkUrl        String?   @map("link_url")
+  position       String?   @default("home")
+  sortOrder      Int?      @default(0) @map("sort_order")
+  /// Free-text banner convention; no enum or database CHECK constraint. ADR-001 §7.3.
+  status         String?   @default("DRAFT")
+  startAt        DateTime? @map("start_at") @db.Timestamptz(6)
+  endAt          DateTime? @map("end_at") @db.Timestamptz(6)
+  createdAt      DateTime? @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime? @default(now()) @map("updated_at") @db.Timestamptz(6)
+  publishedAt    DateTime? @map("published_at") @db.Timestamptz(6)
+  subtitle       String?
+  btnText        String?   @map("btn_text")
+  mobileImageUrl String?   @map("mobile_image_url")
+
+  @@map("banners")
+}
+
+model ContactLead {
+  id                 String   @id
+  name               String
+  wechat             String?
+  email              String?
+  message            String?
+  createdAt          DateTime @default(now()) @map("created_at")
+  interestedCategory String?  @map("interested_category")
+  interestedSeries   String?  @map("interested_series")
+  sourcePage         String?  @map("source_page")
+
+  @@map("contact_leads")
+}
+
+model PageContent {
+  id         String   @id
+  pageKey    String   @map("page_key")
+  sectionKey String   @map("section_key")
+  title      String   @default("")
+  content    String   @default("")
+  image      String?
+  sortOrder  Int      @default(0) @map("sort_order")
+  published  Boolean  @default(true)
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @map("updated_at")
+
+  @@unique([pageKey, sectionKey])
+  @@map("page_contents")
+}
+
+model SeoConfig {
+  id          String   @id
+  pageKey     String   @unique @map("page_key")
+  title       String
+  description String
+  ogImage     String?  @map("og_image")
+  canonical   String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @map("updated_at")
+
+  @@map("seo_configs")
+}
+
+model SiteSetting {
+  id        String   @id
+  key       String   @unique
+  value     String
+  updatedAt DateTime @map("updated_at")
+
+  @@map("site_settings")
+}
+
+model PublishJob {
+  id          String    @id @default(dbgenerated("gen_random_uuid()"))
+  contentType String    @map("content_type")
+  contentId   String    @map("content_id")
+  publishAt   DateTime  @map("publish_at") @db.Timestamptz(6)
+  /// Free-text publishing-job lifecycle convention; not PublishStatus. ADR-001 §7.3.
+  status      String?   @default("pending")
+  createdBy   Int?      @default(1) @map("created_by")
+  createdAt   DateTime? @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([contentType, contentId])
+  @@index([status, publishAt])
+  @@map("publish_jobs")
+}
+
+model ContentVersion {
+  id          String    @id @default(dbgenerated("gen_random_uuid()"))
+  contentType String    @map("content_type")
+  contentId   String    @map("content_id")
+  version     Int       @default(1)
+  snapshot    Json      @default("{}")
+  /// Free-text content-version convention; not PublishStatus. ADR-001 §7.3.
+  status      String?   @default("PUBLISHED")
+  createdBy   Int?      @default(1) @map("created_by")
+  createdAt   DateTime? @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([contentType, contentId, version])
+  @@index([contentType, contentId])
+  @@index([createdAt])
+  @@map("content_versions")
+}
+
+model SeoSnapshot {
+  id           String    @id @default(dbgenerated("gen_random_uuid()"))
+  contentType  String    @map("content_type")
+  contentId    String    @map("content_id")
+  version      Int       @default(1)
+  title        String
+  slug         String
+  description  String?
+  keywords     String?
+  ogImage      String?   @map("og_image")
+  canonicalUrl String?   @map("canonical_url")
+  publishedAt  DateTime  @map("published_at") @db.Timestamptz(6)
+  createdAt    DateTime? @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([contentType, contentId])
+  @@map("seo_snapshots")
+}
+
+model LegacyBrandProductContent {
+  id             Int      @id
+  productId      Int      @unique @map("product_id")
+  story          String   @default("")
+  gallery        String   @default("[]")
+  presentation   String   @default("")
+  seoTitle       String?  @map("seo_title")
+  seoDescription String?  @map("seo_description")
+  highlights     String?  @default("[]")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @default(now()) @map("updated_at")
+
+  @@map("brand_product_content")
+}
+
+model LegacyBrandMaterialLink {
+  id         Int @id
+  productId  Int @map("product_id")
+  materialId Int @map("material_id")
+
+  @@map("brand_materials")
+}
+
+model LegacyJournalTag {
+  id        String @id
+  journalId String @map("journal_id")
+  tagId     String @map("tag_id")
+
+  @@map("journal_tags")
+}
+
+model LegacyProductMaterial {
+  id         Int                 @id
+  productId  Int                 @map("product_id")
+  materialId Int                 @map("material_id")
+  product    LegacyBrandProduct  @relation(fields: [productId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  material   LegacyBrandMaterial @relation(fields: [materialId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@unique([productId, materialId])
+  @@map("product_materials")
+}
+
+model LegacyOrder {
+  id           Int      @id
+  orderNo      String   @map("order_no")
+  productId    Int      @map("product_id")
+  productName  String   @default("") @map("product_name")
+  quantity     Int      @default(1)
+  amount       Float
+  customerName String   @default("") @map("customer_name")
+  phone        String   @default("")
+  address      String   @default("")
+  remark       String   @default("")
+  status       String   @default("pending")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@map("orders")
+}
+
+model AdminUser {
+  id           String    @id
+  email        String
+  passwordHash String    @map("password_hash")
+  name         String
+  role         AdminRole
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @map("updated_at")
+
+  @@map("admin_users")
+}
+
+model AuditLog {
+  id         String   @id
+  userId     String   @map("user_id")
+  action     String
+  entityType String   @map("entity_type")
+  entityId   String?  @map("entity_id")
+  details    String?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([entityType, entityId])
+  @@index([userId])
+  @@map("audit_logs")
+}
+
+enum PublishStatus {
+  DRAFT
+  PENDING_REVIEW
+  APPROVED
+  PUBLISHED
+  UNPUBLISHED
+  ARCHIVED
+}
+
+enum AdminRole {
+  SUPER_ADMIN
+  ADMIN
+  EDITOR
+  OPERATOR
+}
+
+enum JournalCategory {
+  OBJECT
+  MATERIAL
+  CRAFT
+  DONGHAI
+  CREATION
+  PHILOSOPHY
+}
+
+enum MediaCategory {
+  PRODUCT
+  BEADS
+  SEAL
+  INCENSE
+  PORCELAIN
+  WOODWORK
+  OTHER_OBJ
+  MATERIAL
+  BRAND
+  CRAFT
+  ARTICLE
+}
+
+enum ObjectCategory {
+  BRACELET
+  INCENSE
+  SEAL
+  CERAMIC
+  ENAMEL
+  SCHOLAR
+}
+
+enum ProductType {
+  STANDARD
+  BATCHED
+}
+
+enum TagType {
+  SERIES
+  VALUE
+  MATERIAL
+  EMOTION
+  SCENE
+  OBJECT
+}

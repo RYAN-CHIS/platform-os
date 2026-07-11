@@ -1,0 +1,25 @@
+{
+  "name": "@yunwu/brand-db",
+  "version": "1.0.0",
+  "private": true,
+  "main": "./index.ts",
+  "types": "./index.ts",
+  "scripts": {
+    "generate": "prisma generate --schema schema.prisma",
+    "validate": "prisma validate --schema schema.prisma",
+    "format": "prisma format --schema schema.prisma",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "build": "pnpm run typecheck",
+    "db:push": "prisma db push --schema schema.prisma",
+    "db:migrate": "prisma migrate dev --schema schema.prisma",
+    "db:migrate:deploy": "prisma migrate deploy --schema schema.prisma"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.19.3"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.3",
+    "prisma": "^6.19.3",
+    "typescript": "^5.0.0"
+  }
+}

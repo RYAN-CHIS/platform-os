@@ -24,6 +24,16 @@
 
 ---
 
+## Prisma Phase B — Brand Runtime Canonical Package (2026-07-12)
+
+- Brand Runtime canonical schema: `packages/brand-db/schema.prisma`.
+- Brand Runtime Prisma client package: `@yunwu/brand-db`, generated privately as `@prisma/brand-client`.
+- Brand Runtime uses `BRAND_DATABASE_URL` only; ERP continues to use `DATABASE_URL` through `@yunwu/db`. The two canonical schemas and clients must remain isolated.
+- Product OS owns no database. This phase establishes only the schema package and read-only contract guard; it does not migrate application consumers.
+- Consumer migration for `apps/brand-os` and Platform Brand modules belongs to Phase C/D. Publisher status mapping remains Phase E.
+
+---
+
 ## 1. Project Identity
 
 | Attribute | Value |
