@@ -8,9 +8,12 @@
     "@yunwu/db": "workspace:*",
     "@yunwu/platform-core": "workspace:*",
     "next-auth": "^4.24.14",
-    "bcryptjs": "^3.0.3"
+    "bcryptjs": "^3.0.3",
+    "@prisma/client": "^6.19.3"
   },
   "devDependencies": {
-    "@types/bcryptjs": "^2.4.6"
+    "@types/bcryptjs": "^2.4.6",
+    "prisma": "^6.19.3",
+    "next": "^16.0.0"
   }
 }

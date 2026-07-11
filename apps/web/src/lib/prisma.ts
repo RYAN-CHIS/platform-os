@@ -1,16 +1,15 @@
 // ═══════════════════════════════════════════════════════════
-// Web Prisma 入口 — 统一从 @yunwu/db 导入
-// 遗留 Schema: apps/web/prisma/schema.prisma (16 models)
-// 权威 Schema: packages/db/schema.prisma (37 models)
-// Phase 3: 切换到 packages/db 统一 Schema
+// Web Prisma 入口 — 使用本地 schema
+// 本地 Schema: apps/web/prisma/schema.prisma (16 models)
+// 权威 Schema（Phase 3 目标）: packages/db/schema.prisma
 // ═══════════════════════════════════════════════════════════
-import { createPrisma } from "@yunwu/db";
+import { PrismaClient } from "@prisma/web-client";
 
 const globalForPrisma = globalThis as unknown as {
-  prisma: ReturnType<typeof createPrisma> | undefined;
+  prisma: PrismaClient | undefined;
 };
 
-export const prisma = globalForPrisma.prisma ?? createPrisma();
+export const prisma = globalForPrisma.prisma ?? new PrismaClient();
 
 if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
 

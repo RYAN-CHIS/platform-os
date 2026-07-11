@@ -37,7 +37,8 @@ export {
   verifySystemIdentity,
   verifyIdentityResult,
 } from "./verify-identity";
-export type { IdentityPayload, VerifyResult } from "./sign-identity";
+export type { IdentityPayload } from "./sign-identity";
+export type { VerifyResult } from "./verify-identity";
 
 // ── NextAuth (Phase 1 legacy, still used) ──
 export { authOptions } from "./nextauth";

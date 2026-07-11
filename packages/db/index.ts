@@ -28,6 +28,7 @@ export function createPrisma() {
 }
 
 export { PrismaClient };
+export type { SystemDomain } from "@prisma/client";
 
 // ── Singleton PrismaClient for Edge/Serverless ──
 const globalForPrisma = globalThis as unknown as { prisma: PrismaClient | undefined };

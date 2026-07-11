@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { TagType } from "@prisma/client";
+import { TagType } from "@prisma/web-client";
 import { requireContentEditor, requireAdmin } from "./auth";
 
 // ── 标签查询（读：EDITOR+） ──

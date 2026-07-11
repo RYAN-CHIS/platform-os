@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 
 import { useEffect, useState } from "react";
 import { getTags, upsertTag, deleteTag } from "@/lib/actions/tag-actions";
-import { TagType } from "@prisma/client";
+import { TagType } from "@prisma/brand-client";
 
 type Tag = {
   id: string;

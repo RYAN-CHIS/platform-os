@@ -7,7 +7,7 @@ import { redirect } from "next/navigation";
 import prisma from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { del } from "@vercel/blob";
-import type { ObjectCategory, JournalCategory, MediaCategory, PublishStatus, AdminRole, TagType } from '@prisma/client';
+import type { ObjectCategory, JournalCategory, MediaCategory, PublishStatus, AdminRole, TagType } from '@prisma/web-client';
 
 // ═══════════════════════════════════════════════════════
 // Auth helpers — 统一 RBAC 校验

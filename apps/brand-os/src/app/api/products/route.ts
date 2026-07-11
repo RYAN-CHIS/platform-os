@@ -50,7 +50,7 @@ export async function POST(req: Request) {
       sku: data.sku || `P-${Date.now()}`,
       name: data.name,
       slug: data.slug || data.name?.toLowerCase().replace(/\s+/g, "-"),
-      seriesId: data.seriesId ? parseInt(data.seriesId) : null,
+      seriesId: data.seriesId ? parseInt(data.seriesId) : 0,
       objectCategory: data.objectCategory || "BRACELET",
       theme: data.theme || "",
       story: data.story || "",

@@ -11,7 +11,7 @@ export interface IdentityPayload {
   id: string;
   email: string;
   role: string;
-  system: "erp" | "web" | "brand";
+  system: "erp" | "web" | "brand" | "platform";
   permissions: string[];
   iat: number;
   exp: number;
@@ -28,7 +28,7 @@ export function signIdentity(
     id: string;
     email: string;
     role: string;
-    system: "erp" | "web" | "brand";
+    system: "erp" | "web" | "brand" | "platform";
     permissions?: string[];
   },
   secret: string,
@@ -62,7 +62,7 @@ export function signFromToken(
     role?: string;
     permissions?: string[];
   },
-  system: "erp" | "web" | "brand",
+  system: "erp" | "web" | "brand" | "platform",
   secret: string,
 ): string {
   return signIdentity(
