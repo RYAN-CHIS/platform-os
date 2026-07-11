@@ -17,6 +17,13 @@
 
 ---
 
+## Prisma Phase 3A — Canonical Contract Guard (2026-07-11)
+
+- Run `pnpm check:prisma-contract` to verify frozen-schema ownership declarations, generator/datasource contracts, and known Prisma column mappings without connecting to a database.
+- The guard is intentionally read-only; Phase 3B/3C client migrations and Phase 3D frozen-schema deletion remain separate tasks.
+
+---
+
 ## 1. Project Identity
 
 | Attribute | Value |

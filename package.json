@@ -16,6 +16,7 @@
     "build:all": "pnpm -r build",
     "lint": "pnpm -r lint",
     "typecheck": "pnpm -r typecheck",
+    "check:prisma-contract": "node scripts/check-prisma-schema-contract.mjs",
     "db:push": "pnpm --filter @yunwu/db db:push",
     "db:generate": "pnpm --filter @yunwu/db generate"
   },
