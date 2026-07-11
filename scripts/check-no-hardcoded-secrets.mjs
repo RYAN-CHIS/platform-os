@@ -58,13 +58,9 @@ function findSecrets(filePath) {
   // These are documenting the breach, not introducing it
   if (filePath === "DATABASE_DISCOVERY_REPORT.md") return [];
   if (filePath === "PROJECT-FULL-AUDIT-REPORT.md") return [];
-  if (filePath.endsWith("YUNWU_MASTER_BASELINE.md")) return [];
   if (filePath === "scripts/reset-pw.js") return [];
   // Skip pre-existing erp scripts with hardcoded credentials
   // These are legacy import utilities, not production code
-  if (filePath.startsWith("apps/erp/scripts/")) return [];
-  if (filePath.startsWith("apps/web/scripts/DEPLOY_SETUP.md")) return [];
-  if (filePath.startsWith("apps/erp/.github/")) return [];
   const content = readFileSync(filePath, "utf8");
   const lines = content.split("\n");
   const results = [];

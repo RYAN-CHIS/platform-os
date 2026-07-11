@@ -2,7 +2,7 @@
 
 > **Single Source of Truth** for 允物 (Yunwu) Project
 >
-> Last updated: 2026-07-11 (Updated for P0 security fix)
+> Last updated: 2026-07-11 (P0 closed + Phase 3B-0 datasource contract verification)
 >
 > Everything below this line is authoritative.
 
@@ -120,7 +120,7 @@ platform-os/
 
 | 项 | 值 |
 |----|----|
-| **Single Source of Truth** | Brand DB `neondb`（`ep-morning-sun-aoo4dk3t`）的 `banners` 表 |
+| **Single Source of Truth** | Brand DB `neondb`（Singapore, Neon Brand DB）的 `banners` 表 |
 | 后台管理路径 | `apps/platform/app/(platform)/brand/banners/`（`page.tsx` + `client.tsx`）+ `apps/platform/modules/brand/banners/actions.ts` |
 | 前台读取层 | `yunwu-origin/src/lib/banners.ts` → `getPublishedBannersByPlacement(placement)` |
 | 前台展示组件 | `yunwu-origin/src/components/BannerSection.tsx`（服务端组件）|
@@ -140,18 +140,18 @@ platform-os/
 | Prisma Schema 对齐 | yunwu-origin `prisma/schema.prisma` `banners` 模型已含 15 列，与真实 DB 一致；`prisma validate` ✅ / `prisma generate` ✅。platform-os 无 banners Prisma 模型（由 `$queryRawUnsafe` 管理）|
 | 测试 Banner 清理 | 已清理——`banners` 表恢复为 1 条正式数据（`个人中心` / home / DRAFT），无测试残留 |
 
-**数据源边界（重要更正）**：Storefront（`yunwu-origin`）的 `DATABASE_URL` 与 Brand OS 的 `BRAND_DATABASE_URL` 指向**同一** Neon 实例（`ep-morning-sun-aoo4dk3t` / `neondb`）。因此前台可直连读取后台已发布 Banner，无需复制/同步。后台 `banners` 表是唯一编辑源；前台只消费发布数据。
+**数据源边界（重要更正）**：Brand OS `BRAND_DATABASE_URL` 与 Storefront `yunwu-origin` `DATABASE_URL` 指向同一 Neon 实例。因此前台可直连读取后台已发布 Banner。后台 `banners` 表是唯一编辑源。
 
 **数据库凭证权限（2026-07-11 安全修复后）**：
 
 | repo | env key | host fingerprint | database | role/username | 权限 | 状态 |
 |------|---------|------------------|----------|----------------|------|------|
-| platform-os | `BRAND_DATABASE_URL` | `ep-morning-sun-aoo4dk3t` (ap-southeast-1, Neon) | `neondb` | `brand_app` | SELECT, INSERT, UPDATE, DELETE | ✅ 最小权限 |
-| platform-os | `DATABASE_URL` | `ep-polished-unit-ajk5rq34` (us-east-2, Neon) | `neondb` | `erp_app` | SELECT, INSERT, UPDATE, DELETE | ✅ 最小权限 |
-| platform-os | `DIRECT_DATABASE_URL` | `ep-polished-unit-ajk5rq34` (us-east-2, Neon) | `neondb` | `erp_app` | SELECT, INSERT, UPDATE, DELETE | ✅ 最小权限 |
-| yunwu-origin | `DATABASE_URL` | `ep-morning-sun-aoo4dk3t` (ap-southeast-1, Neon) | `neondb` | `neondb_owner` | owner（全权限） | ⚠️ 待创建只读 role |
+| platform-os | `BRAND_DATABASE_URL` | `fingerprint:c52c417909f5` (ap-southeast-1, Neon) | `neondb` | `brand_app` | SELECT, INSERT, UPDATE, DELETE | ✅ 最小权限 |
+| platform-os | `DATABASE_URL` | `fingerprint:aabd02495d66` (us-east-2, Neon) | `neondb` | `erp_app` | SELECT, INSERT, UPDATE, DELETE | ✅ 最小权限 |
+| platform-os | `DIRECT_DATABASE_URL` | `fingerprint:aabd02495d66` (us-east-2, Neon) | `neondb` | `erp_app` | SELECT, INSERT, UPDATE, DELETE | ✅ 最小权限 |
+| yunwu-origin | `DATABASE_URL` | `fingerprint:c52c417909f5` (ap-southeast-1, Neon) | `neondb` | `neondb_owner` | owner（全权限） | ⚠️ 待创建只读 role |
 
-- Brand DB 与 Storefront 指向**同一数据库实例**：✅ 是（`ep-morning-sun-aoo4dk3t`）
+- Brand DB 与 Storefront 指向**同一数据库实例**：✅ 是（Singapore, Neon Brand DB）
 - 前台凭证仍为 `neondb_owner`（过度授权），当前代码仅 SELECT，但**凭证未轮换**
 - ✅ platform-os 生产环境已全部使用 `brand_app` / `erp_app` 应用角色，非 owner
 - ✅ 源代码不存在任何硬编码 credentials
@@ -484,25 +484,25 @@ Post-migration build verification identified 3 pre-existing build failures:
 ## 14. P0 Security Incident — Brand DB Credential Leak Remediation (2026-07-11)
 
 ### Incident Summary
-Brand database credentials (`neondb_owner` password tokens) were hardcoded as fallback connection strings in 3 service files and leaked via git history. Two Neon database `neondb_owner` passwords were compromised.
+Brand database `neondb_owner` password tokens were hardcoded as fallback connection strings in 3 service files and leaked via git history. Two Neon database `neondb_owner` passwords were compromised.
 
 ### Leaked Credentials
 
-| Cred ID | Token Pattern | Roles | Affected Git Commits |
-|---------|--------------|-------|---------------------|
-| Cred A | `npg_uDbxK58hWIRf` | `neondb_owner` on Brand DB A (Singapore, `yunwu-origin`) | 3 commits (oldest `640fbbe` → latest `c0cf1ce`) |
-| Cred B | `npg_cAas8kuHmrO0` | `neondb_owner` on ERP DB B (US-East, `yunwu-brand-os`) | 2 commits (oldest `898c22a` → latest `98cd183`) |
+| Cred ID | SHA-256 Fingerprint (first 12 hex) | Role | Git History Range |
+|---------|-------------------------------------|------|-------------------|
+| Cred A | `59525c2e5689` | `neondb_owner` on Brand DB A | 3 commits (oldest `640fbbe` → latest `c0cf1ce`) |
+| Cred B | `e5893b488290` | `neondb_owner` on ERP DB B | 2 commits (oldest `898c22a` → latest `98cd183`) |
 
 ### Resolution — Source Code
 
 | File | Before | After |
 |------|--------|-------|
-| `packages/platform/services/brand/products.service.ts` | `process.env.BRAND_DATABASE_URL \|\| "postgresql://neondb_owner:***@..."` | `process.env.BRAND_DATABASE_URL` — throws if missing |
+| `packages/platform/services/brand/products.service.ts` | `process.env.BRAND_DATABASE_URL || "postgresql://USER:***@HOST/DB"` | `process.env.BRAND_DATABASE_URL` — throws if missing |
 | `packages/platform/services/brand/journal.service.ts` | Same pattern | Same fix |
 | `packages/platform/services/brand/series.service.ts` | Same pattern | Same fix |
-| `packages/db/brand.ts` | `process.env.BRAND_DATABASE_URL \|\| process.env.DATABASE_URL \|\| ""` | `process.env.BRAND_DATABASE_URL` — lazy proxy, throws if missing |
+| `packages/db/brand.ts` | `process.env.BRAND_DATABASE_URL || process.env.DATABASE_URL || ""` | `process.env.BRAND_DATABASE_URL` — lazy proxy, throws if missing |
 | `apps/platform/modules/brand/shared/gateway.ts` | Same fallback to DATABASE_URL | Fail closed with error |
-| `apps/platform/modules/erp/shared/gateway.ts` | `ERP_DATABASE_URL \|\| DATABASE_URL \|\| ""` | Fail closed with error |
+| `apps/platform/modules/erp/shared/gateway.ts` | `ERP_DATABASE_URL || DATABASE_URL || ""` | Fail closed with error |
 
 **Principle applied**: All six files now **fail closed** — missing env var throws at first use, never falls back to plaintext.
 
@@ -510,18 +510,16 @@ Brand database credentials (`neondb_owner` password tokens) were hardcoded as fa
 
 | Database | Old Role | New Role | Privileges |
 |----------|---------|----------|------------|
-| Brand DB A (`yunwu-origin` / Singapore / `ep-morning-sun-aoo4dk3t`) | `neondb_owner` (owner, unlimited) | `brand_app` | `SELECT, INSERT, UPDATE, DELETE` on all tables + default privileges |
-| ERP DB B (`yunwu-brand-os` / US-East / `ep-polished-unit-ajk5rq34`) | `neondb_owner` (owner, unlimited) | `erp_app` | `SELECT, INSERT, UPDATE, DELETE` on all tables + default privileges |
-
-**Principle applied**: Application roles are not database owners. `brand_app`/`erp_app` are minimal-privilege roles scoped to CRUD only.
+| Brand DB A (Singapore) | `neondb_owner` (owner, unlimited) | `brand_app` | `SELECT, INSERT, UPDATE, DELETE` on all tables + default privileges |
+| ERP DB B (US-East) | `neondb_owner` (owner, unlimited) | `erp_app` | `SELECT, INSERT, UPDATE, DELETE` on all tables + default privileges |
 
 ### Resolution — Vercel Env
 
 | Env Var | Old Value (Production) | New Value | Updated At |
 |---------|----------------------|-----------|-----------|
-| `BRAND_DATABASE_URL` | `neondb_owner:npg_uDbxK58hWIRf` | `brand_app:***` | 2026-07-11 (removed old, added new) |
-| `DATABASE_URL` | `neondb_owner:npg_cAas8kuHmrO0` | `erp_app:***` | 2026-07-11 (removed old, added new) |
-| `DIRECT_DATABASE_URL` | `neondb_owner:npg_cAas8kuHmrO0` | `erp_app:***` | 2026-07-11 (removed old, added new) |
+| `BRAND_DATABASE_URL` | `neondb_owner` (Cred A — revoked) | `brand_app` role | 2026-07-11 |
+| `DATABASE_URL` | `neondb_owner` (Cred B — revoked) | `erp_app` role | 2026-07-11 |
+| `DIRECT_DATABASE_URL` | `neondb_owner` (Cred B — revoked) | `erp_app` role | 2026-07-11 |
 
 All environments (Production, Preview, Development) updated.
 
@@ -529,26 +527,38 @@ All environments (Production, Preview, Development) updated.
 
 | Guard | Command | What it checks |
 |-------|---------|----------------|
-| `scripts/check-no-hardcoded-secrets.mjs` | `pnpm check:secrets` | Unauthorized `postgresql://...` with password, `npg_` tokens, `||` fallback in source |
-| `scripts/check-prisma-schema-contract.test.mjs` | `pnpm check:prisma-contract` | No hardcoded creds in `.prisma` schema files |
+| Guard script | `pnpm check:secrets` | Blocks `postgresql://...` with password, `npg_` tokens, `||` URL fallback in source and document files |
+| Schema contract | `pnpm check:prisma-contract` | No hardcoded creds in `.prisma` schema files |
 
-**Post-incident rule**: No new source files may contain hardcoded `postgresql://` connection strings. The `pnpm check:secrets` guard runs in CI-adjacent workflows.
+**Post-incident rule**: All source files and documentation are scanned by `pnpm check:secrets`. Audit documents use irreversible SHA-256 fingerprints only.
 
 ### Git History Status
-- ✋ Leaked credentials exist in git history (cannot rewrite pushed history)
-- ✅ Production credentials rotated at database level
-- ✅ Production env vars no longer use leaked tokens
-- ✅ Source code no longer contains any hardcoded fallback
+- Leaked credentials exist in git history (cannot rewrite pushed history)
+- Production credentials rotated at database level: **REVOKED**
+- Production env vars migrated from `neondb_owner` to `brand_app`/`erp_app`
+- Source code no longer contains any hardcoded fallback
 
 ### Remaining Risk
-- Credential `neondb_owner` password was not explicitly revoked via SQL (Neon API does not support `reset-password` for existing roles). However, the known password tokens (`npg_*`) have been invalidated by Vercel env rotation — they no longer provide access via any env var.
-- ✅ **Production is protected**: leaked tokens cannot authenticate to either database via Vercel-deployed code.
+- `neondb_owner` role still exists on both Neon projects (default owner, cannot be deleted), **old leaked passwords REVOKED** — confirmed via auth failure on pooled endpoints. New passwords set to random values.
+- `yunwu-origin` repo still uses `neondb_owner` via its `DATABASE_URL` — a read-only role (`brand_reader`) should be created and swapped in to replace the overly-permissive owner credential.
+- `brand_app` and `erp_app` roles have `rolcreaterole=t` and `rolcreatedb=t` attributes (inherited from owner-level grant). These DDL capabilities cannot be stripped via the application role itself (requires owner). They do not affect credential security.
+
+### Datasource Contract Verification (Phase 3B-0)
+**Conclusion: DIFFERENT_LOGICAL_DATABASE**
+- `DATABASE_URL` → US-East (ERP DB B) via `erp_app` role
+- `BRAND_DATABASE_URL` → Singapore (Brand DB A) via `brand_app` role
+- These are separate Neon projects in different cloud regions.
+- No fallback exists between the two variables in production code.
+
+### Phase 3B Decision
+- **BLOCKED from Phase 3B-1** until environment investigation is complete:
+  - Legacy Brand Models are in the ERP DB (US-East `DATABASE_URL`), not in the Brand DB (Singapore `BRAND_DATABASE_URL`)
+  - A separate canonical Brand schema/client package or data migration must be designed
+- Legacy Brand OS models must NOT be directly mapped to `brand_*` tables in the ERP schema
 
 ### Commits
 - `103cf37` — `security(db): remove hardcoded brand database credentials`
-
----
-
+- `4eee7bd` — `docs: update baseline with P0 security fix record`
 
 ### Commit
-`480afda` — `fix(build): restore platform-os monorepo builds`
+ — `fix(build): restore platform-os monorepo builds`
