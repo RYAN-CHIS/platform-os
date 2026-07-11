@@ -1,0 +1,157 @@
+{
+  "meta": {
+    "export_date": "2026-07-11",
+    "database": "Brand Runtime (yunwu-origin, Singapore)",
+    "connection_role": "brand_app",
+    "read_only": true,
+    "schema": "public"
+  },
+  "enums": {
+    "AdminRole": {
+      "values": [
+        "SUPER_ADMIN",
+        "ADMIN",
+        "EDITOR",
+        "OPERATOR"
+      ],
+      "ordering": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "used_by": [
+        "admin_users.role"
+      ]
+    },
+    "JournalCategory": {
+      "values": [
+        "OBJECT",
+        "MATERIAL",
+        "CRAFT",
+        "DONGHAI",
+        "CREATION",
+        "PHILOSOPHY"
+      ],
+      "ordering": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "used_by": [
+        "journal_posts.category"
+      ]
+    },
+    "MediaCategory": {
+      "values": [
+        "PRODUCT",
+        "BEADS",
+        "SEAL",
+        "INCENSE",
+        "PORCELAIN",
+        "WOODWORK",
+        "OTHER_OBJ",
+        "MATERIAL",
+        "BRAND",
+        "CRAFT",
+        "ARTICLE"
+      ],
+      "ordering": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "used_by": [
+        "media.category"
+      ]
+    },
+    "ObjectCategory": {
+      "values": [
+        "BRACELET",
+        "INCENSE",
+        "SEAL",
+        "CERAMIC",
+        "ENAMEL",
+        "SCHOLAR"
+      ],
+      "ordering": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "used_by": [
+        "products.object_category"
+      ]
+    },
+    "ProductType": {
+      "values": [
+        "STANDARD",
+        "BATCHED"
+      ],
+      "ordering": [
+        1,
+        2
+      ],
+      "used_by": [
+        "products.product_type"
+      ]
+    },
+    "PublishStatus": {
+      "values": [
+        "DRAFT",
+        "PENDING_REVIEW",
+        "APPROVED",
+        "PUBLISHED",
+        "UNPUBLISHED",
+        "ARCHIVED"
+      ],
+      "ordering": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "used_by": [
+        "products.publish_status",
+        "journal_posts.status"
+      ]
+    },
+    "TagType": {
+      "values": [
+        "SERIES",
+        "VALUE",
+        "MATERIAL",
+        "EMOTION",
+        "SCENE",
+        "OBJECT"
+      ],
+      "ordering": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "used_by": [
+        "tags.type"
+      ]
+    }
+  }
+}

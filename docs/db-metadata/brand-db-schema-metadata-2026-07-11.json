@@ -1,0 +1,1317 @@
+{
+  "meta": {
+    "export_date": "2026-07-11",
+    "database": "Brand Runtime (yunwu-origin, Singapore)",
+    "connection_role": "brand_app",
+    "read_only": true,
+    "schema": "public",
+    "connection_fingerprint": "01195ab8b5b5",
+    "database_fingerprint": "693fe5919fc2",
+    "phase_3b0_conclusion": "DIFFERENT_LOGICAL_DATABASE"
+  },
+  "tables": {
+    "products": {
+      "status": "EXISTS",
+      "columns": [
+        {
+          "name": "id",
+          "type": "integer",
+          "nullable": false,
+          "default": "nextval('products_id_seq')",
+          "identity": true,
+          "pk": true
+        },
+        {
+          "name": "sku",
+          "type": "text",
+          "nullable": false,
+          "default": null,
+          "unique": true
+        },
+        {
+          "name": "name",
+          "type": "text",
+          "nullable": false,
+          "default": null
+        },
+        {
+          "name": "slug",
+          "type": "text",
+          "nullable": false,
+          "default": null,
+          "unique": true
+        },
+        {
+          "name": "series_id",
+          "type": "integer",
+          "nullable": false,
+          "default": null,
+          "fk": "series.id"
+        },
+        {
+          "name": "object_category",
+          "type": "ObjectCategory (enum)",
+          "nullable": false,
+          "default": "'BRACELET'::ObjectCategory"
+        },
+        {
+          "name": "theme",
+          "type": "text",
+          "nullable": false,
+          "default": "''"
+        },
+        {
+          "name": "story",
+          "type": "text",
+          "nullable": false,
+          "default": "''"
+        },
+        {
+          "name": "materials",
+          "type": "text",
+          "nullable": false,
+          "default": "''"
+        },
+        {
+          "name": "cost_price",
+          "type": "double precision",
+          "nullable": false,
+          "default": "0"
+        },
+        {
+          "name": "sale_price",
+          "type": "double precision",
+          "nullable": false,
+          "default": "0"
+        },
+        {
+          "name": "cover_image",
+          "type": "text",
+          "nullable": false,
+          "default": "''"
+        },
+        {
+          "name": "gallery",
+          "type": "text",
+          "nullable": false,
+          "default": "'[]'"
+        },
+        {
+          "name": "stock",
+          "type": "integer",
+          "nullable": false,
+          "default": "0"
+        },
+        {
+          "name": "status",
+          "type": "text (check constraint)",
+          "nullable": false,
+          "default": "'draft'"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp",
+          "nullable": false,
+          "default": "CURRENT_TIMESTAMP"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp",
+          "nullable": false,
+          "default": null
+        },
+        {
+          "name": "inspiration",
+          "type": "text",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "keywords",
+          "type": "text",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "life_stage",
+          "type": "text",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "suitable_for",
+          "type": "text",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "erp_product_id",
+          "type": "integer",
+          "nullable": true,
+          "default": null,
+          "unique": true
+        },
+        {
+          "name": "sort_order",
+          "type": "integer",
+          "nullable": false,
+          "default": "0"
+        },
+        {
+          "name": "published_at",
+          "type": "timestamptz",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "material_origin",
+          "type": "text",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "craft_method",
+          "type": "text",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "completion_date",
+          "type": "timestamp",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "serial_number",
+          "type": "text",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "creation_story",
+          "type": "text",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "emotional_state",
+          "type": "text",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "companions_count",
+          "type": "integer",
+          "nullable": false,
+          "default": "0"
+        },
+        {
+          "name": "remaining_qty",
+          "type": "integer",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "publish_status",
+          "type": "PublishStatus (enum)",
+          "nullable": false,
+          "default": "'DRAFT'::PublishStatus"
+        },
+        {
+          "name": "product_type",
+          "type": "ProductType (enum)",
+          "nullable": false,
+          "default": "'STANDARD'::ProductType"
+        }
+      ]
+    },
+    "series": {
+      "status": "EXISTS",
+      "columns": [
+        {
+          "name": "id",
+          "type": "integer",
+          "nullable": false,
+          "pk": true
+        },
+        {
+          "name": "slug",
+          "type": "text",
+          "nullable": false,
+          "unique": true
+        },
+        {
+          "name": "name",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "description",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "coverImage",
+          "type": "text",
+          "nullable": false,
+          "default": "''"
+        },
+        {
+          "name": "heroText",
+          "type": "text",
+          "nullable": false,
+          "default": "''"
+        },
+        {
+          "name": "createdAt",
+          "type": "timestamp",
+          "nullable": false,
+          "default": "CURRENT_TIMESTAMP"
+        },
+        {
+          "name": "updatedAt",
+          "type": "timestamp",
+          "nullable": false
+        },
+        {
+          "name": "is_active",
+          "type": "boolean",
+          "nullable": false,
+          "default": "true"
+        },
+        {
+          "name": "long_desc",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "short_desc",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "sort_order",
+          "type": "integer",
+          "nullable": false,
+          "default": "0"
+        },
+        {
+          "name": "status",
+          "type": "varchar(20) (check constraint)",
+          "nullable": true,
+          "default": "'DRAFT'"
+        },
+        {
+          "name": "published_at",
+          "type": "timestamptz",
+          "nullable": true
+        }
+      ]
+    },
+    "materials": {
+      "status": "EXISTS",
+      "columns": [
+        {
+          "name": "id",
+          "type": "integer",
+          "nullable": false,
+          "pk": true
+        },
+        {
+          "name": "name",
+          "type": "text",
+          "nullable": false,
+          "unique": true
+        },
+        {
+          "name": "type",
+          "type": "text",
+          "nullable": false,
+          "default": "''"
+        },
+        {
+          "name": "origin",
+          "type": "text",
+          "nullable": false,
+          "default": "''"
+        },
+        {
+          "name": "description",
+          "type": "text",
+          "nullable": false,
+          "default": "''"
+        },
+        {
+          "name": "image",
+          "type": "text",
+          "nullable": false,
+          "default": "''"
+        },
+        {
+          "name": "createdAt",
+          "type": "timestamp",
+          "nullable": false,
+          "default": "CURRENT_TIMESTAMP"
+        },
+        {
+          "name": "updatedAt",
+          "type": "timestamp",
+          "nullable": false
+        },
+        {
+          "name": "alias",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "features",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "history",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "related_articles",
+          "type": "text",
+          "nullable": false,
+          "default": "'[]'"
+        }
+      ]
+    },
+    "tags": {
+      "status": "EXISTS",
+      "columns": [
+        {
+          "name": "id",
+          "type": "text",
+          "nullable": false,
+          "pk": true
+        },
+        {
+          "name": "name",
+          "type": "text",
+          "nullable": false,
+          "unique": true
+        },
+        {
+          "name": "slug",
+          "type": "text",
+          "nullable": false,
+          "unique": true
+        },
+        {
+          "name": "description",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "type",
+          "type": "TagType (enum)",
+          "nullable": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp",
+          "nullable": false,
+          "default": "CURRENT_TIMESTAMP"
+        }
+      ]
+    },
+    "product_tags": {
+      "status": "EXISTS",
+      "columns": [
+        {
+          "name": "id",
+          "type": "text",
+          "nullable": false,
+          "pk": true
+        },
+        {
+          "name": "product_id",
+          "type": "integer",
+          "nullable": false
+        },
+        {
+          "name": "tag_id",
+          "type": "text",
+          "nullable": false
+        }
+      ],
+      "unique_constraints": [
+        "(product_id, tag_id)"
+      ]
+    },
+    "media": {
+      "status": "EXISTS",
+      "columns": [
+        {
+          "name": "id",
+          "type": "text",
+          "nullable": false,
+          "pk": true
+        },
+        {
+          "name": "filename",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "url",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "category",
+          "type": "MediaCategory (enum)",
+          "nullable": false
+        },
+        {
+          "name": "alt_text",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "size",
+          "type": "integer",
+          "nullable": false
+        },
+        {
+          "name": "mime_type",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp",
+          "nullable": false,
+          "default": "CURRENT_TIMESTAMP"
+        }
+      ]
+    },
+    "journal_posts": {
+      "status": "EXISTS",
+      "columns": [
+        {
+          "name": "id",
+          "type": "text",
+          "nullable": false,
+          "pk": true
+        },
+        {
+          "name": "title",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "slug",
+          "type": "text",
+          "nullable": false,
+          "unique": true
+        },
+        {
+          "name": "excerpt",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "content",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "cover_image",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "category",
+          "type": "JournalCategory (enum)",
+          "nullable": false
+        },
+        {
+          "name": "status",
+          "type": "PublishStatus (enum)",
+          "nullable": false,
+          "default": "'DRAFT'"
+        },
+        {
+          "name": "seo_title",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "seo_description",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "published_at",
+          "type": "timestamp",
+          "nullable": true
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp",
+          "nullable": false,
+          "default": "CURRENT_TIMESTAMP"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp",
+          "nullable": false
+        },
+        {
+          "name": "cover_alt",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "reading_time",
+          "type": "integer",
+          "nullable": true
+        },
+        {
+          "name": "sort_order",
+          "type": "integer",
+          "nullable": false,
+          "default": "0"
+        }
+      ]
+    },
+    "banners": {
+      "status": "EXISTS",
+      "columns": [
+        {
+          "name": "id",
+          "type": "integer",
+          "nullable": false,
+          "pk": true
+        },
+        {
+          "name": "title",
+          "type": "varchar(255)",
+          "nullable": false
+        },
+        {
+          "name": "image_url",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "link_url",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "position",
+          "type": "varchar(50)",
+          "nullable": true,
+          "default": "'home'"
+        },
+        {
+          "name": "sort_order",
+          "type": "integer",
+          "nullable": true,
+          "default": "0"
+        },
+        {
+          "name": "status",
+          "type": "varchar(20)",
+          "nullable": true,
+          "default": "'DRAFT'"
+        },
+        {
+          "name": "start_at",
+          "type": "timestamptz",
+          "nullable": true
+        },
+        {
+          "name": "end_at",
+          "type": "timestamptz",
+          "nullable": true
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "nullable": true,
+          "default": "now()"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz",
+          "nullable": true,
+          "default": "now()"
+        },
+        {
+          "name": "published_at",
+          "type": "timestamptz",
+          "nullable": true
+        },
+        {
+          "name": "subtitle",
+          "type": "varchar(255)",
+          "nullable": true
+        },
+        {
+          "name": "btn_text",
+          "type": "varchar(120)",
+          "nullable": true
+        },
+        {
+          "name": "mobile_image_url",
+          "type": "text",
+          "nullable": true
+        }
+      ]
+    },
+    "contact_leads": {
+      "status": "EXISTS",
+      "columns": [
+        {
+          "name": "id",
+          "type": "text",
+          "nullable": false,
+          "pk": true
+        },
+        {
+          "name": "name",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "wechat",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "email",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "message",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp",
+          "nullable": false,
+          "default": "CURRENT_TIMESTAMP"
+        },
+        {
+          "name": "interested_category",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "interested_series",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "source_page",
+          "type": "text",
+          "nullable": true
+        }
+      ]
+    },
+    "page_contents": {
+      "status": "EXISTS",
+      "columns": [
+        {
+          "name": "id",
+          "type": "text",
+          "nullable": false,
+          "pk": true
+        },
+        {
+          "name": "page_key",
+          "type": "text",
+          "nullable": false,
+          "unique": "(page_key, section_key)"
+        },
+        {
+          "name": "section_key",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "title",
+          "type": "text",
+          "nullable": false,
+          "default": "''"
+        },
+        {
+          "name": "content",
+          "type": "text",
+          "nullable": false,
+          "default": "''"
+        },
+        {
+          "name": "image",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "sort_order",
+          "type": "integer",
+          "nullable": false,
+          "default": "0"
+        },
+        {
+          "name": "published",
+          "type": "boolean",
+          "nullable": false,
+          "default": "true"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp",
+          "nullable": false,
+          "default": "CURRENT_TIMESTAMP"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp",
+          "nullable": false
+        }
+      ]
+    },
+    "seo_configs": {
+      "status": "EXISTS",
+      "columns": [
+        {
+          "name": "id",
+          "type": "text",
+          "nullable": false,
+          "pk": true
+        },
+        {
+          "name": "page_key",
+          "type": "text",
+          "nullable": false,
+          "unique": true
+        },
+        {
+          "name": "title",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "description",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "og_image",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "canonical",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp",
+          "nullable": false,
+          "default": "CURRENT_TIMESTAMP"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp",
+          "nullable": false
+        }
+      ]
+    },
+    "site_settings": {
+      "status": "EXISTS",
+      "columns": [
+        {
+          "name": "id",
+          "type": "text",
+          "nullable": false,
+          "pk": true
+        },
+        {
+          "name": "key",
+          "type": "text",
+          "nullable": false,
+          "unique": true
+        },
+        {
+          "name": "value",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp",
+          "nullable": false
+        }
+      ]
+    },
+    "publish_jobs": {
+      "status": "EXISTS",
+      "columns": [
+        {
+          "name": "id",
+          "type": "text",
+          "nullable": false,
+          "pk": true,
+          "default": "gen_random_uuid()"
+        },
+        {
+          "name": "content_type",
+          "type": "varchar(20)",
+          "nullable": false
+        },
+        {
+          "name": "content_id",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "publish_at",
+          "type": "timestamptz",
+          "nullable": false
+        },
+        {
+          "name": "status",
+          "type": "varchar(20)",
+          "nullable": true,
+          "default": "'pending'"
+        },
+        {
+          "name": "created_by",
+          "type": "integer",
+          "nullable": true,
+          "default": "1"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "nullable": true,
+          "default": "now()"
+        }
+      ]
+    },
+    "content_versions": {
+      "status": "EXISTS",
+      "columns": [
+        {
+          "name": "id",
+          "type": "text",
+          "nullable": false,
+          "pk": true,
+          "default": "gen_random_uuid()"
+        },
+        {
+          "name": "content_type",
+          "type": "varchar(20)",
+          "nullable": false
+        },
+        {
+          "name": "content_id",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "version",
+          "type": "integer",
+          "nullable": false,
+          "default": "1"
+        },
+        {
+          "name": "snapshot",
+          "type": "jsonb",
+          "nullable": false,
+          "default": "'{}'"
+        },
+        {
+          "name": "status",
+          "type": "varchar(20)",
+          "nullable": true,
+          "default": "'PUBLISHED'"
+        },
+        {
+          "name": "created_by",
+          "type": "integer",
+          "nullable": true,
+          "default": "1"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "nullable": true,
+          "default": "now()"
+        }
+      ]
+    },
+    "seo_snapshots": {
+      "status": "EXISTS",
+      "columns": [
+        {
+          "name": "id",
+          "type": "text",
+          "nullable": false,
+          "pk": true,
+          "default": "gen_random_uuid()"
+        },
+        {
+          "name": "content_type",
+          "type": "varchar(20)",
+          "nullable": false
+        },
+        {
+          "name": "content_id",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "version",
+          "type": "integer",
+          "nullable": false,
+          "default": "1"
+        },
+        {
+          "name": "title",
+          "type": "varchar(255)",
+          "nullable": false
+        },
+        {
+          "name": "slug",
+          "type": "varchar(255)",
+          "nullable": false
+        },
+        {
+          "name": "description",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "keywords",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "og_image",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "canonical_url",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "published_at",
+          "type": "timestamptz",
+          "nullable": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "nullable": true,
+          "default": "now()"
+        }
+      ]
+    },
+    "brand_product_content": {
+      "status": "EXISTS (supplemental)",
+      "columns": [
+        {
+          "name": "id",
+          "type": "integer",
+          "nullable": false,
+          "pk": true
+        },
+        {
+          "name": "product_id",
+          "type": "integer",
+          "nullable": false,
+          "unique": true
+        },
+        {
+          "name": "story",
+          "type": "text",
+          "nullable": false,
+          "default": "''"
+        },
+        {
+          "name": "gallery",
+          "type": "text",
+          "nullable": false,
+          "default": "'[]'"
+        },
+        {
+          "name": "presentation",
+          "type": "text",
+          "nullable": false,
+          "default": "''"
+        },
+        {
+          "name": "seo_title",
+          "type": "varchar",
+          "nullable": true
+        },
+        {
+          "name": "seo_description",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "highlights",
+          "type": "text",
+          "nullable": true,
+          "default": "'[]'"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp",
+          "nullable": false,
+          "default": "now()"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp",
+          "nullable": false,
+          "default": "now()"
+        }
+      ]
+    },
+    "brand_materials": {
+      "status": "EXISTS (supplemental)",
+      "columns": [
+        {
+          "name": "id",
+          "type": "integer",
+          "nullable": false,
+          "pk": true
+        },
+        {
+          "name": "product_id",
+          "type": "integer",
+          "nullable": false
+        },
+        {
+          "name": "material_id",
+          "type": "integer",
+          "nullable": false
+        }
+      ]
+    },
+    "journal_tags": {
+      "status": "EXISTS",
+      "columns": [
+        {
+          "name": "id",
+          "type": "text",
+          "nullable": false,
+          "pk": true
+        },
+        {
+          "name": "journal_id",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "tag_id",
+          "type": "text",
+          "nullable": false
+        }
+      ]
+    },
+    "product_materials": {
+      "status": "EXISTS",
+      "columns": [
+        {
+          "name": "id",
+          "type": "integer",
+          "nullable": false,
+          "pk": true
+        },
+        {
+          "name": "product_id",
+          "type": "integer",
+          "nullable": false
+        },
+        {
+          "name": "material_id",
+          "type": "integer",
+          "nullable": false
+        }
+      ]
+    },
+    "orders": {
+      "status": "EXISTS (ERP legacy in Brand DB)",
+      "columns": [
+        {
+          "name": "id",
+          "type": "integer",
+          "nullable": false,
+          "pk": true
+        },
+        {
+          "name": "order_no",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "product_id",
+          "type": "integer",
+          "nullable": false
+        },
+        {
+          "name": "product_name",
+          "type": "text",
+          "nullable": false,
+          "default": "''"
+        },
+        {
+          "name": "quantity",
+          "type": "integer",
+          "nullable": false,
+          "default": "1"
+        },
+        {
+          "name": "amount",
+          "type": "double precision",
+          "nullable": false
+        },
+        {
+          "name": "customer_name",
+          "type": "text",
+          "nullable": false,
+          "default": "''"
+        },
+        {
+          "name": "phone",
+          "type": "text",
+          "nullable": false,
+          "default": "''"
+        },
+        {
+          "name": "address",
+          "type": "text",
+          "nullable": false,
+          "default": "''"
+        },
+        {
+          "name": "remark",
+          "type": "text",
+          "nullable": false,
+          "default": "''"
+        },
+        {
+          "name": "status",
+          "type": "text",
+          "nullable": false,
+          "default": "'pending'"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp",
+          "nullable": false,
+          "default": "CURRENT_TIMESTAMP"
+        }
+      ]
+    },
+    "admin_users": {
+      "status": "EXISTS (auth)",
+      "columns": [
+        {
+          "name": "id",
+          "type": "text",
+          "nullable": false,
+          "pk": true
+        },
+        {
+          "name": "email",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "password_hash",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "name",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "role",
+          "type": "AdminRole (enum)",
+          "nullable": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp",
+          "nullable": false,
+          "default": "CURRENT_TIMESTAMP"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp",
+          "nullable": false
+        }
+      ]
+    },
+    "audit_logs": {
+      "status": "EXISTS",
+      "columns": [
+        {
+          "name": "id",
+          "type": "text",
+          "nullable": false,
+          "pk": true
+        },
+        {
+          "name": "user_id",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "action",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "entity_type",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "entity_id",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "details",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp",
+          "nullable": false,
+          "default": "CURRENT_TIMESTAMP"
+        }
+      ]
+    }
+  },
+  "future_target_tables": {
+    "brand_products": "DOES NOT EXIST",
+    "brand_series": "DOES NOT EXIST",
+    "brand_materials": "DOES NOT EXIST",
+    "brand_tags": "DOES NOT EXIST",
+    "brand_product_tags": "DOES NOT EXIST"
+  }
+}
