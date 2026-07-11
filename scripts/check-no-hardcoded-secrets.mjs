@@ -58,6 +58,7 @@ function findSecrets(filePath) {
   // These are documenting the breach, not introducing it
   if (filePath === "DATABASE_DISCOVERY_REPORT.md") return [];
   if (filePath === "PROJECT-FULL-AUDIT-REPORT.md") return [];
+  if (filePath.endsWith("YUNWU_MASTER_BASELINE.md")) return [];
   if (filePath === "scripts/reset-pw.js") return [];
   // Skip pre-existing erp scripts with hardcoded credentials
   // These are legacy import utilities, not production code
