@@ -16,9 +16,10 @@
     "build:all": "pnpm -r build",
     "lint": "pnpm -r lint",
     "typecheck": "pnpm -r typecheck",
-    "check:prisma-contract": "node scripts/check-prisma-schema-contract.mjs",
+    "check:prisma-contract": "node --test scripts/check-prisma-schema-contract.test.mjs",
     "db:push": "pnpm --filter @yunwu/db db:push",
-    "db:generate": "pnpm --filter @yunwu/db generate"
+    "db:generate": "pnpm --filter @yunwu/db generate",
+    "check:secrets": "node scripts/check-no-hardcoded-secrets.mjs"
   },
   "dependencies": {
     "pg": "^8.22.0"

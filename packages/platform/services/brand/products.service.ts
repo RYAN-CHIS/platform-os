@@ -1,7 +1,14 @@
 /** BrandProductService — WO-P9B: Direct Brand DB access (Singapore). Raw SQL avoids Canonical @@map mismatch. */
 import { PrismaClient } from "@prisma/client";
 
-const BRAND_URL = process.env.BRAND_DATABASE_URL || "postgresql://neondb_owner:npg_uDbxK58hWIRf@ep-morning-sun-aoo4dk3t-pooler.c-2.ap-southeast-1.aws.neon.tech/neondb?sslmode=require";
+const BRAND_URL = process.env.BRAND_DATABASE_URL;
+
+if (!BRAND_URL) {
+  throw new Error(
+    "[brand/products.service] BRAND_DATABASE_URL is required -- set it in Vercel env. " +
+    "This is a security requirement: plaintext credentials are never hardcoded."
+  );
+}
 
 export const BrandProductService = {
   async list(filters?: { seriesId?: string; status?: string; q?: string }) {
