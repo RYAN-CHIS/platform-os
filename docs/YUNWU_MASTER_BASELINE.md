@@ -358,6 +358,11 @@ All require this baseline to be synchronized.
 - Database connections verified for **existence** only
 - Blob Store token not exposed
 
+### Changelog
+
+**2026-07-11 — P1: Backup path hardened**
+ERP import scripts (`apps/erp/scripts/reset-and-import-*.js`, `import-all-v3.js`) no longer hard-code the machine-specific path `/Users/ryan/Workbuddy/platform-os/` for backup files. They now use `path.join(__dirname, ...)` to derive the backup directory from the script's own location. This removes the only P1 blocker for repository relocation to `~/Projects/active/platform-os/`. The backup filename pattern (`backup-<timestamp>.json`) and directory (`apps/erp/scripts/`) are unchanged.
+
 ## Appendix B: Maintenance
 
 - Update this file after every major change
