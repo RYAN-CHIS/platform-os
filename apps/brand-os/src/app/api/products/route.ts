@@ -2,6 +2,7 @@ import prisma from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { validateSeriesId } from "@/lib/series-id";
 
 // GET — 产品列表（Brand 内容视图）
 export async function GET(req: Request) {
@@ -45,12 +46,17 @@ export async function POST(req: Request) {
   }
 
   const data = await req.json();
+  const seriesIdResult = validateSeriesId(data.seriesId);
+  if (!seriesIdResult.valid) {
+    return NextResponse.json({ error: seriesIdResult.error }, { status: 400 });
+  }
+
   const product = await prisma.product.create({
     data: {
       sku: data.sku || `P-${Date.now()}`,
       name: data.name,
       slug: data.slug || data.name?.toLowerCase().replace(/\s+/g, "-"),
-      seriesId: data.seriesId ? parseInt(data.seriesId) : 0,
+      seriesId: seriesIdResult.seriesId,
       objectCategory: data.objectCategory || "BRACELET",
       theme: data.theme || "",
       story: data.story || "",

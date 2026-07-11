@@ -8,6 +8,15 @@
 
 ---
 
+## Prisma Hotfix — Schema Ownership Audit (2026-07-11)
+
+- The frozen Web Prisma schema keeps the TypeScript field `remainingQuantity` and now maps it to the existing production column `remaining_qty`.
+- No database migration was required or performed.
+- Brand OS product creation now rejects a missing or invalid `seriesId` instead of writing `0`.
+- The temporary three-client Prisma strategy remains in place; convergence on the canonical `@yunwu/db` client remains a separate Phase 3 task.
+
+---
+
 ## 1. Project Identity
 
 | Attribute | Value |

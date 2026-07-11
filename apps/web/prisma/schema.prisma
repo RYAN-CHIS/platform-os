@@ -72,7 +72,7 @@ model Product {
   emotionalState  String?         @map("emotional_state")
   // 时间性缓存 (V2.1)
   companionsCount Int             @default(0) @map("companions_count")
-  remainingQuantity Int?          @map("remaining_quantity")
+  remainingQuantity Int?          @map("remaining_qty")
 
   @@index([seriesId])
   @@index([status])
