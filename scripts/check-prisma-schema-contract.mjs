@@ -58,7 +58,7 @@ function parseFields(block) {
   const fields = new Map();
   for (const sourceLine of block.split("\n")) {
     const line = sourceLine.replace(/\/\/.*$/, "").trim();
-    const match = line.match(/^(\w+)\s+([A-Za-z]\w*\??)(?=\s|@|$)(.*)$/);
+    const match = line.match(/^(\w+)\s+([A-Za-z]\w*(?:\[\])?\??)(?=\s|@|$)(.*)$/);
     if (match && !match[1].startsWith("@@")) {
       fields.set(match[1], { type: match[2], rest: match[3], line });
     }
@@ -68,6 +68,14 @@ function parseFields(block) {
 
 function fieldMapping(fields, name) {
   return fields.get(name)?.rest.match(/@map\(\s*"([^"]+)"\s*\)/)?.[1];
+}
+
+function relationArgument(field, argument) {
+  return field?.rest.match(new RegExp(`${argument}:\\s*\\[\\s*(\\w+)\\s*\\]`))?.[1];
+}
+
+function relationAction(field, action) {
+  return field?.rest.match(new RegExp(`${action}:\\s*(\\w+)`))?.[1];
 }
 
 function datasourceContract(schema) {
@@ -98,6 +106,59 @@ function withoutComments(schema) {
 
 function addFieldError(errors, schemaPath, modelName, fieldName, expected, actual) {
   errors.push(`${schemaPath}: ${modelName}.${fieldName} contract failed — expected ${expected}; actual ${actual}`);
+}
+
+function validateBrandTagRelations(schemaPath, models, errors) {
+  const relationContracts = [
+    { model: "Tag", field: "productTags", type: "ProductTag[]" },
+    { model: "Tag", field: "journalTags", type: "LegacyJournalTag[]" },
+    { model: "ProductTag", field: "product", type: "LegacyBrandProduct", fields: "productId", references: "id" },
+    { model: "ProductTag", field: "tag", type: "Tag", fields: "tagId", references: "id" },
+    { model: "LegacyJournalTag", field: "journal", type: "JournalPost", fields: "journalId", references: "id" },
+    { model: "LegacyJournalTag", field: "tag", type: "Tag", fields: "tagId", references: "id" },
+  ];
+
+  for (const contract of relationContracts) {
+    const block = models.get(contract.model);
+    const fields = block ? parseFields(block) : new Map();
+    const field = fields.get(contract.field);
+    if (field?.type !== contract.type) {
+      addFieldError(errors, schemaPath, contract.model, contract.field, contract.type, field?.type ?? "missing");
+      continue;
+    }
+    if (!contract.fields) continue;
+
+    const actualFields = relationArgument(field, "fields");
+    const actualReferences = relationArgument(field, "references");
+    if (!fields.has(contract.fields)) {
+      addFieldError(errors, schemaPath, contract.model, contract.field, `existing scalar field ${contract.fields}`, "missing scalar field");
+    }
+    if (actualFields !== contract.fields) {
+      addFieldError(errors, schemaPath, contract.model, contract.field, `@relation(fields: [${contract.fields}])`, actualFields ? `@relation(fields: [${actualFields}])` : "missing relation fields");
+    }
+    if (actualReferences !== contract.references) {
+      addFieldError(errors, schemaPath, contract.model, contract.field, `references: [${contract.references}]`, actualReferences ? `references: [${actualReferences}]` : "missing relation references");
+    }
+    for (const action of ["onDelete", "onUpdate"]) {
+      const actualAction = relationAction(field, action);
+      if (actualAction && actualAction !== "NoAction") {
+        addFieldError(errors, schemaPath, contract.model, contract.field, `${action}: NoAction or omitted (Prisma relation only; no DB FK)`, `${action}: ${actualAction}`);
+      }
+    }
+  }
+
+  for (const [modelName, block] of models) {
+    const fields = parseFields(block);
+    for (const [fieldName, field] of fields) {
+      if (!field.type.endsWith("[]")) continue;
+      const target = models.get(field.type.slice(0, -2));
+      const targetFields = target && parseFields(target);
+      const inverseList = targetFields && [...targetFields.values()].some((candidate) => candidate.type === `${modelName}[]`);
+      if (inverseList) {
+        errors.push(`${schemaPath}: implicit many-to-many contract failed — expected explicit join models only; actual ${modelName}.${fieldName} and ${field.type.slice(0, -2)} declare list-to-list relations`);
+      }
+    }
+  }
 }
 
 function validateBrandSchemaContract(rootDir, errors) {
@@ -182,6 +243,8 @@ function validateBrandSchemaContract(rootDir, errors) {
       addFieldError(errors, schemaPath, contract.model, contract.field, `@map("${contract.map}")`, fieldMapping(fields, contract.field) ? `@map("${fieldMapping(fields, contract.field)}")` : "missing @map");
     }
   }
+
+  validateBrandTagRelations(schemaPath, models, errors);
 }
 
 export function validatePrismaSchemaContract(rootDir) {

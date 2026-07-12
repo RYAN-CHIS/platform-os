@@ -50,6 +50,7 @@ model LegacyBrandProduct {
   publishStatus   PublishStatus           @default(DRAFT) @map("publish_status")
   productType     ProductType             @default(STANDARD) @map("product_type")
   materialLinks   LegacyProductMaterial[]
+  productTags     ProductTag[]
 
   @@index([objectCategory])
   @@index([publishStatus])
@@ -98,20 +99,30 @@ model LegacyBrandMaterial {
 }
 
 model Tag {
-  id          String   @id
-  name        String   @unique
-  slug        String   @unique
+  id          String             @id
+  name        String             @unique
+  slug        String             @unique
   description String?
   type        TagType
-  createdAt   DateTime @default(now()) @map("created_at")
+  createdAt   DateTime           @default(now()) @map("created_at")
+  /// Prisma Client relation for product_tags; the production database has no FK.
+  /// Referential integrity is application-level. See ADR-002.
+  productTags ProductTag[]
+  /// Prisma Client relation for journal_tags; the production database has no FK.
+  /// Referential integrity is application-level. See ADR-002.
+  journalTags LegacyJournalTag[]
 
   @@map("tags")
 }
 
 model ProductTag {
-  id        String @id
-  productId Int    @map("product_id")
-  tagId     String @map("tag_id")
+  id        String             @id
+  productId Int                @map("product_id")
+  tagId     String             @map("tag_id")
+  /// Prisma Client relation; the production database has no FK. See ADR-002.
+  product   LegacyBrandProduct @relation(fields: [productId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  /// Prisma Client relation; the production database has no FK. See ADR-002.
+  tag       Tag                @relation(fields: [tagId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@unique([productId, tagId])
   @@map("product_tags")
@@ -131,22 +142,23 @@ model Media {
 }
 
 model JournalPost {
-  id             String          @id
-  title          String
-  slug           String          @unique
-  excerpt        String?
-  content        String
-  coverImage     String?         @map("cover_image")
-  category       JournalCategory
-  status         PublishStatus   @default(DRAFT)
-  seoTitle       String?         @map("seo_title")
-  seoDescription String?         @map("seo_description")
-  publishedAt    DateTime?       @map("published_at")
-  createdAt      DateTime        @default(now()) @map("created_at")
-  updatedAt      DateTime        @map("updated_at")
-  coverAlt       String?         @map("cover_alt")
-  readingTime    Int?            @map("reading_time")
-  sortOrder      Int             @default(0) @map("sort_order")
+  id                String             @id
+  title             String
+  slug              String             @unique
+  excerpt           String?
+  content           String
+  coverImage        String?            @map("cover_image")
+  category          JournalCategory
+  status            PublishStatus      @default(DRAFT)
+  seoTitle          String?            @map("seo_title")
+  seoDescription    String?            @map("seo_description")
+  publishedAt       DateTime?          @map("published_at")
+  createdAt         DateTime           @default(now()) @map("created_at")
+  updatedAt         DateTime           @map("updated_at")
+  coverAlt          String?            @map("cover_alt")
+  readingTime       Int?               @map("reading_time")
+  sortOrder         Int                @default(0) @map("sort_order")
+  legacyJournalTags LegacyJournalTag[]
 
   @@index([category])
   @@index([status, publishedAt])
@@ -300,9 +312,13 @@ model LegacyBrandMaterialLink {
 }
 
 model LegacyJournalTag {
-  id        String @id
-  journalId String @map("journal_id")
-  tagId     String @map("tag_id")
+  id        String      @id
+  journalId String      @map("journal_id")
+  tagId     String      @map("tag_id")
+  /// Prisma Client relation; the production database has no FK. See ADR-002.
+  journal   JournalPost @relation(fields: [journalId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  /// Prisma Client relation; the production database has no FK. See ADR-002.
+  tag       Tag         @relation(fields: [tagId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@map("journal_tags")
 }

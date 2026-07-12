@@ -36,6 +36,10 @@ function assertFailure(mutator, expected) {
   assert.ok(errors.some((error) => error.includes(expected)), `expected ${expected}; received:\n${errors.join("\n")}`);
 }
 
+function mutateModel(schema, modelName, mutate) {
+  return schema.replace(new RegExp(`(model ${modelName}\\s*\\{)([\\s\\S]*?)(\\n\\})`), (_, open, body, close) => `${open}${mutate(body)}${close}`);
+}
+
 afterEach(() => {
   while (fixtureRoots.length) fs.rmSync(fixtureRoots.pop(), { recursive: true, force: true });
 });
@@ -47,6 +51,52 @@ describe("Prisma schema contract", () => {
 
   it("accepts the exact Brand PublishStatus enum, dual status fields, and brand_materials link", () => {
     assert.deepEqual(validatePrismaSchemaContract(createFixture()), []);
+  });
+
+  it("accepts all six ADR-002 relations with explicit NoAction", () => {
+    assert.deepEqual(validatePrismaSchemaContract(createFixture()), []);
+  });
+
+  it("accepts Prisma default non-Cascade semantics for the ADR-002 relations", () => {
+    assert.deepEqual(validatePrismaSchemaContract(createFixture((schema) => schema.replaceAll(", onDelete: NoAction, onUpdate: NoAction", ""))), []);
+  });
+
+  it("rejects each required ADR-002 relation when removed", () => {
+    const relations = [
+      ["Tag", "productTags"],
+      ["Tag", "journalTags"],
+      ["ProductTag", "product"],
+      ["ProductTag", "tag"],
+      ["LegacyJournalTag", "journal"],
+      ["LegacyJournalTag", "tag"],
+    ];
+    for (const [model, field] of relations) {
+      assertFailure((schema) => mutateModel(schema, model, (body) => body.replace(new RegExp(`\\n\\s*${field}\\s+[^\\n]*`), "")), `${model}.${field} contract failed`);
+    }
+  });
+
+  it("rejects ADR-002 relations with an incorrect scalar field", () => {
+    assertFailure((schema) => mutateModel(schema, "ProductTag", (body) => body.replace("fields: [productId]", "fields: [tagId]")), "ProductTag.product contract failed");
+  });
+
+  it("rejects ADR-002 relations with an incorrect reference field", () => {
+    assertFailure((schema) => mutateModel(schema, "ProductTag", (body) => body.replace("references: [id]", "references: [slug]")), "ProductTag.product contract failed");
+  });
+
+  it("rejects Cascade delete and update semantics on ADR-002 relations", () => {
+    assertFailure((schema) => mutateModel(schema, "ProductTag", (body) => body.replace("onDelete: NoAction", "onDelete: Cascade")), "ProductTag.product contract failed");
+    assertFailure((schema) => mutateModel(schema, "LegacyJournalTag", (body) => body.replace("onUpdate: NoAction", "onUpdate: Cascade")), "LegacyJournalTag.journal contract failed");
+  });
+
+  it("rejects an implicit Tag to Product many-to-many relation", () => {
+    assertFailure(
+      (schema) => mutateModel(
+        mutateModel(schema, "Tag", (body) => `${body}\n  legacyProducts LegacyBrandProduct[]`),
+        "LegacyBrandProduct",
+        (body) => `${body}\n  tags Tag[]`,
+      ),
+      "implicit many-to-many contract failed",
+    );
   });
 
   it("rejects DATABASE_URL for the Brand datasource", () => {

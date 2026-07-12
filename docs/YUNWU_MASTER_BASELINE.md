@@ -34,6 +34,15 @@
 
 ---
 
+## Prisma Phase C1 — Brand OS Relation and Adapter Infrastructure (2026-07-12)
+
+- ADR-002 is accepted. The canonical Brand schema explicitly declares the Tag, ProductTag, and LegacyJournalTag Prisma Client relations needed by Brand OS.
+- `product_tags` and `journal_tags` have no production database FK constraints. Prisma relations are not database FKs; referential integrity remains application-level and relation actions are non-Cascade.
+- `apps/brand-os/src/lib/brand-db-adapter.ts` is the server-only thin re-export entry for `@yunwu/brand-db`.
+- Phase C1 does not migrate consumers. The legacy client, frozen schema, and existing generate entry remain until their later phases; consumer migration is Phase C2 and frozen-schema deletion is Phase H.
+
+---
+
 ## 1. Project Identity
 
 | Attribute | Value |
