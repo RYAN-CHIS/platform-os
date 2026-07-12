@@ -108,6 +108,45 @@ function addFieldError(errors, schemaPath, modelName, fieldName, expected, actua
   errors.push(`${schemaPath}: ${modelName}.${fieldName} contract failed — expected ${expected}; actual ${actual}`);
 }
 
+function validateCanonicalWriteContract(schemaPath, models, errors) {
+  const contracts = [
+    ["ADR-003", "JournalPost", "id", /@default\(\s*cuid\(\)\s*\)/, "@default(cuid())"],
+    ["ADR-003", "JournalPost", "updatedAt", /@updatedAt\b/, "@updatedAt"],
+    ["ADR-003", "PageContent", "id", /@default\(\s*cuid\(\)\s*\)/, "@default(cuid())"],
+    ["ADR-003", "PageContent", "updatedAt", /@updatedAt\b/, "@updatedAt"],
+    ["ADR-003", "AuditLog", "id", /@default\(\s*cuid\(\)\s*\)/, "@default(cuid())"],
+    ["ADR-003", "AdminUser", "id", /@default\(\s*cuid\(\)\s*\)/, "@default(cuid())"],
+    ["ADR-003", "AdminUser", "updatedAt", /@updatedAt\b/, "@updatedAt"],
+    ["ADR-004", "LegacyBrandProduct", "updatedAt", /@updatedAt\b/, "@updatedAt"],
+    ["ADR-004", "LegacyBrandSeries", "id", /@default\(\s*autoincrement\(\)\s*\)/, "@default(autoincrement())"],
+    ["ADR-004", "LegacyBrandSeries", "updatedAt", /@updatedAt\b/, "@updatedAt"],
+    ["ADR-004", "LegacyBrandMaterial", "id", /@default\(\s*autoincrement\(\)\s*\)/, "@default(autoincrement())"],
+    ["ADR-004", "LegacyBrandMaterial", "updatedAt", /@updatedAt\b/, "@updatedAt"],
+    ["ADR-004", "Media", "id", /@default\(\s*cuid\(\)\s*\)/, "@default(cuid())"],
+    ["ADR-004", "SeoConfig", "id", /@default\(\s*cuid\(\)\s*\)/, "@default(cuid())"],
+    ["ADR-004", "SeoConfig", "updatedAt", /@updatedAt\b/, "@updatedAt"],
+    ["ADR-004", "SiteSetting", "id", /@default\(\s*cuid\(\)\s*\)/, "@default(cuid())"],
+    ["ADR-004", "SiteSetting", "updatedAt", /@updatedAt\b/, "@updatedAt"],
+    ["ADR-004", "Tag", "id", /@default\(\s*cuid\(\)\s*\)/, "@default(cuid())"],
+    ["ADR-004", "ProductTag", "id", /@default\(\s*cuid\(\)\s*\)/, "@default(cuid())"],
+    ["ADR-004", "LegacyJournalTag", "id", /@default\(\s*cuid\(\)\s*\)/, "@default(cuid())"],
+  ];
+  for (const [adr, modelName, fieldName, pattern, expected] of contracts) {
+    const field = models.has(modelName) ? parseFields(models.get(modelName)).get(fieldName) : undefined;
+    if (!field || !pattern.test(field.rest)) errors.push(`${schemaPath}: ${adr} ${modelName}.${fieldName} contract failed — expected ${expected}; actual ${field?.line ?? "missing"}`);
+  }
+  const admin = models.get("AdminUser") ?? "";
+  const adminEmail = parseFields(admin).get("email");
+  if (adminEmail?.type !== "String" || /@unique\b/.test(adminEmail?.rest ?? "")) errors.push(`${schemaPath}: ADR-003 AdminUser.email contract failed — expected String without @unique; actual ${adminEmail?.line ?? "missing"}`);
+  if (/@@unique\(\s*\[\s*email\s*\]\s*\)/.test(admin)) errors.push(`${schemaPath}: ADR-003 AdminUser model contract failed — expected no @@unique([email]); actual annotation found`);
+  const leads = parseFields(models.get("ContactLead") ?? "");
+  if (leads.get("wechat")?.type !== "String?" || fieldMapping(leads, "wechat") || leads.has("we_chat")) errors.push(`${schemaPath}: ADR-003 ContactLead.wechat contract failed — expected String? without @map and no we_chat field; actual ${leads.get("wechat")?.line ?? "missing"}`);
+  for (const [modelName, fieldName] of [["ContactLead", "id"], ["LegacyOrder", "id"], ["LegacyBrandMaterialLink", "id"]]) {
+    const field = models.has(modelName) ? parseFields(models.get(modelName)).get(fieldName) : undefined;
+    if (/@default\(/.test(field?.rest ?? "")) errors.push(`${schemaPath}: ADR-004 ${modelName}.${fieldName} contract failed — expected no unapproved default; actual ${field.line}`);
+  }
+}
+
 function validateBrandTagRelations(schemaPath, models, errors) {
   const relationContracts = [
     { model: "Tag", field: "productTags", type: "ProductTag[]" },
@@ -245,6 +284,7 @@ function validateBrandSchemaContract(rootDir, errors) {
   }
 
   validateBrandTagRelations(schemaPath, models, errors);
+  validateCanonicalWriteContract(schemaPath, models, errors);
 }
 
 export function validatePrismaSchemaContract(rootDir) {

@@ -4,10 +4,17 @@ import { revalidatePath } from "next/cache";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import prisma from "@/lib/prisma";
+import {
+  brandDb,
+  type AdminRole,
+  type JournalCategory,
+  type MediaCategory,
+  type ObjectCategory,
+  type PublishStatus,
+} from "@/lib/brand-db-adapter";
+import { assertAdminEmailAvailable } from "@/lib/admin-identity";
 import bcrypt from "bcryptjs";
 import { del } from "@vercel/blob";
-import type { ObjectCategory, JournalCategory, MediaCategory, PublishStatus, AdminRole, TagType } from '@prisma/brand-client';
 
 // ═══════════════════════════════════════════════════════
 // Auth helpers — 统一 RBAC 校验
@@ -67,7 +74,7 @@ export async function requireLeadsAccess() {
 
 export async function getSeries() {
   await requireAdmin();
-  return prisma.series.findMany({ orderBy: { sortOrder: "asc" } });
+  return brandDb.legacyBrandSeries.findMany({ orderBy: { sortOrder: "asc" } });
 }
 
 export async function createSeries(data: {
@@ -76,7 +83,7 @@ export async function createSeries(data: {
   coverImage?: string; sortOrder?: number; isActive?: boolean;
 }) {
   await requireAdmin();
-  const s = await prisma.series.create({ data });
+  const s = await brandDb.legacyBrandSeries.create({ data });
   revalidatePath("/admin/series");
   return s;
 }
@@ -87,7 +94,7 @@ export async function updateSeries(id: number, data: {
   coverImage?: string; sortOrder?: number; isActive?: boolean;
 }) {
   await requireAdmin();
-  const s = await prisma.series.update({ where: { id }, data });
+  const s = await brandDb.legacyBrandSeries.update({ where: { id }, data });
   revalidatePath("/admin/series");
   revalidatePath("/");
   return s;
@@ -95,7 +102,7 @@ export async function updateSeries(id: number, data: {
 
 export async function deleteSeries(id: number) {
   await requireAdmin();
-  await prisma.series.delete({ where: { id } });
+  await brandDb.legacyBrandSeries.delete({ where: { id } });
   revalidatePath("/admin/series");
 }
 
@@ -122,7 +129,7 @@ export async function getObjectCategories() {
 
 export async function getMaterials() {
   await requireAdmin();
-  return prisma.material.findMany({ orderBy: { createdAt: "desc" } });
+  return brandDb.legacyBrandMaterial.findMany({ orderBy: { createdAt: "desc" } });
 }
 
 export async function createMaterial(data: {
@@ -130,7 +137,7 @@ export async function createMaterial(data: {
   history?: string; features?: string; description?: string; image?: string;
 }) {
   await requireAdmin();
-  const m = await prisma.material.create({ data: { ...data, relatedArticles: "[]" } });
+  const m = await brandDb.legacyBrandMaterial.create({ data: { ...data, relatedArticles: "[]" } });
   revalidatePath("/admin/materials");
   return m;
 }
@@ -140,14 +147,14 @@ export async function updateMaterial(id: number, data: {
   history?: string; features?: string; description?: string; image?: string;
 }) {
   await requireAdmin();
-  const m = await prisma.material.update({ where: { id }, data });
+  const m = await brandDb.legacyBrandMaterial.update({ where: { id }, data });
   revalidatePath("/admin/materials");
   return m;
 }
 
 export async function deleteMaterial(id: number) {
   await requireAdmin();
-  await prisma.material.delete({ where: { id } });
+  await brandDb.legacyBrandMaterial.delete({ where: { id } });
   revalidatePath("/admin/materials");
 }
 
@@ -159,7 +166,7 @@ export async function deleteMaterial(id: number) {
 
 export async function getProducts() {
   await requireAnyRole();
-  return prisma.product.findMany({
+  return brandDb.legacyBrandProduct.findMany({
     include: { series: true },
     orderBy: { updatedAt: "desc" },
   });
@@ -167,7 +174,7 @@ export async function getProducts() {
 
 export async function getSeriesForSelect() {
   await requireAnyRole();
-  return prisma.series.findMany({
+  return brandDb.legacyBrandSeries.findMany({
     where: { isActive: true },
     select: { id: true, name: true },
     orderBy: { sortOrder: "asc" },
@@ -195,7 +202,7 @@ export async function createProduct(data: {
   status?: string;
 }) {
   await requireAdmin();
-  const p = await prisma.product.create({
+  const p = await brandDb.legacyBrandProduct.create({
     data: {
       ...data,
       objectCategory: data.objectCategory as ObjectCategory,
@@ -229,14 +236,14 @@ export async function updateProduct(id: number, data: {
   if (data.salePrice !== undefined) updateData.salePrice = data.salePrice;
   if (data.status !== undefined) updateData.status = data.status;
 
-  const p = await prisma.product.update({ where: { id }, data: updateData });
+  const p = await brandDb.legacyBrandProduct.update({ where: { id }, data: updateData });
   revalidatePath("/admin/products");
   return p;
 }
 
 export async function deleteProduct(id: number) {
   await requireAdmin();
-  await prisma.product.delete({ where: { id } });
+  await brandDb.legacyBrandProduct.delete({ where: { id } });
   revalidatePath("/admin/products");
 }
 
@@ -246,7 +253,7 @@ export async function deleteProduct(id: number) {
 
 export async function getJournalPosts() {
   await requireContentEditor();
-  return prisma.journalPost.findMany({ orderBy: { updatedAt: "desc" } });
+  return brandDb.journalPost.findMany({ orderBy: { updatedAt: "desc" } });
 }
 
 export async function createJournalPost(data: {
@@ -255,7 +262,7 @@ export async function createJournalPost(data: {
   seoTitle?: string; seoDescription?: string;
 }) {
   await requireContentEditor();
-  const post = await prisma.journalPost.create({ data });
+  const post = await brandDb.journalPost.create({ data });
   revalidatePath("/admin/journal");
   return post;
 }
@@ -266,7 +273,7 @@ export async function updateJournalPost(id: string, data: {
   seoTitle?: string; seoDescription?: string;
 }) {
   await requireContentEditor();
-  const post = await prisma.journalPost.update({ where: { id }, data });
+  const post = await brandDb.journalPost.update({ where: { id }, data });
   revalidatePath("/admin/journal");
   revalidatePath("/journal");
   return post;
@@ -274,7 +281,7 @@ export async function updateJournalPost(id: string, data: {
 
 export async function deleteJournalPost(id: string) {
   await requireContentEditor();
-  await prisma.journalPost.delete({ where: { id } });
+  await brandDb.journalPost.delete({ where: { id } });
   revalidatePath("/admin/journal");
 }
 
@@ -284,7 +291,7 @@ export async function deleteJournalPost(id: string) {
 
 export async function getMedia() {
   await requireContentEditor();
-  return prisma.media.findMany({ orderBy: { createdAt: "desc" } });
+  return brandDb.media.findMany({ orderBy: { createdAt: "desc" } });
 }
 
 export async function saveMedia(data: {
@@ -292,18 +299,18 @@ export async function saveMedia(data: {
   altText?: string; size: number; mimeType: string;
 }) {
   await requireContentEditor();
-  const m = await prisma.media.create({ data });
+  const m = await brandDb.media.create({ data });
   revalidatePath("/admin/media");
   return m;
 }
 
 export async function deleteMedia(id: string) {
   await requireAdmin();
-  const record = await prisma.media.findUnique({ where: { id } });
+  const record = await brandDb.media.findUnique({ where: { id } });
   if (record && record.url) {
     try { await del(record.url); } catch {}
   }
-  await prisma.media.delete({ where: { id } });
+  await brandDb.media.delete({ where: { id } });
   revalidatePath("/admin/media");
 }
 
@@ -313,7 +320,7 @@ export async function deleteMedia(id: string) {
 
 export async function getSeoConfigs() {
   await requireAdmin();
-  return prisma.seoConfig.findMany({ orderBy: { pageKey: "asc" } });
+  return brandDb.seoConfig.findMany({ orderBy: { pageKey: "asc" } });
 }
 
 export async function upsertSeoConfig(data: {
@@ -321,7 +328,7 @@ export async function upsertSeoConfig(data: {
   ogImage?: string; canonical?: string;
 }) {
   await requireAdmin();
-  const c = await prisma.seoConfig.upsert({
+  const c = await brandDb.seoConfig.upsert({
     where: { pageKey: data.pageKey },
     create: data,
     update: data,
@@ -336,12 +343,12 @@ export async function upsertSeoConfig(data: {
 
 export async function getSiteSettings() {
   await requireSuperAdmin();
-  return prisma.siteSetting.findMany();
+  return brandDb.siteSetting.findMany();
 }
 
 export async function upsertSiteSetting(key: string, value: string) {
   await requireSuperAdmin();
-  const s = await prisma.siteSetting.upsert({
+  const s = await brandDb.siteSetting.upsert({
     where: { key },
     create: { key, value },
     update: { value },
@@ -352,7 +359,7 @@ export async function upsertSiteSetting(key: string, value: string) {
 
 export async function getSiteSettingValue(key: string): Promise<string | null> {
   try {
-    const setting = await prisma.siteSetting.findUnique({ where: { key } });
+    const setting = await brandDb.siteSetting.findUnique({ where: { key } });
     return setting?.value || null;
   } catch {
     return null;
@@ -365,7 +372,7 @@ export async function getSiteSettingValue(key: string): Promise<string | null> {
 
 export async function getLeads() {
   await requireLeadsAccess();
-  return prisma.contactLead.findMany({ orderBy: { createdAt: "desc" } });
+  return brandDb.contactLead.findMany({ orderBy: { createdAt: "desc" } });
 }
 
 // ═══════════════════════════════════════════════════════
@@ -374,16 +381,20 @@ export async function getLeads() {
 
 export async function getAdminUsers() {
   await requireSuperAdmin();
-  return prisma.adminUser.findMany({ orderBy: { createdAt: "desc" } });
+  return brandDb.adminUser.findMany({ orderBy: { createdAt: "desc" } });
 }
 
 export async function createAdminUser(data: {
   email: string; name: string; password: string; role: string;
 }) {
   await requireSuperAdmin();
+  await assertAdminEmailAvailable(() => brandDb.adminUser.findFirst({
+    where: { email: data.email },
+    select: { id: true },
+  }));
   const hash = await bcrypt.hash(data.password, 10);
-  const u = await prisma.adminUser.create({
-    data: { email: data.email, name: data.name, passwordHash: hash, role: data.role as any },
+  const u = await brandDb.adminUser.create({
+    data: { email: data.email, name: data.name, passwordHash: hash, role: data.role as AdminRole },
   });
   revalidatePath("/admin/settings");
   return u;
@@ -391,6 +402,6 @@ export async function createAdminUser(data: {
 
 export async function deleteAdminUser(id: string) {
   await requireSuperAdmin();
-  await prisma.adminUser.delete({ where: { id } });
+  await brandDb.adminUser.delete({ where: { id } });
   revalidatePath("/admin/settings");
 }

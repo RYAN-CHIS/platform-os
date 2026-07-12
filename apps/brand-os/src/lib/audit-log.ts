@@ -1,4 +1,4 @@
-import prisma from "@/lib/prisma";
+import { brandDb } from "@/lib/brand-db-adapter";
 
 /**
  * 记录审计日志。
@@ -22,7 +22,7 @@ export async function logAction(
   details?: string,
 ) {
   try {
-    await prisma.auditLog.create({
+    await brandDb.auditLog.create({
       data: {
         userId,
         action,

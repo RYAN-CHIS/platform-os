@@ -1,21 +1,21 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { prisma } from "@/lib/prisma";
+import { brandDb } from "@/lib/brand-db-adapter";
 import { requireContentEditor, requireAdmin } from "./auth";
 
 // ── 页面内容管理（读操作：EDITOR+ 可访问） ──
 
 export async function getPageContents(pageKey?: string) {
   const where = pageKey ? { pageKey } : {};
-  return prisma.pageContent.findMany({
+  return brandDb.pageContent.findMany({
     where,
     orderBy: [{ pageKey: "asc" }, { sortOrder: "asc" }],
   });
 }
 
 export async function getPageContent(id: string) {
-  return prisma.pageContent.findUnique({ where: { id } });
+  return brandDb.pageContent.findUnique({ where: { id } });
 }
 
 // ── 写操作：ADMIN+ ──
@@ -45,9 +45,9 @@ export async function upsertPageContent(formData: FormData) {
   };
 
   if (id) {
-    await prisma.pageContent.update({ where: { id }, data });
+    await brandDb.pageContent.update({ where: { id }, data });
   } else {
-    await prisma.pageContent.create({ data });
+    await brandDb.pageContent.create({ data });
   }
 
   revalidatePath("/admin/content");
@@ -56,7 +56,7 @@ export async function upsertPageContent(formData: FormData) {
 
 export async function deletePageContent(id: string) {
   await requireAdmin();
-  await prisma.pageContent.delete({ where: { id } });
+  await brandDb.pageContent.delete({ where: { id } });
   revalidatePath("/admin/content");
   return { ok: true };
 }
@@ -64,7 +64,7 @@ export async function deletePageContent(id: string) {
 // ── 公开查询（用于前台） ──
 
 export async function getPublishedPageContents(pageKey: string) {
-  return prisma.pageContent.findMany({
+  return brandDb.pageContent.findMany({
     where: { pageKey, published: true },
     orderBy: { sortOrder: "asc" },
   });

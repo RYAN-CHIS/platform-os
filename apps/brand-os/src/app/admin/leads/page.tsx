@@ -1,4 +1,4 @@
-import prisma from '@/lib/prisma'
+import { brandDb } from '@/lib/brand-db-adapter'
 
 export const dynamic = 'force-dynamic'
 
@@ -7,7 +7,7 @@ export const metadata = {
 }
 
 export default async function AdminLeadsPage() {
-  const leads = await prisma.contactLead.findMany({
+  const leads = await brandDb.contactLead.findMany({
     orderBy: { createdAt: 'desc' },
   })
 
@@ -37,7 +37,7 @@ export default async function AdminLeadsPage() {
               {leads.map((lead) => (
                 <tr key={lead.id} className="border-b last:border-b-0" style={lineStyle}>
                   <td className="py-3 px-4 text-sm font-medium" style={textStyle}>{lead.name}</td>
-                  <td className="py-3 px-4 text-sm" style={subStyle}>{lead.we_chat || '-'}</td>
+                  <td className="py-3 px-4 text-sm" style={subStyle}>{lead.wechat || '-'}</td>
                   <td className="py-3 px-4 text-sm" style={subStyle}>{lead.email || '-'}</td>
                   <td className="py-3 px-4 text-sm max-w-xs truncate" style={subStyle}>{lead.message || '-'}</td>
                   <td className="py-3 px-4 text-xs" style={subStyle}>

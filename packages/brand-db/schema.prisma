@@ -31,7 +31,8 @@ model LegacyBrandProduct {
   /// SCHEDULED, PUBLISHED, ARCHIVED, REJECTED. Owner: Publisher. ADR-001 §7.3.
   status          String                  @default("draft")
   createdAt       DateTime                @default(now()) @map("created_at")
-  updatedAt       DateTime                @map("updated_at")
+  /// Prisma Client-maintained timestamp; not a database trigger. See ADR-004.
+  updatedAt       DateTime                @updatedAt @map("updated_at")
   inspiration     String?
   keywords        String?
   lifeStage       String?                 @map("life_stage")
@@ -60,14 +61,16 @@ model LegacyBrandProduct {
 }
 
 model LegacyBrandSeries {
-  id          Int                  @id
+  /// Maps the existing database sequence/identity behavior; no DDL is added. See ADR-004.
+  id          Int                  @id @default(autoincrement())
   slug        String               @unique
   name        String
   description String
   coverImage  String               @default("")
   heroText    String               @default("")
   createdAt   DateTime             @default(now())
-  updatedAt   DateTime
+  /// Prisma Client-maintained timestamp; not a database trigger. See ADR-004.
+  updatedAt   DateTime             @updatedAt
   isActive    Boolean              @default(true) @map("is_active")
   longDesc    String?              @map("long_desc")
   shortDesc   String?              @map("short_desc")
@@ -81,14 +84,16 @@ model LegacyBrandSeries {
 }
 
 model LegacyBrandMaterial {
-  id              Int                     @id
+  /// Maps the existing database sequence/identity behavior; no DDL is added. See ADR-004.
+  id              Int                     @id @default(autoincrement())
   name            String                  @unique
   type            String                  @default("")
   origin          String                  @default("")
   description     String                  @default("")
   image           String                  @default("")
   createdAt       DateTime                @default(now())
-  updatedAt       DateTime
+  /// Prisma Client-maintained timestamp; not a database trigger. See ADR-004.
+  updatedAt       DateTime                @updatedAt
   alias           String?
   features        String?
   history         String?
@@ -99,7 +104,8 @@ model LegacyBrandMaterial {
 }
 
 model Tag {
-  id          String             @id
+  /// Prisma Client-generated cuid; not a database default. Non-Prisma writes generate IDs explicitly. See ADR-004.
+  id          String             @id @default(cuid())
   name        String             @unique
   slug        String             @unique
   description String?
@@ -116,7 +122,8 @@ model Tag {
 }
 
 model ProductTag {
-  id        String             @id
+  /// Prisma Client-generated cuid; not a database default. Supports createMany without explicit IDs. See ADR-004.
+  id        String             @id @default(cuid())
   productId Int                @map("product_id")
   tagId     String             @map("tag_id")
   /// Prisma Client relation; the production database has no FK. See ADR-002.
@@ -129,7 +136,8 @@ model ProductTag {
 }
 
 model Media {
-  id        String        @id
+  /// Prisma Client-generated cuid; not a database default. Non-Prisma writes generate IDs explicitly. See ADR-004.
+  id        String        @id @default(cuid())
   filename  String
   url       String
   category  MediaCategory
@@ -142,7 +150,8 @@ model Media {
 }
 
 model JournalPost {
-  id                String             @id
+  /// Prisma Client-generated cuid; not a database default. Non-Prisma writes generate IDs explicitly. See ADR-003.
+  id                String             @id @default(cuid())
   title             String
   slug              String             @unique
   excerpt           String?
@@ -154,7 +163,8 @@ model JournalPost {
   seoDescription    String?            @map("seo_description")
   publishedAt       DateTime?          @map("published_at")
   createdAt         DateTime           @default(now()) @map("created_at")
-  updatedAt         DateTime           @map("updated_at")
+  /// Prisma Client-maintained timestamp; not a database default or trigger. See ADR-003.
+  updatedAt         DateTime           @updatedAt @map("updated_at")
   coverAlt          String?            @map("cover_alt")
   readingTime       Int?               @map("reading_time")
   sortOrder         Int                @default(0) @map("sort_order")
@@ -201,7 +211,8 @@ model ContactLead {
 }
 
 model PageContent {
-  id         String   @id
+  /// Prisma Client-generated cuid; not a database default. Non-Prisma writes generate IDs explicitly. See ADR-003.
+  id         String   @id @default(cuid())
   pageKey    String   @map("page_key")
   sectionKey String   @map("section_key")
   title      String   @default("")
@@ -210,30 +221,35 @@ model PageContent {
   sortOrder  Int      @default(0) @map("sort_order")
   published  Boolean  @default(true)
   createdAt  DateTime @default(now()) @map("created_at")
-  updatedAt  DateTime @map("updated_at")
+  /// Prisma Client-maintained timestamp; not a database default or trigger. See ADR-003.
+  updatedAt  DateTime @updatedAt @map("updated_at")
 
   @@unique([pageKey, sectionKey])
   @@map("page_contents")
 }
 
 model SeoConfig {
-  id          String   @id
+  /// Prisma Client-generated cuid; not a database default. Non-Prisma writes generate IDs explicitly. See ADR-004.
+  id          String   @id @default(cuid())
   pageKey     String   @unique @map("page_key")
   title       String
   description String
   ogImage     String?  @map("og_image")
   canonical   String?
   createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @map("updated_at")
+  /// Prisma Client-maintained timestamp; not a database default or trigger. See ADR-004.
+  updatedAt   DateTime @updatedAt @map("updated_at")
 
   @@map("seo_configs")
 }
 
 model SiteSetting {
-  id        String   @id
+  /// Prisma Client-generated cuid; not a database default. Non-Prisma writes generate IDs explicitly. See ADR-004.
+  id        String   @id @default(cuid())
   key       String   @unique
   value     String
-  updatedAt DateTime @map("updated_at")
+  /// Prisma Client-maintained timestamp; not a database default or trigger. See ADR-004.
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   @@map("site_settings")
 }
@@ -312,7 +328,8 @@ model LegacyBrandMaterialLink {
 }
 
 model LegacyJournalTag {
-  id        String      @id
+  /// Prisma Client-generated cuid; not a database default. Supports createMany without explicit IDs. See ADR-004.
+  id        String      @id @default(cuid())
   journalId String      @map("journal_id")
   tagId     String      @map("tag_id")
   /// Prisma Client relation; the production database has no FK. See ADR-002.
@@ -352,19 +369,22 @@ model LegacyOrder {
 }
 
 model AdminUser {
-  id           String    @id
+  /// Prisma Client-generated cuid; not a database default. Non-Prisma writes generate IDs explicitly. See ADR-003.
+  id           String    @id @default(cuid())
   email        String
   passwordHash String    @map("password_hash")
   name         String
   role         AdminRole
   createdAt    DateTime  @default(now()) @map("created_at")
-  updatedAt    DateTime  @map("updated_at")
+  /// Prisma Client-maintained timestamp; not a database default or trigger. See ADR-003.
+  updatedAt    DateTime  @updatedAt @map("updated_at")
 
   @@map("admin_users")
 }
 
 model AuditLog {
-  id         String   @id
+  /// Prisma Client-generated cuid; not a database default. Non-Prisma writes generate IDs explicitly. See ADR-003.
+  id         String   @id @default(cuid())
   userId     String   @map("user_id")
   action     String
   entityType String   @map("entity_type")

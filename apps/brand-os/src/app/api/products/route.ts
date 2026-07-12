@@ -1,4 +1,4 @@
-import prisma from "@/lib/prisma";
+import { brandDb } from "@/lib/brand-db-adapter";
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
@@ -25,14 +25,14 @@ export async function GET(req: Request) {
   if (category) where.objectCategory = category;
 
   const [items, total] = await Promise.all([
-    prisma.product.findMany({
+    brandDb.legacyBrandProduct.findMany({
       where,
       orderBy: { updatedAt: "desc" },
       skip: (page - 1) * pageSize,
       take: pageSize,
       include: { series: { select: { name: true, slug: true } } },
     }),
-    prisma.product.count({ where }),
+    brandDb.legacyBrandProduct.count({ where }),
   ]);
 
   return NextResponse.json({ items, total, page, pageSize });
@@ -51,7 +51,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: seriesIdResult.error }, { status: 400 });
   }
 
-  const product = await prisma.product.create({
+  const product = await brandDb.legacyBrandProduct.create({
     data: {
       sku: data.sku || `P-${Date.now()}`,
       name: data.name,
@@ -82,7 +82,7 @@ export async function PUT(req: Request) {
   const { id, ...fields } = data;
   if (!id) return NextResponse.json({ error: "缺少 id" }, { status: 400 });
 
-  const product = await prisma.product.update({
+  const product = await brandDb.legacyBrandProduct.update({
     where: { id: parseInt(id) },
     data: fields,
   });

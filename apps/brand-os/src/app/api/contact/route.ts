@@ -1,4 +1,4 @@
-import prisma from "@/lib/prisma";
+import { brandDb } from "@/lib/brand-db-adapter";
 import { NextResponse } from "next/server";
 
 export async function GET(req: Request) {
@@ -7,12 +7,12 @@ export async function GET(req: Request) {
   const pageSize = parseInt(searchParams.get("pageSize") ?? "50");
 
   const [items, total] = await Promise.all([
-    prisma.contactLead.findMany({
+    brandDb.contactLead.findMany({
       orderBy: { createdAt: "desc" },
       skip: (page - 1) * pageSize,
       take: pageSize,
     }),
-    prisma.contactLead.count(),
+    brandDb.contactLead.count(),
   ]);
 
   return NextResponse.json({ items, total, page, pageSize });

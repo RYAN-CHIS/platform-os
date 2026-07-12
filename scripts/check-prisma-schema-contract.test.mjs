@@ -99,6 +99,26 @@ describe("Prisma schema contract", () => {
     );
   });
 
+  it("rejects missing ADR-003 and ADR-004 write defaults", () => {
+    const attributes = [
+      ["JournalPost", "id", "@default(cuid())"], ["JournalPost", "updatedAt", "@updatedAt"],
+      ["PageContent", "id", "@default(cuid())"], ["PageContent", "updatedAt", "@updatedAt"],
+      ["AuditLog", "id", "@default(cuid())"], ["AdminUser", "id", "@default(cuid())"], ["AdminUser", "updatedAt", "@updatedAt"],
+      ["LegacyBrandProduct", "updatedAt", "@updatedAt"], ["LegacyBrandSeries", "id", "@default(autoincrement())"], ["LegacyBrandSeries", "updatedAt", "@updatedAt"],
+      ["LegacyBrandMaterial", "id", "@default(autoincrement())"], ["LegacyBrandMaterial", "updatedAt", "@updatedAt"], ["Media", "id", "@default(cuid())"],
+      ["SeoConfig", "id", "@default(cuid())"], ["SeoConfig", "updatedAt", "@updatedAt"], ["SiteSetting", "id", "@default(cuid())"], ["SiteSetting", "updatedAt", "@updatedAt"],
+      ["Tag", "id", "@default(cuid())"], ["ProductTag", "id", "@default(cuid())"], ["LegacyJournalTag", "id", "@default(cuid())"],
+    ];
+    for (const [model, field, attribute] of attributes) assertFailure((schema) => mutateModel(schema, model, (body) => body.replace(attribute, "")), `${model}.${field} contract failed`);
+  });
+
+  it("rejects inaccurate email/contact and unapproved default contracts", () => {
+    assertFailure((schema) => mutateModel(schema, "AdminUser", (body) => body.replace("email        String", "email        String    @unique")), "AdminUser.email contract failed");
+    assertFailure((schema) => mutateModel(schema, "AdminUser", (body) => `${body}\n  @@unique([email])`), "AdminUser model contract failed");
+    assertFailure((schema) => mutateModel(schema, "ContactLead", (body) => body.replace("wechat", "we_chat")), "ContactLead.wechat contract failed");
+    assertFailure((schema) => mutateModel(schema, "ContactLead", (body) => body.replace("id                 String   @id", "id                 String   @id @default(cuid())")), "ContactLead.id contract failed");
+  });
+
   it("rejects DATABASE_URL for the Brand datasource", () => {
     assertFailure((schema) => schema.replace('env("BRAND_DATABASE_URL")', 'env("DATABASE_URL")'), "Brand datasource contract failed");
   });

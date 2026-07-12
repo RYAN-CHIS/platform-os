@@ -1,6 +1,6 @@
 "use server";
 
-import { prisma } from "@/lib/prisma";
+import { brandDb } from "@/lib/brand-db-adapter";
 import { requireAdmin } from "./auth";
 
 export type AuditEntry = {
@@ -30,13 +30,13 @@ export async function getAuditLogs(params?: {
   if (entityType) where.entityType = entityType;
 
   const [data, total] = await Promise.all([
-    prisma.auditLog.findMany({
+    brandDb.auditLog.findMany({
       where,
       orderBy: { createdAt: "desc" },
       skip:  (page - 1) * pageSize,
       take: pageSize,
     }),
-    prisma.auditLog.count({ where }),
+    brandDb.auditLog.count({ where }),
   ]);
 
   return { data, total, page, pageSize };
@@ -44,7 +44,7 @@ export async function getAuditLogs(params?: {
 
 export async function getAdminUsers() {
   await requireAdmin();
-  return prisma.adminUser.findMany({
+  return brandDb.adminUser.findMany({
     select: { id: true, name: true, email: true },
     orderBy: { name: "asc" },
   });

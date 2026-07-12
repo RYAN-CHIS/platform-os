@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 
 import { useEffect, useState } from "react";
 import { getTags, upsertTag, deleteTag } from "@/lib/actions/tag-actions";
-import { TagType } from "@prisma/brand-client";
+type TagType = "SERIES" | "VALUE" | "MATERIAL" | "EMOTION" | "SCENE" | "OBJECT";
 
 type Tag = {
   id: string;
@@ -15,20 +15,20 @@ type Tag = {
 };
 
 const TAG_TYPES = [
-  { value: TagType.SERIES,   label: "系列" },
-  { value: TagType.VALUE,    label: "价值观" },
-  { value: TagType.MATERIAL, label: "材料" },
-  { value: TagType.EMOTION,  label: "情绪" },
-  { value: TagType.SCENE,    label: "场景" },
-  { value: TagType.OBJECT,   label: "器物" },
-];
+  { value: "SERIES",   label: "系列" },
+  { value: "VALUE",    label: "价值观" },
+  { value: "MATERIAL", label: "材料" },
+  { value: "EMOTION",  label: "情绪" },
+  { value: "SCENE",    label: "场景" },
+  { value: "OBJECT",   label: "器物" },
+] as const;
 
 export default function AdminTagsPage() {
   const [items, setItems]       = useState<Tag[]>([]);
   const [editingId, setEditingId]     = useState<string | null>(null);
   const [showForm, setShowForm]       = useState(false);
   const [filterType, setFilterType]   = useState<TagType | "">("");
-  const [form, setForm] = useState({ id: "", name: "", slug: "", description: "", type: TagType.SERIES });
+  const [form, setForm] = useState<{ id: string; name: string; slug: string; description: string; type: TagType }>({ id: "", name: "", slug: "", description: "", type: "SERIES" });
   const [loading, setLoading] = useState(false);
 
   async function load() {

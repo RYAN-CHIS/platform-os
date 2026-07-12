@@ -1,15 +1,14 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { prisma } from "@/lib/prisma";
-import { TagType } from "@prisma/brand-client";
+import { brandDb, type TagType } from "@/lib/brand-db-adapter";
 import { requireContentEditor, requireAdmin } from "./auth";
 
 // ── 标签查询（读：EDITOR+） ──
 
 export async function getTags(type?: TagType) {
   const where = type ? { type } : {};
-  return prisma.tag.findMany({
+  return brandDb.tag.findMany({
     where,
     orderBy: { name: "asc" },
     include: { _count: { select: { productTags: true, journalTags: true } } },
@@ -17,7 +16,7 @@ export async function getTags(type?: TagType) {
 }
 
 export async function getTag(id: string) {
-  return prisma.tag.findUnique({
+  return brandDb.tag.findUnique({
     where: { id },
     include: { productTags: true, journalTags: true },
   });
@@ -44,9 +43,9 @@ export async function upsertTag(formData: FormData) {
   };
 
   if (id) {
-    await prisma.tag.update({ where: { id }, data });
+    await brandDb.tag.update({ where: { id }, data });
   } else {
-    await prisma.tag.create({ data });
+    await brandDb.tag.create({ data });
   }
 
   revalidatePath("/admin/tags");
@@ -55,7 +54,7 @@ export async function upsertTag(formData: FormData) {
 
 export async function deleteTag(id: string) {
   await requireAdmin();
-  await prisma.tag.delete({ where: { id } });
+  await brandDb.tag.delete({ where: { id } });
   revalidatePath("/admin/tags");
   return { ok: true };
 }
@@ -64,9 +63,9 @@ export async function deleteTag(id: string) {
 
 export async function updateProductTags(productId: number, tagIds: string[]) {
   await requireContentEditor();
-  await prisma.productTag.deleteMany({ where: { productId } });
+  await brandDb.productTag.deleteMany({ where: { productId } });
   if (tagIds.length > 0) {
-    await prisma.productTag.createMany({
+    await brandDb.productTag.createMany({
       data: tagIds.map((tagId) => ({ productId, tagId })),
     });
   }
@@ -78,9 +77,9 @@ export async function updateProductTags(productId: number, tagIds: string[]) {
 
 export async function updateJournalTags(journalId: string, tagIds: string[]) {
   await requireContentEditor();
-  await prisma.journalTag.deleteMany({ where: { journalId } });
+  await brandDb.legacyJournalTag.deleteMany({ where: { journalId } });
   if (tagIds.length > 0) {
-    await prisma.journalTag.createMany({
+    await brandDb.legacyJournalTag.createMany({
       data: tagIds.map((tagId) => ({ journalId, tagId })),
     });
   }

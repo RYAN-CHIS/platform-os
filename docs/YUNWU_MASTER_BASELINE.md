@@ -2,7 +2,7 @@
 
 > **Single Source of Truth** for 允物 (Yunwu) Project
 >
-> Last updated: 2026-07-11 (P0 closed + Phase 3B-0 datasource contract verification)
+> Last updated: 2026-07-12 (Phase C2 canonical Brand write contract and consumer migration)
 >
 > Everything below this line is authoritative.
 
@@ -40,6 +40,17 @@
 - `product_tags` and `journal_tags` have no production database FK constraints. Prisma relations are not database FKs; referential integrity remains application-level and relation actions are non-Cascade.
 - `apps/brand-os/src/lib/brand-db-adapter.ts` is the server-only thin re-export entry for `@yunwu/brand-db`.
 - Phase C1 does not migrate consumers. The legacy client, frozen schema, and existing generate entry remain until their later phases; consumer migration is Phase C2 and frozen-schema deletion is Phase H.
+
+---
+
+## Prisma Phase C2 — Canonical Brand Write Contract and Consumer Migration (2026-07-12)
+
+- ADR-003 and ADR-004 establish the approved Canonical Write Contract in `packages/brand-db/schema.prisma`. `JournalPost`, `PageContent`, `AuditLog`, and `AdminUser` use Prisma-side `cuid()` defaults; `Media`, `SeoConfig`, `SiteSetting`, `Tag`, `ProductTag`, and `LegacyJournalTag` do so under ADR-004. Non-Prisma writers must explicitly generate those IDs.
+- Existing database-backed sequence behavior is represented by `autoincrement()` for `LegacyBrandProduct`, `LegacyBrandSeries`, and `LegacyBrandMaterial`; no DDL, migration, or database action was performed. The listed `updatedAt` fields are Prisma Client-maintained with `@updatedAt`, not database triggers.
+- All 17 audited Brand OS production consumers now use the server-only `@/lib/brand-db-adapter`; the client-side tags page uses a local literal TagType union and does not import the adapter. The legacy `src/lib/prisma.ts`, `src/lib/db.ts`, frozen schema, and legacy client generation remain for later retirement phases.
+- `AdminUser.email` remains intentionally non-unique. Authentication reads at most two matching rows and rejects/audits duplicates; admin creation performs an authorization-first application pre-check. This is not a database uniqueness guarantee and concurrent duplicate creation remains a Phase G hardening concern.
+- `ContactLead.wechat` remains an unmapped optional field; `we_chat` is not a canonical field. `pnpm check:prisma-contract` now guards the approved defaults, timestamp behavior, email uniqueness prohibition, and contact-field contract.
+- Phase C3 is limited to non-production code migration; Phase H alone may remove the frozen schema or legacy Brand Prisma client.
 
 ---
 

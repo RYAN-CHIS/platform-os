@@ -1,7 +1,9 @@
 import { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
-import prisma from "@/lib/prisma";
+import { brandDb } from "@/lib/brand-db-adapter";
+import { resolveSingleAdminIdentity } from "@/lib/admin-identity";
+import { logAction } from "@/lib/audit-log";
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -14,9 +16,19 @@ export const authOptions: NextAuthOptions = {
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) return null;
 
-        const user = await prisma.adminUser.findUnique({
-          where: { email: credentials.email },
-        });
+        const user = await resolveSingleAdminIdentity(
+          () => brandDb.adminUser.findMany({
+            where: { email: credentials.email },
+            take: 2,
+          }),
+          () => logAction(
+            "system",
+            "ADMIN_AUTH_DUPLICATE_IDENTITY",
+            "AdminUser",
+            undefined,
+            "DENIED",
+          ),
+        );
 
         if (!user) return null;
 

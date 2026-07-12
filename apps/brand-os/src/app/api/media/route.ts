@@ -1,4 +1,4 @@
-import prisma from "@/lib/prisma";
+import { brandDb } from "@/lib/brand-db-adapter";
 import { NextResponse } from "next/server";
 
 export async function GET(req: Request) {
@@ -11,13 +11,13 @@ export async function GET(req: Request) {
   if (category) where.category = category;
 
   const [items, total] = await Promise.all([
-    prisma.media.findMany({
+    brandDb.media.findMany({
       where,
       orderBy: { createdAt: "desc" },
       skip: (page - 1) * pageSize,
       take: pageSize,
     }),
-    prisma.media.count({ where }),
+    brandDb.media.count({ where }),
   ]);
 
   return NextResponse.json({ items, total, page, pageSize });

@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic'
 
 import Link from "next/link";
-import prisma from "@/lib/prisma";
+import { brandDb } from "@/lib/brand-db-adapter";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
@@ -18,10 +18,10 @@ export default async function AdminDashboard() {
   try {
     const [productCount, materialCount, journalCount, leadCount] =
       await Promise.all([
-        prisma.product.count(),
-        prisma.material.count(),
-        prisma.journalPost.count(),
-        prisma.contactLead.count(),
+        brandDb.legacyBrandProduct.count(),
+        brandDb.legacyBrandMaterial.count(),
+        brandDb.journalPost.count(),
+        brandDb.contactLead.count(),
       ]);
 
     const categoryCount = 6; // ObjectCategory 枚举值数量（BRACELET~SCHOLAR）
@@ -34,12 +34,12 @@ export default async function AdminDashboard() {
       { label: "潜在线索", value: leadCount, href: "/admin/leads", color: "#BA7517" },
     ];
 
-    recentJournals = await prisma.journalPost.findMany({
+    recentJournals = await brandDb.journalPost.findMany({
       take: 5, orderBy: { updatedAt: "desc" },
       select: { id: true, title: true, status: true, updatedAt: true },
     });
 
-    recentProducts = await prisma.product.findMany({
+    recentProducts = await brandDb.legacyBrandProduct.findMany({
       take: 5, orderBy: { updatedAt: "desc" },
       select: { id: true, name: true, status: true, updatedAt: true },
     });

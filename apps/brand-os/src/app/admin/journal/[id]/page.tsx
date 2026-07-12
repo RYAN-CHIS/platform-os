@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic'
 
-import prisma from '@/lib/prisma'
+import { brandDb } from '@/lib/brand-db-adapter'
 import { redirect, notFound } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 
@@ -23,7 +23,7 @@ export const metadata = {
 
 export default async function EditJournalPostPage({ params }: Props) {
   const { id } = await params
-  const post = await prisma.journalPost.findUnique({ where: { id } })
+  const post = await brandDb.journalPost.findUnique({ where: { id } })
 
   if (!post) notFound()
   const p = post!
@@ -62,7 +62,7 @@ export default async function EditJournalPostPage({ params }: Props) {
       updateData.publishedAt = null
     }
 
-    await prisma.journalPost.update({
+    await brandDb.journalPost.update({
       where: { id },
       data: updateData,
     })
@@ -74,7 +74,7 @@ export default async function EditJournalPostPage({ params }: Props) {
 
   async function deletePost() {
     'use server'
-    await prisma.journalPost.delete({ where: { id } })
+    await brandDb.journalPost.delete({ where: { id } })
     revalidatePath('/journal')
     redirect('/admin/journal')
   }
