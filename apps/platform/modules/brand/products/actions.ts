@@ -1,13 +1,13 @@
 "use server";
 /**
- * Brand Products — WO-P12B Full CRUD + Publishing Workflow
- * Queries Brand DB directly (table: products)
- * Status changes are routed through the publisher engine.
+ * Brand Products — ordinary CRUD uses the canonical Brand Runtime client.
+ * Workflow transitions remain exclusively owned by the publisher engine.
  */
 import { brandPrisma } from "@yunwu/db/brand";
-import { prisma } from "@yunwu/db";
+import { prisma as erpDb } from "@yunwu/db";
 import { Prisma } from "@prisma/client";
-import { createCrudAudit, createStatusAudit, createAuditLog } from "@/lib/audit";
+import { brandDb, ObjectCategory, type LegacyBrandProduct } from "@/lib/brand-db";
+import { createCrudAudit, createAuditLog } from "@/lib/audit";
 import {
   transitionStatus,
   submitForReview,
@@ -27,202 +27,124 @@ const TABLE = "products";
 const ERP_PRODUCT_TABLE = "products";
 const ERP_PRODUCT_SKU_TABLE = "product_skus";
 
-type ProductColumn =
-  | "sku"
-  | "name"
-  | "slug"
-  | "series_id"
-  | "sale_price"
-  | "cost_price"
-  | "cover_image"
-  | "stock"
-  | "object_category"
-  | "status"
-  | "publish_status"
-  | "story"
-  | "theme"
-  | "gallery"
-  | "materials"
-  | "inspiration"
-  | "keywords"
-  | "life_stage"
-  | "suitable_for"
-  | "sort_order"
-  | "published_at"
-  | "erp_product_id";
+const PRODUCT_CREATE_FIELDS = [
+  "sku", "name", "slug", "series_id", "seriesId", "sale_price", "salePrice",
+  "cost_price", "costPrice", "cover_image", "coverImage", "gallery", "stock",
+  "object_category", "objectCategory", "story", "theme", "erp_product_id", "erpProductId",
+] as const;
 
-const PRODUCT_CREATE_FIELDS: ProductColumn[] = [
-  "sku",
-  "name",
-  "slug",
-  "series_id",
-  "sale_price",
-  "cost_price",
-  "cover_image",
-  "gallery",
-  "stock",
-  "object_category",
-  "status",
-  "story",
-  "theme",
-  "erp_product_id",
-];
-
-const PRODUCT_UPDATE_FIELDS: ProductColumn[] = [
+const PRODUCT_UPDATE_FIELDS = [
   ...PRODUCT_CREATE_FIELDS,
-  "publish_status",
-  "gallery",
-  "materials",
-  "inspiration",
-  "keywords",
-  "life_stage",
-  "suitable_for",
-  "sort_order",
-  "published_at",
-  "erp_product_id",
-];
+  "materials", "inspiration", "keywords", "life_stage", "lifeStage", "suitable_for",
+  "suitableFor", "sort_order", "sortOrder",
+] as const;
 
-const PRODUCT_CREATE_DEFAULTS: Partial<Record<ProductColumn, unknown>> = {
-  series_id: null,
-  sale_price: 0,
-  cost_price: 0,
-  cover_image: "",
-  gallery: "[]",
-  stock: 0,
-  object_category: "BRACELET",
-  status: "DRAFT",
-  story: "",
-  theme: "",
+const WORKFLOW_FIELDS = ["status", "publish_status", "publishStatus"] as const;
+
+const OBJECT_CATEGORY_ALIASES: Record<string, ObjectCategory> = {
+  BRACELET: ObjectCategory.BRACELET,
+  "串珠": ObjectCategory.BRACELET,
+  "珠串": ObjectCategory.BRACELET,
+  "手串": ObjectCategory.BRACELET,
+  INCENSE: ObjectCategory.INCENSE,
+  "香": ObjectCategory.INCENSE,
+  "香器": ObjectCategory.INCENSE,
+  SEAL: ObjectCategory.SEAL,
+  "印": ObjectCategory.SEAL,
+  "印章": ObjectCategory.SEAL,
+  CERAMIC: ObjectCategory.CERAMIC,
+  PORCELAIN: ObjectCategory.CERAMIC,
+  "瓷": ObjectCategory.CERAMIC,
+  "瓷器": ObjectCategory.CERAMIC,
+  "陶瓷": ObjectCategory.CERAMIC,
+  ENAMEL: ObjectCategory.ENAMEL,
+  "珐琅": ObjectCategory.ENAMEL,
+  SCHOLAR: ObjectCategory.SCHOLAR,
+  "文房": ObjectCategory.SCHOLAR,
+  "文房器": ObjectCategory.SCHOLAR,
 };
 
-type ObjectCategoryValue = "BRACELET" | "INCENSE" | "SEAL" | "CERAMIC" | "ENAMEL" | "SCHOLAR";
-type PublishStatusValue = "DRAFT" | "PENDING_REVIEW" | "APPROVED" | "PUBLISHED" | "UNPUBLISHED" | "ARCHIVED";
-
-const OBJECT_CATEGORY_ALIASES: Record<string, ObjectCategoryValue> = {
-  BRACELET: "BRACELET",
-  "串珠": "BRACELET",
-  "珠串": "BRACELET",
-  "手串": "BRACELET",
-  INCENSE: "INCENSE",
-  "香": "INCENSE",
-  "香器": "INCENSE",
-  SEAL: "SEAL",
-  "印": "SEAL",
-  "印章": "SEAL",
-  CERAMIC: "CERAMIC",
-  PORCELAIN: "CERAMIC",
-  "瓷": "CERAMIC",
-  "瓷器": "CERAMIC",
-  "陶瓷": "CERAMIC",
-  ENAMEL: "ENAMEL",
-  "珐琅": "ENAMEL",
-  SCHOLAR: "SCHOLAR",
-  "文房": "SCHOLAR",
-  "文房器": "SCHOLAR",
+type ProductRow = LegacyBrandProduct & {
+  series_id: number;
+  sale_price: number;
+  cost_price: number;
+  cover_image: string;
+  object_category: ObjectCategory;
+  erp_product_id: number | null;
+  sort_order: number;
+  life_stage: string | null;
+  suitable_for: string | null;
+  published_at: Date | null;
+  coverImage: string;
+  galleryImages: string[];
+  gallery_images: string[];
 };
 
-const PUBLISH_STATUS_ALIASES: Record<string, PublishStatusValue> = {
-  DRAFT: "DRAFT",
-  IN_REVIEW: "PENDING_REVIEW",
-  PENDING_REVIEW: "PENDING_REVIEW",
-  APPROVED: "APPROVED",
-  SCHEDULED: "APPROVED",
-  PUBLISHED: "PUBLISHED",
-  UNPUBLISHED: "UNPUBLISHED",
-  ARCHIVED: "ARCHIVED",
+type ProductWriteData = {
+  sku?: string;
+  name?: string;
+  slug?: string;
+  seriesId?: number;
+  salePrice?: number;
+  costPrice?: number;
+  coverImage?: string;
+  gallery?: string;
+  stock?: number;
+  objectCategory?: ObjectCategory;
+  story?: string;
+  theme?: string;
+  erpProductId?: number | null;
+  materials?: string;
+  inspiration?: string | null;
+  keywords?: string | null;
+  lifeStage?: string | null;
+  suitableFor?: string | null;
+  sortOrder?: number;
 };
+type ProductStringField = "sku" | "name" | "slug" | "coverImage" | "story" | "theme" | "materials";
+type ProductNullableStringField = "inspiration" | "keywords" | "lifeStage" | "suitableFor";
 
-const PRODUCT_STATUS_VALUES = new Set([
-  "DRAFT",
-  "IN_REVIEW",
-  "APPROVED",
-  "SCHEDULED",
-  "PUBLISHED",
-  "UNPUBLISHED",
-  "ARCHIVED",
-  "REJECTED",
-]);
-
-const COLUMN_INPUT_ALIASES: Partial<Record<ProductColumn, string[]>> = {
-  series_id: ["series_id", "seriesId"],
-  sale_price: ["sale_price", "salePrice"],
-  cost_price: ["cost_price", "costPrice"],
-  cover_image: ["cover_image", "coverImage"],
-  object_category: ["object_category", "objectCategory"],
-  publish_status: ["publish_status", "publishStatus"],
-  life_stage: ["life_stage", "lifeStage"],
-  suitable_for: ["suitable_for", "suitableFor"],
-  sort_order: ["sort_order", "sortOrder"],
-  published_at: ["published_at", "publishedAt"],
-  erp_product_id: ["erp_product_id", "erpProductId"],
-};
-
-const INTEGER_COLUMNS = new Set<ProductColumn>(["series_id", "stock", "sort_order", "erp_product_id"]);
-const FLOAT_COLUMNS = new Set<ProductColumn>(["sale_price", "cost_price"]);
-const TIMESTAMP_COLUMNS = new Set<string>(["updated_at"]);
-const TIMESTAMPTZ_COLUMNS = new Set<string>(["published_at"]);
-
-function normalizeEnumAlias<T extends string>(
-  value: unknown,
-  aliases: Record<string, T>,
-  label: string,
-) {
-  const raw = toStringValue(value).trim();
-  const normalized = aliases[raw] ?? aliases[raw.toUpperCase()];
-  if (!normalized) {
-    throw new Error(`${label}必须是允许值：${Array.from(new Set(Object.values(aliases))).join(" / ")}`);
-  }
-  return normalized;
-}
+type ErpProduct = { id: number; code: string; name: string; status: string };
+type ErpSku = { id: number; code: string; name: string; price: number; finished_stock: number };
+type ErpProductSelectRow = ErpProduct & { skuCode: string | null; skuPrice: number | null; skuStock: number | null };
 
 function hasOwn(data: Record<string, unknown>, key: string) {
   return Object.prototype.hasOwnProperty.call(data, key);
 }
 
-function readInput(data: Record<string, unknown>, column: ProductColumn) {
-  const aliases = COLUMN_INPUT_ALIASES[column] ?? [column];
-  for (const key of aliases) {
+function inputValue(data: Record<string, unknown>, ...keys: string[]) {
+  for (const key of keys) {
     if (hasOwn(data, key)) return data[key];
   }
   return undefined;
 }
 
-function toNullableInteger(value: unknown, label: string) {
-  if (value === undefined || value === null) return null;
-  if (typeof value === "string" && value.trim() === "") return null;
-
-  const numberValue = typeof value === "number" ? value : Number(value);
-  if (!Number.isInteger(numberValue) || numberValue <= 0) {
-    throw new Error(`${label}必须是有效的数字 ID`);
-  }
-  return numberValue;
+function errorMessage(error: unknown) {
+  return error instanceof Error ? error.message : "未知错误";
 }
 
 function toPositiveIntegerId(value: unknown, label = "产品 ID") {
   const numberValue = typeof value === "number" ? value : Number(value);
-  if (!Number.isInteger(numberValue) || numberValue <= 0) {
-    throw new Error(`${label}必须是有效的数字 ID`);
-  }
+  if (!Number.isInteger(numberValue) || numberValue <= 0) throw new Error(`${label}必须是有效的数字 ID`);
   return numberValue;
+}
+
+function toNullableInteger(value: unknown, label: string) {
+  if (value === undefined || value === null || value === "") return null;
+  return toPositiveIntegerId(value, label);
 }
 
 function toInteger(value: unknown, defaultValue: number, label: string) {
   if (value === undefined || value === null || value === "") return defaultValue;
-
   const numberValue = typeof value === "number" ? value : Number(value);
-  if (!Number.isInteger(numberValue)) {
-    throw new Error(`${label}必须是整数`);
-  }
+  if (!Number.isInteger(numberValue)) throw new Error(`${label}必须是整数`);
   return numberValue;
 }
 
 function toNumber(value: unknown, defaultValue: number, label: string) {
   if (value === undefined || value === null || value === "") return defaultValue;
-
   const numberValue = typeof value === "number" ? value : Number(value);
-  if (!Number.isFinite(numberValue)) {
-    throw new Error(`${label}必须是数字`);
-  }
+  if (!Number.isFinite(numberValue)) throw new Error(`${label}必须是数字`);
   return numberValue;
 }
 
@@ -231,22 +153,21 @@ function toStringValue(value: unknown, defaultValue = "") {
   return String(value);
 }
 
+function toNullableString(value: unknown) {
+  if (value === undefined) return undefined;
+  if (value === null || value === "") return null;
+  return String(value);
+}
+
 function normalizeGallery(value: unknown) {
   if (value === undefined || value === null || value === "") return "[]";
-  if (Array.isArray(value)) {
-    return JSON.stringify(value.map((item) => String(item).trim()).filter(Boolean));
-  }
-
+  if (Array.isArray(value)) return JSON.stringify(value.map((item) => String(item).trim()).filter(Boolean));
   const raw = String(value).trim();
   if (!raw) return "[]";
-
   try {
-    const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed)) {
-      return JSON.stringify(parsed.map((item) => String(item).trim()).filter(Boolean));
-    }
+    const parsed: unknown = JSON.parse(raw);
+    if (Array.isArray(parsed)) return JSON.stringify(parsed.map((item) => String(item).trim()).filter(Boolean));
   } catch {}
-
   return JSON.stringify(raw.split("\n").map((item) => item.trim()).filter(Boolean));
 }
 
@@ -254,23 +175,123 @@ function parseGallery(value: unknown): string[] {
   if (Array.isArray(value)) return value.map((item) => String(item).trim()).filter(Boolean);
   if (typeof value !== "string" || !value.trim()) return [];
   try {
-    const parsed = JSON.parse(value);
+    const parsed: unknown = JSON.parse(value);
     if (Array.isArray(parsed)) return parsed.map((item) => String(item).trim()).filter(Boolean);
   } catch {}
   return [];
 }
 
-function withProductOsOutput<T extends Record<string, any>>(row: T): T & {
-  coverImage: string;
-  galleryImages: string[];
-  gallery_images: string[];
-} {
-  const galleryImages = parseGallery(row.gallery);
+function normalizeObjectCategory(value: unknown) {
+  const raw = toStringValue(value, "BRACELET").trim();
+  const category = OBJECT_CATEGORY_ALIASES[raw] ?? OBJECT_CATEGORY_ALIASES[raw.toUpperCase()];
+  if (!category) throw new Error(`器物分类必须是允许值：${Object.values(ObjectCategory).join(" / ")}`);
+  return category;
+}
+
+function assertProductInput(data: Record<string, unknown>, mode: "create" | "update") {
+  const allowed = new Set(mode === "create" ? PRODUCT_CREATE_FIELDS : PRODUCT_UPDATE_FIELDS);
+  for (const key of Object.keys(data)) {
+    if (WORKFLOW_FIELDS.includes(key as (typeof WORKFLOW_FIELDS)[number])) {
+      if (mode === "create" && key === "status" && String(data[key]).toUpperCase() === "DRAFT") continue;
+      throw new Error(`Unauthorized workflow field: ${key}`);
+    }
+    if (!allowed.has(key as (typeof PRODUCT_UPDATE_FIELDS)[number])) throw new Error(`Invalid Product update field: ${key}`);
+  }
+}
+
+function normalizeProductData(data: Record<string, unknown>, mode: "create" | "update"): ProductWriteData {
+  assertProductInput(data, mode);
+  const normalized: ProductWriteData = {};
+  const setString = (key: ProductStringField, ...aliases: string[]) => {
+    const value = inputValue(data, ...aliases);
+    if (value !== undefined) normalized[key] = toStringValue(value);
+  };
+  const setNullableString = (key: ProductNullableStringField, ...aliases: string[]) => {
+    const value = inputValue(data, ...aliases);
+    const normalizedValue = toNullableString(value);
+    if (normalizedValue !== undefined) normalized[key] = normalizedValue;
+  };
+
+  setString("sku", "sku");
+  setString("name", "name");
+  setString("slug", "slug");
+  const seriesValue = inputValue(data, "series_id", "seriesId");
+  if (seriesValue !== undefined) {
+    const seriesId = toNullableInteger(seriesValue, "所属系列");
+    if (seriesId === null) throw new Error("所属系列不能为空");
+    normalized.seriesId = seriesId;
+  }
+  const salePrice = inputValue(data, "sale_price", "salePrice");
+  if (salePrice !== undefined) normalized.salePrice = toNumber(salePrice, 0, "售价");
+  const costPrice = inputValue(data, "cost_price", "costPrice");
+  if (costPrice !== undefined) normalized.costPrice = toNumber(costPrice, 0, "成本价");
+  setString("coverImage", "cover_image", "coverImage");
+  const gallery = inputValue(data, "gallery");
+  if (gallery !== undefined) normalized.gallery = normalizeGallery(gallery);
+  const stock = inputValue(data, "stock");
+  if (stock !== undefined) normalized.stock = toInteger(stock, 0, "库存");
+  const category = inputValue(data, "object_category", "objectCategory");
+  if (category !== undefined) normalized.objectCategory = normalizeObjectCategory(category);
+  setString("story", "story");
+  setString("theme", "theme");
+  const erpProductId = inputValue(data, "erp_product_id", "erpProductId");
+  if (erpProductId !== undefined) normalized.erpProductId = toNullableInteger(erpProductId, "ERP 产品");
+  setString("materials", "materials");
+  setNullableString("inspiration", "inspiration");
+  setNullableString("keywords", "keywords");
+  setNullableString("lifeStage", "life_stage", "lifeStage");
+  setNullableString("suitableFor", "suitable_for", "suitableFor");
+  const sortOrder = inputValue(data, "sort_order", "sortOrder");
+  if (sortOrder !== undefined) normalized.sortOrder = toInteger(sortOrder, 0, "排序");
+
+  if (mode === "create") {
+    if (!normalized.sku?.trim()) throw new Error("sku不能为空");
+    if (!normalized.name?.trim()) throw new Error("name不能为空");
+    if (!normalized.slug?.trim()) throw new Error("slug不能为空");
+    if (!normalized.seriesId) throw new Error("所属系列不能为空");
+    return {
+      salePrice: 0,
+      costPrice: 0,
+      coverImage: "",
+      gallery: "[]",
+      stock: 0,
+      objectCategory: ObjectCategory.BRACELET,
+      story: "",
+      theme: "",
+      ...normalized,
+    };
+  }
+
+  if (Object.keys(normalized).length === 0) throw new Error("No editable Product fields provided");
+  return normalized;
+}
+
+function toProductRow(product: LegacyBrandProduct): ProductRow {
+  const galleryImages = parseGallery(product.gallery);
   return {
-    ...row,
-    coverImage: row.cover_image ?? row.coverImage ?? "",
+    ...product,
+    series_id: product.seriesId,
+    sale_price: product.salePrice,
+    cost_price: product.costPrice,
+    cover_image: product.coverImage,
+    object_category: product.objectCategory,
+    erp_product_id: product.erpProductId,
+    sort_order: product.sortOrder,
+    life_stage: product.lifeStage,
+    suitable_for: product.suitableFor,
+    published_at: product.publishedAt,
+    coverImage: product.coverImage,
     galleryImages,
     gallery_images: galleryImages,
+  };
+}
+
+function productAuditRecord(product: LegacyBrandProduct | null): Record<string, unknown> | null {
+  if (!product) return null;
+  return {
+    id: product.id, sku: product.sku, name: product.name, slug: product.slug, seriesId: product.seriesId,
+    salePrice: product.salePrice, costPrice: product.costPrice, stock: product.stock, status: product.status,
+    publishStatus: product.publishStatus, updatedAt: product.updatedAt,
   };
 }
 
@@ -278,7 +299,7 @@ async function syncProductMediaReferences(productId: number, coverImage: string,
   const orderedUrls = [coverImage, ...galleryImages].map((url) => url.trim()).filter(Boolean);
   const urls = Array.from(new Set(orderedUrls));
   if (!urls.length) {
-    await prisma.$executeRaw`
+    await erpDb.$executeRaw`
       DELETE FROM media_references
       WHERE entity_type = 'product'
         AND entity_id = ${productId}::integer
@@ -287,21 +308,17 @@ async function syncProductMediaReferences(productId: number, coverImage: string,
     return;
   }
 
-  const assets = await prisma.$queryRaw<Array<{ id: number; url: string }>>(Prisma.sql`
-    SELECT id, url
-    FROM media_assets
-    WHERE url IN (${Prisma.join(urls)})
+  const assets = await erpDb.$queryRaw<Array<{ id: number; url: string }>>(Prisma.sql`
+    SELECT id, url FROM media_assets WHERE url IN (${Prisma.join(urls)})
   `);
   const assetByUrl = new Map(assets.map((asset) => [asset.url, asset.id]));
-
-  await prisma.$transaction(async (tx) => {
+  await erpDb.$transaction(async (tx) => {
     await tx.$executeRaw`
       DELETE FROM media_references
       WHERE entity_type = 'product'
         AND entity_id = ${productId}::integer
         AND field_name IN ('cover_image', 'gallery_images')
     `;
-
     const coverMediaId = coverImage ? assetByUrl.get(coverImage) : undefined;
     if (coverMediaId) {
       await tx.$executeRaw`
@@ -311,7 +328,6 @@ async function syncProductMediaReferences(productId: number, coverImage: string,
         DO UPDATE SET sort_order = EXCLUDED.sort_order
       `;
     }
-
     for (const [index, url] of galleryImages.entries()) {
       const mediaId = assetByUrl.get(url);
       if (!mediaId) continue;
@@ -325,166 +341,49 @@ async function syncProductMediaReferences(productId: number, coverImage: string,
   });
 }
 
-async function syncProductMediaReferencesBestEffort(row: Record<string, any>) {
+async function syncProductMediaReferencesBestEffort(product: LegacyBrandProduct) {
   try {
-    await syncProductMediaReferences(
-      Number(row.id),
-      String(row.cover_image ?? row.coverImage ?? ""),
-      parseGallery(row.gallery),
-    );
+    await syncProductMediaReferences(product.id, product.coverImage, parseGallery(product.gallery));
   } catch (error) {
-    console.warn(`[brand-products] media reference sync skipped: ${error instanceof Error ? error.message : "unknown error"}`);
+    console.warn(`[brand-products] media reference sync skipped: ${errorMessage(error)}`);
   }
 }
 
 async function fetchLinkedErpProduct(erpProductId: number) {
-  const products = await prisma.$queryRawUnsafe<Array<{ id: number; code: string; name: string; status: string }>>(
-    `SELECT id, code, name, status FROM ${ERP_PRODUCT_TABLE} WHERE id = $1`,
-    erpProductId,
+  const products = await erpDb.$queryRawUnsafe<ErpProduct[]>(
+    `SELECT id, code, name, status FROM ${ERP_PRODUCT_TABLE} WHERE id = $1`, erpProductId,
   );
-  return products[0] || null;
+  return products[0] ?? null;
 }
 
 async function fetchPrimaryErpSku(erpProductId: number) {
-  const skus = await prisma.$queryRawUnsafe<Array<{ id: number; code: string; name: string; price: number; finished_stock: number }>>(
-    `SELECT id, code, name, price, finished_stock FROM ${ERP_PRODUCT_SKU_TABLE} WHERE product_id = $1 ORDER BY id ASC LIMIT 1`,
-    erpProductId,
+  const skus = await erpDb.$queryRawUnsafe<ErpSku[]>(
+    `SELECT id, code, name, price, finished_stock FROM ${ERP_PRODUCT_SKU_TABLE} WHERE product_id = $1 ORDER BY id ASC LIMIT 1`, erpProductId,
   );
-  return skus[0] || null;
+  return skus[0] ?? null;
 }
 
-async function refreshLinkedErpFields(row: Record<string, any>) {
-  const erpProductId = Number(row.erp_product_id ?? row.erpProductId ?? 0);
-  if (!erpProductId) return row;
-
+async function refreshLinkedErpFields(row: ProductWriteData): Promise<ProductWriteData> {
+  if (!row.erpProductId) return row;
   const [erpProduct, erpSku] = await Promise.all([
-    fetchLinkedErpProduct(erpProductId),
-    fetchPrimaryErpSku(erpProductId),
+    fetchLinkedErpProduct(row.erpProductId), fetchPrimaryErpSku(row.erpProductId),
   ]);
-
-  if (!erpProduct || !erpSku) {
-    throw new Error("已关联 ERP 产品，但无法读取主产品或默认 SKU");
-  }
-
-  const erpStatusMap: Record<string, string> = {
-    DESIGNING: "DRAFT",
-    READY: "APPROVED",
-    ACTIVE: "PUBLISHED",
-    ARCHIVED: "ARCHIVED",
-  };
-
-  // ERP remains the source of truth for sale price and stock when a Brand product is linked.
+  if (!erpProduct || !erpSku) throw new Error("已关联 ERP 产品，但无法读取主产品或默认 SKU");
   return {
     ...row,
     name: erpProduct.name ?? row.name,
-    cost_price: Number(erpSku.price ?? 0),
-    sale_price: Number(erpSku.price ?? 0),
+    costPrice: Number(erpSku.price ?? 0),
+    salePrice: Number(erpSku.price ?? 0),
     stock: Number(erpSku.finished_stock ?? 0),
-    status: erpStatusMap[String(erpProduct.status ?? "").toUpperCase()] ?? row.status,
   };
-}
-
-function normalizeProductValue(column: ProductColumn, value: unknown) {
-  switch (column) {
-    case "object_category":
-      return normalizeEnumAlias(value, OBJECT_CATEGORY_ALIASES, "器物分类");
-    case "publish_status":
-      return normalizeEnumAlias(value, PUBLISH_STATUS_ALIASES, "发布状态");
-    case "status": {
-      const status = toStringValue(value, "DRAFT").trim().toUpperCase();
-      if (!PRODUCT_STATUS_VALUES.has(status)) {
-        throw new Error(`状态必须是允许值：${Array.from(PRODUCT_STATUS_VALUES).join(" / ")}`);
-      }
-      return status;
-    }
-    case "series_id":
-      return toNullableInteger(value, "所属系列");
-    case "erp_product_id":
-      return toNullableInteger(value, "ERP 产品");
-    case "stock":
-      return toInteger(value, 0, "库存");
-    case "sort_order":
-      return toInteger(value, 0, "排序");
-    case "sale_price":
-      return toNumber(value, 0, "售价");
-    case "cost_price":
-      return toNumber(value, 0, "成本价");
-    case "gallery":
-      return normalizeGallery(value);
-    case "published_at":
-      if (value === undefined || value === null || value === "") return null;
-      return value instanceof Date ? value : new Date(String(value));
-    default:
-      return toStringValue(value);
-  }
-}
-
-function normalizeProductData(data: Record<string, unknown>, mode: "create" | "update") {
-  const fields = mode === "create" ? PRODUCT_CREATE_FIELDS : PRODUCT_UPDATE_FIELDS;
-  const normalized: Record<string, unknown> = {};
-
-  for (const column of fields) {
-    const rawValue = readInput(data, column);
-    if (rawValue === undefined && mode === "update") continue;
-
-    const value = rawValue === undefined ? PRODUCT_CREATE_DEFAULTS[column] : rawValue;
-    normalized[column] = normalizeProductValue(column, value);
-  }
-
-  if (mode === "create") {
-    for (const required of ["sku", "name", "slug"] as const) {
-      if (!String(normalized[required] ?? "").trim()) {
-        throw new Error(`${required}不能为空`);
-      }
-    }
-  }
-
-  normalized.updated_at = new Date();
-  return normalized;
-}
-
-function sqlIdentifier(column: string) {
-  return Prisma.raw(`"${column}"`);
-}
-
-function sqlValue(column: string, value: unknown) {
-  // ── Null / undefined → typed NULL ──
-  if (value === null || value === undefined) {
-    if (INTEGER_COLUMNS.has(column as ProductColumn)) return Prisma.sql`NULL::integer`;
-    if (FLOAT_COLUMNS.has(column as ProductColumn)) return Prisma.sql`NULL::double precision`;
-    if (column === "object_category") return Prisma.sql`NULL::"ObjectCategory"`;
-    if (column === "publish_status") return Prisma.sql`NULL::"PublishStatus"`;
-    if (TIMESTAMP_COLUMNS.has(column)) return Prisma.sql`NULL::timestamp`;
-    if (TIMESTAMPTZ_COLUMNS.has(column)) return Prisma.sql`NULL::timestamptz`;
-    return Prisma.sql`NULL`;
-  }
-
-  // ── Non-null typed values ──
-  if (INTEGER_COLUMNS.has(column as ProductColumn)) return Prisma.sql`${value}::integer`;
-  if (FLOAT_COLUMNS.has(column as ProductColumn)) return Prisma.sql`${value}::double precision`;
-  // Enum columns: use raw SQL literal because Prisma parameter binding may send type text,
-  // and PostgreSQL rejects `$1::"ObjectCategory"` when $1 is typed as text in the wire protocol.
-  // Values are pre-validated by normalizeEnumAlias, so raw embedding is safe.
-  if (column === "object_category") return Prisma.raw(`'${value}'::"ObjectCategory"`);
-  if (column === "publish_status") return Prisma.raw(`'${value}'::"PublishStatus"`);
-  if (TIMESTAMP_COLUMNS.has(column)) return Prisma.sql`${value}::timestamp`;
-  if (TIMESTAMPTZ_COLUMNS.has(column)) return Prisma.sql`${value}::timestamptz`;
-  return Prisma.sql`${value}`;
 }
 
 export async function getBrandStats() {
   try {
-    const [products, series, journal] = await Promise.all([
-      brandPrisma.$queryRawUnsafe(`SELECT COUNT(*)::int as count FROM ${TABLE}`),
-      brandPrisma.$queryRawUnsafe(`SELECT COUNT(*)::int as count FROM series`),
-      brandPrisma.$queryRawUnsafe(`SELECT COUNT(*)::int as count FROM journal_posts`),
+    const [productCount, seriesCount, journalCount] = await Promise.all([
+      brandDb.legacyBrandProduct.count(), brandDb.legacyBrandSeries.count(), brandDb.journalPost.count(),
     ]);
-    return {
-      productCount: (products as any[])[0].count || 0,
-      seriesCount: (series as any[])[0].count || 0,
-      journalCount: (journal as any[])[0].count || 0,
-      mediaCount: 0, // media table not yet in Brand DB
-    };
+    return { productCount, seriesCount, journalCount, mediaCount: 0 };
   } catch {
     return { productCount: 0, seriesCount: 0, journalCount: 0, mediaCount: 0 };
   }
@@ -492,166 +391,106 @@ export async function getBrandStats() {
 
 export async function listProducts(search?: string) {
   try {
-    let where = "";
-    const params: any[] = [];
-    if (search) {
-      where = `WHERE (name ILIKE $1 OR sku ILIKE $1)`;
-      params.push(`%${search}%`);
-    }
-    const sql = `SELECT * FROM ${TABLE} ${where} ORDER BY sort_order ASC, created_at DESC LIMIT 200`;
-    const rows: any[] = await brandPrisma.$queryRawUnsafe(sql, ...params);
-    return { rows: rows.map(withProductOsOutput), error: null };
-  } catch (e: any) {
-    return { rows: [] as any[], error: e.message };
+    const products = await brandDb.legacyBrandProduct.findMany({
+      where: search ? { OR: [{ name: { contains: search, mode: "insensitive" } }, { sku: { contains: search, mode: "insensitive" } }] } : undefined,
+      orderBy: [{ sortOrder: "asc" }, { createdAt: "desc" }], take: 200,
+    });
+    return { rows: products.map(toProductRow), error: null };
+  } catch (error) {
+    return { rows: [] as ProductRow[], error: errorMessage(error) };
   }
 }
 
 /** Fetch ERP products with SKU summary for the Brand product dropdown selector. */
 export async function listErpProductsForSelect() {
   try {
-    const products: Array<{
-      id: number;
-      code: string;
-      name: string;
-      status: string;
-      skuCode: string | null;
-      skuPrice: number | null;
-      skuStock: number | null;
-    }> = await prisma.$queryRaw(Prisma.sql`
-      SELECT
-        p.id,
-        p.code,
-        p.name,
-        p.status,
-        s.code AS "skuCode",
-        s.price AS "skuPrice",
-        s.finished_stock AS "skuStock"
+    const products = await erpDb.$queryRaw<ErpProductSelectRow[]>(Prisma.sql`
+      SELECT p.id, p.code, p.name, p.status, s.code AS "skuCode", s.price AS "skuPrice", s.finished_stock AS "skuStock"
       FROM products p
       LEFT JOIN LATERAL (
-        SELECT code, price, finished_stock
-        FROM product_skus
-        WHERE product_id = p.id
-        ORDER BY id ASC
-        LIMIT 1
+        SELECT code, price, finished_stock FROM product_skus WHERE product_id = p.id ORDER BY id ASC LIMIT 1
       ) s ON true
       WHERE p.status != 'ARCHIVED'
       ORDER BY p.code ASC
     `);
     return { products, error: null };
-  } catch (e: any) {
-    return { products: [] as Array<{ id: number; code: string; name: string; status: string; skuCode: string | null; skuPrice: number | null; skuStock: number | null }>, error: e.message };
+  } catch (error) {
+    return { products: [] as ErpProductSelectRow[], error: errorMessage(error) };
   }
 }
 
 export async function createProduct(data: Record<string, unknown>) {
   try {
-    const enriched = normalizeProductData(data, "create");
-    const linkedErpFields = await refreshLinkedErpFields(enriched);
+    const normalized = normalizeProductData(data, "create");
+    const linked = await refreshLinkedErpFields(normalized);
     const drift = {
-      sale_price: enriched.sale_price !== linkedErpFields.sale_price ? { before: enriched.sale_price, after: linkedErpFields.sale_price } : null,
-      stock: enriched.stock !== linkedErpFields.stock ? { before: enriched.stock, after: linkedErpFields.stock } : null,
+      sale_price: normalized.salePrice !== linked.salePrice ? { before: normalized.salePrice, after: linked.salePrice } : null,
+      stock: normalized.stock !== linked.stock ? { before: normalized.stock, after: linked.stock } : null,
     };
-    Object.assign(enriched, linkedErpFields);
-    const columns = Object.keys(enriched);
-    const rows: any[] = await brandPrisma.$queryRaw(Prisma.sql`
-      INSERT INTO products (${Prisma.join(columns.map(sqlIdentifier))})
-      VALUES (${Prisma.join(columns.map((column) => sqlValue(column, enriched[column])))})
-      RETURNING *
-    `);
-    const row = rows[0];
-    await syncProductMediaReferencesBestEffort(row);
-
-    // Audit
-    try {
-      await createCrudAudit({ action: "CREATE", system: "BRAND", module: "products", targetId: row.id, after: row });
-    } catch {}
-
-    return { row: withProductOsOutput(row), drift, error: null };
-  } catch (e: any) {
-    return { row: null, error: e.message };
+    const product = await brandDb.legacyBrandProduct.create({
+      data: {
+        sku: linked.sku!, name: linked.name!, slug: linked.slug!, seriesId: linked.seriesId!,
+        salePrice: linked.salePrice!, costPrice: linked.costPrice!, coverImage: linked.coverImage!,
+        gallery: linked.gallery!, stock: linked.stock!, objectCategory: linked.objectCategory!,
+        story: linked.story!, theme: linked.theme!, erpProductId: linked.erpProductId ?? null,
+      },
+    });
+    await syncProductMediaReferencesBestEffort(product);
+    try { await createCrudAudit({ action: "CREATE", system: "BRAND", module: "products", targetId: product.id, after: productAuditRecord(product) }); } catch {}
+    return { row: toProductRow(product), drift, error: null };
+  } catch (error) {
+    return { row: null, error: errorMessage(error) };
   }
 }
 
 export async function updateProduct(id: number | string, data: Record<string, unknown>) {
   try {
     const productId = toPositiveIntegerId(id);
-    // Fetch before
-    const beforeRows: any[] = await brandPrisma.$queryRawUnsafe(`SELECT * FROM ${TABLE} WHERE id = $1::integer`, productId);
-    const before = beforeRows[0] || null;
-
-    const enriched = normalizeProductData(data, "update");
-    const existingRows: any[] = await brandPrisma.$queryRawUnsafe(`SELECT * FROM ${TABLE} WHERE id = $1::integer`, productId);
-    const existing = existingRows[0] || null;
-    const merged = { ...(existing || {}), ...enriched };
-    const linkedErpFields = await refreshLinkedErpFields(merged);
+    const before = await brandDb.legacyBrandProduct.findUnique({ where: { id: productId } });
+    if (!before) return { error: "Product not found" };
+    const normalized = normalizeProductData(data, "update");
+    const linked = await refreshLinkedErpFields({
+      ...normalized,
+      name: normalized.name ?? before.name,
+      erpProductId: normalized.erpProductId === undefined ? before.erpProductId : normalized.erpProductId,
+    });
     const drift = {
-      sale_price: merged.sale_price !== linkedErpFields.sale_price ? { before: merged.sale_price, after: linkedErpFields.sale_price } : null,
-      stock: merged.stock !== linkedErpFields.stock ? { before: merged.stock, after: linkedErpFields.stock } : null,
+      sale_price: (normalized.salePrice ?? before.salePrice) !== linked.salePrice ? { before: normalized.salePrice ?? before.salePrice, after: linked.salePrice } : null,
+      stock: (normalized.stock ?? before.stock) !== linked.stock ? { before: normalized.stock ?? before.stock, after: linked.stock } : null,
     };
-    if (linkedErpFields !== merged) {
-      if (linkedErpFields.sale_price !== undefined) enriched.sale_price = linkedErpFields.sale_price;
-      if (linkedErpFields.stock !== undefined) enriched.stock = linkedErpFields.stock;
-      if (linkedErpFields.name !== undefined) enriched.name = linkedErpFields.name;
-      if (linkedErpFields.cost_price !== undefined) enriched.cost_price = linkedErpFields.cost_price;
-      if (linkedErpFields.status !== undefined) enriched.status = linkedErpFields.status;
-    }
-    const columns = Object.keys(enriched);
-    const sets = columns.map((column) =>
-      Prisma.sql`${sqlIdentifier(column)} = ${sqlValue(column, enriched[column])}`
-    );
-    const afterRows: any[] = await brandPrisma.$queryRaw(Prisma.sql`
-      UPDATE products
-      SET ${Prisma.join(sets)}
-      WHERE id = ${productId}::integer
-      RETURNING *
-    `);
-    const after = afterRows[0] || null;
-    if (after) {
-      const synced = await refreshLinkedErpFields(after);
-      if (synced.sale_price !== after.sale_price || synced.stock !== after.stock) {
-        const refreshedRows: any[] = await brandPrisma.$queryRaw(Prisma.sql`
-          UPDATE products
-          SET sale_price = ${synced.sale_price}::double precision,
-              stock = ${synced.stock}::integer
-          WHERE id = ${productId}::integer
-          RETURNING *
-        `);
-        if (refreshedRows[0]) {
-          await syncProductMediaReferencesBestEffort(refreshedRows[0]);
-        }
-      } else {
-        await syncProductMediaReferencesBestEffort(after);
-      }
-    }
-
-    // Audit
-    try {
-      await createCrudAudit({ action: "UPDATE", system: "BRAND", module: "products", targetId: productId, before, after });
-    } catch {}
-
+    const after = await brandDb.legacyBrandProduct.update({
+      where: { id: productId },
+      data: {
+        ...normalized,
+        ...(linked.erpProductId ? {
+          name: linked.name, costPrice: linked.costPrice, salePrice: linked.salePrice, stock: linked.stock,
+        } : {}),
+      },
+    });
+    const refreshed = await refreshLinkedErpFields({
+      name: after.name, erpProductId: after.erpProductId, salePrice: after.salePrice, costPrice: after.costPrice, stock: after.stock,
+    });
+    const finalProduct = refreshed.erpProductId && (refreshed.salePrice !== after.salePrice || refreshed.stock !== after.stock)
+      ? await brandDb.legacyBrandProduct.update({ where: { id: productId }, data: { salePrice: refreshed.salePrice, stock: refreshed.stock } })
+      : after;
+    await syncProductMediaReferencesBestEffort(finalProduct);
+    try { await createCrudAudit({ action: "UPDATE", system: "BRAND", module: "products", targetId: productId, before: productAuditRecord(before), after: productAuditRecord(finalProduct) }); } catch {}
     return { drift, error: null };
-  } catch (e: any) {
-    return { error: e.message };
+  } catch (error) {
+    return { error: errorMessage(error) };
   }
 }
 
 export async function deleteProduct(id: number | string) {
   try {
     const productId = toPositiveIntegerId(id);
-    // Fetch before
-    const beforeRows: any[] = await brandPrisma.$queryRawUnsafe(`SELECT * FROM ${TABLE} WHERE id = $1::integer`, productId);
-    const before = beforeRows[0] || null;
-
-    await brandPrisma.$queryRawUnsafe(`DELETE FROM ${TABLE} WHERE id = $1::integer`, productId);
-
-    // Audit
-    try {
-      await createCrudAudit({ action: "DELETE", system: "BRAND", module: "products", targetId: productId, before });
-    } catch {}
-
+    const before = await brandDb.legacyBrandProduct.findUnique({ where: { id: productId } });
+    if (!before) return { error: null };
+    await brandDb.legacyBrandProduct.delete({ where: { id: productId } });
+    try { await createCrudAudit({ action: "DELETE", system: "BRAND", module: "products", targetId: productId, before: productAuditRecord(before) }); } catch {}
     return { error: null };
-  } catch (e: any) {
-    return { error: e.message };
+  } catch (error) {
+    return { error: errorMessage(error) };
   }
 }
 
@@ -667,42 +506,22 @@ export async function toggleProductStatus(id: number | string, newStatus: string
 export async function moveProduct(id: number | string, direction: "up" | "down") {
   try {
     const productId = toPositiveIntegerId(id);
-    const rows: any[] = await brandPrisma.$queryRawUnsafe(
-      `SELECT id, sort_order FROM ${TABLE} WHERE id = $1::integer`, productId
-    );
-    if (!rows.length) return { error: "Product not found" };
-
-    const current = rows[0].sort_order;
-    const op = direction === "up" ? "<" : ">";
-    const orderDir = direction === "up" ? "DESC" : "ASC";
-
-    const neighbors: any[] = await brandPrisma.$queryRawUnsafe(
-      `SELECT id, sort_order FROM ${TABLE} WHERE sort_order ${op} $1 ORDER BY sort_order ${orderDir} LIMIT 1`,
-      current
-    );
-    if (!neighbors.length) return { error: null }; // Already at edge
-
-    const neighbor = neighbors[0];
-
-    const before = { [id]: current, [neighbor.id]: neighbor.sort_order };
-
-    await brandPrisma.$queryRawUnsafe(
-      `UPDATE ${TABLE} SET sort_order = $1::integer WHERE id = $2::integer`, neighbor.sort_order, productId
-    );
-    await brandPrisma.$queryRawUnsafe(
-      `UPDATE ${TABLE} SET sort_order = $1::integer WHERE id = $2::integer`, current, toPositiveIntegerId(neighbor.id, "相邻产品 ID")
-    );
-
-    const after = { [id]: neighbor.sort_order, [neighbor.id]: current };
-
-    // Audit
-    try {
-      await createAuditLog({ action: "SORT_CHANGE", system: "BRAND", module: "products", targetId: productId, before, after });
-    } catch {}
-
+    const current = await brandDb.legacyBrandProduct.findUnique({ where: { id: productId }, select: { id: true, sortOrder: true } });
+    if (!current) return { error: "Product not found" };
+    const neighbor = await brandDb.legacyBrandProduct.findFirst({
+      where: direction === "up" ? { sortOrder: { lt: current.sortOrder } } : { sortOrder: { gt: current.sortOrder } },
+      orderBy: direction === "up" ? [{ sortOrder: "desc" }, { id: "asc" }] : [{ sortOrder: "asc" }, { id: "asc" }],
+      select: { id: true, sortOrder: true },
+    });
+    if (!neighbor) return { error: null };
+    const before = { [productId]: current.sortOrder, [neighbor.id]: neighbor.sortOrder };
+    await brandDb.legacyBrandProduct.update({ where: { id: productId }, data: { sortOrder: neighbor.sortOrder } });
+    await brandDb.legacyBrandProduct.update({ where: { id: neighbor.id }, data: { sortOrder: current.sortOrder } });
+    const after = { [productId]: neighbor.sortOrder, [neighbor.id]: current.sortOrder };
+    try { await createAuditLog({ action: "SORT_CHANGE", system: "BRAND", module: "products", targetId: productId, before, after }); } catch {}
     return { error: null };
-  } catch (e: any) {
-    return { error: e.message };
+  } catch (error) {
+    return { error: errorMessage(error) };
   }
 }
 

@@ -268,21 +268,6 @@ function ProductFormContent({
         </BrandFormRow>
       </BrandFormSection>
 
-      {/* SEO */}
-      <BrandFormSection title="SEO 信息" description="搜索引擎优化">
-        <BrandField label="状态">
-          <BrandSelect value={String(form.status ?? "DRAFT")} onChange={(e) => setField("status", e.target.value)} options={[
-            { label: "草稿", value: "DRAFT" },
-            { label: "审核中", value: "IN_REVIEW" },
-            { label: "已通过", value: "APPROVED" },
-            { label: "已定时", value: "SCHEDULED" },
-            { label: "已发布", value: "PUBLISHED" },
-            { label: "已下架", value: "UNPUBLISHED" },
-            { label: "已归档", value: "ARCHIVED" },
-            { label: "已驳回", value: "REJECTED" },
-          ]} />
-        </BrandField>
-      </BrandFormSection>
     </>
   );
 }
@@ -301,7 +286,7 @@ function ProductFormModal({
     cost_price: initialData?.cost_price ?? 0, cover_image: initialData?.cover_image ?? "",
     gallery: initialData?.galleryImages ?? initialData?.gallery_images ?? parseGallery(initialData?.gallery),
     stock: initialData?.stock ?? 0, object_category: initialData?.object_category ?? "BRACELET",
-    status: initialData?.status ?? "DRAFT", story: initialData?.story ?? "", theme: initialData?.theme ?? "",
+    story: initialData?.story ?? "", theme: initialData?.theme ?? "",
     erp_product_id: initialData?.erp_product_id ?? "",
   }));
   const [saving, setSaving] = useState(false);

@@ -1,9 +1,10 @@
 "use server";
 /**
- * Brand Series — WO-P12B Full CRUD + WO-P13C Publishing Workflow
- * Queries Brand DB directly (table: series)
+ * Brand Series — ordinary CRUD uses the canonical Brand Runtime client.
+ * Publishing workflow remains owned by the publisher engine.
  */
 import { brandPrisma } from "@yunwu/db/brand";
+import { brandDb, type LegacyBrandSeries } from "@/lib/brand-db";
 import { createCrudAudit, createAuditLog } from "@/lib/audit";
 import {
   transitionStatus,
@@ -22,84 +23,187 @@ import {
 } from "@/lib/publisher";
 
 const TABLE = "series";
+const SERIES_FIELDS = [
+  "name", "slug", "description", "coverImage", "cover_image", "heroText", "hero_text",
+  "isActive", "is_active", "longDesc", "long_desc", "shortDesc", "short_desc", "sortOrder", "sort_order",
+] as const;
+const SERIES_WORKFLOW_FIELDS = ["status", "published_at", "publishedAt"] as const;
+
+type SeriesWriteData = {
+  name?: string;
+  slug?: string;
+  description?: string;
+  coverImage?: string;
+  heroText?: string;
+  isActive?: boolean;
+  longDesc?: string | null;
+  shortDesc?: string | null;
+  sortOrder?: number;
+};
+type SeriesStringField = "name" | "slug" | "description" | "coverImage" | "heroText";
+type SeriesNullableStringField = "longDesc" | "shortDesc";
+
+type SeriesRow = LegacyBrandSeries & {
+  cover_image: string;
+  hero_text: string;
+  is_active: boolean;
+  long_desc: string | null;
+  short_desc: string | null;
+  sort_order: number;
+  published_at: Date | null;
+};
+
+function hasOwn(data: Record<string, unknown>, key: string) {
+  return Object.prototype.hasOwnProperty.call(data, key);
+}
+
+function inputValue(data: Record<string, unknown>, ...keys: string[]) {
+  for (const key of keys) if (hasOwn(data, key)) return data[key];
+  return undefined;
+}
+
+function errorMessage(error: unknown) {
+  return error instanceof Error ? error.message : "未知错误";
+}
+
+function toStringValue(value: unknown, defaultValue = "") {
+  return value === undefined || value === null ? defaultValue : String(value);
+}
+
+function toNullableString(value: unknown) {
+  if (value === undefined) return undefined;
+  return value === null || value === "" ? null : String(value);
+}
+
+function toInteger(value: unknown, defaultValue: number, label: string) {
+  if (value === undefined || value === null || value === "") return defaultValue;
+  const numberValue = typeof value === "number" ? value : Number(value);
+  if (!Number.isInteger(numberValue)) throw new Error(`${label}必须是整数`);
+  return numberValue;
+}
+
+function toBoolean(value: unknown, label: string) {
+  if (value === true || value === "true") return true;
+  if (value === false || value === "false") return false;
+  throw new Error(`${label}必须是 true 或 false`);
+}
+
+function assertSeriesInput(data: Record<string, unknown>) {
+  const allowed = new Set(SERIES_FIELDS);
+  for (const key of Object.keys(data)) {
+    if (SERIES_WORKFLOW_FIELDS.includes(key as (typeof SERIES_WORKFLOW_FIELDS)[number])) {
+      throw new Error(`Unauthorized workflow field: ${key}`);
+    }
+    if (!allowed.has(key as (typeof SERIES_FIELDS)[number])) throw new Error(`Invalid Series update field: ${key}`);
+  }
+}
+
+function normalizeSeriesData(data: Record<string, unknown>, mode: "create" | "update"): SeriesWriteData {
+  assertSeriesInput(data);
+  const normalized: SeriesWriteData = {};
+  const setString = (key: SeriesStringField, ...aliases: string[]) => {
+    const value = inputValue(data, ...aliases);
+    if (value !== undefined) normalized[key] = toStringValue(value);
+  };
+  const setNullableString = (key: SeriesNullableStringField, ...aliases: string[]) => {
+    const value = inputValue(data, ...aliases);
+    const normalizedValue = toNullableString(value);
+    if (normalizedValue !== undefined) normalized[key] = normalizedValue;
+  };
+  setString("name", "name");
+  setString("slug", "slug");
+  setString("description", "description");
+  setString("coverImage", "coverImage", "cover_image");
+  setString("heroText", "heroText", "hero_text");
+  const isActive = inputValue(data, "isActive", "is_active");
+  if (isActive !== undefined) normalized.isActive = toBoolean(isActive, "启用状态");
+  setNullableString("longDesc", "longDesc", "long_desc");
+  setNullableString("shortDesc", "shortDesc", "short_desc");
+  const sortOrder = inputValue(data, "sortOrder", "sort_order");
+  if (sortOrder !== undefined) normalized.sortOrder = toInteger(sortOrder, 0, "排序");
+
+  if (mode === "create") {
+    if (!normalized.name?.trim()) throw new Error("name不能为空");
+    if (!normalized.slug?.trim()) throw new Error("slug不能为空");
+    if (!normalized.description?.trim()) throw new Error("description不能为空");
+    return { coverImage: "", heroText: "", isActive: true, sortOrder: 0, ...normalized };
+  }
+  if (Object.keys(normalized).length === 0) throw new Error("No editable Series fields provided");
+  return normalized;
+}
+
+function toSeriesRow(series: LegacyBrandSeries): SeriesRow {
+  return {
+    ...series,
+    cover_image: series.coverImage,
+    hero_text: series.heroText,
+    is_active: series.isActive,
+    long_desc: series.longDesc,
+    short_desc: series.shortDesc,
+    sort_order: series.sortOrder,
+    published_at: series.publishedAt,
+  };
+}
+
+function seriesAuditRecord(series: LegacyBrandSeries | null): Record<string, unknown> | null {
+  if (!series) return null;
+  return {
+    id: series.id, name: series.name, slug: series.slug, description: series.description,
+    isActive: series.isActive, status: series.status, sortOrder: series.sortOrder, updatedAt: series.updatedAt,
+  };
+}
 
 export async function listSeries(search?: string) {
   try {
-    let where = "";
-    const params: any[] = [];
-    if (search) {
-      where = `WHERE (name ILIKE $1 OR slug ILIKE $1)`;
-      params.push(`%${search}%`);
-    }
-    const sql = `SELECT * FROM ${TABLE} ${where} ORDER BY sort_order ASC, id DESC LIMIT 100`;
-    const rows: any[] = await brandPrisma.$queryRawUnsafe(sql, ...params);
-    return { rows, error: null };
-  } catch (e: any) {
-    return { rows: [] as any[], error: e.message };
+    const series = await brandDb.legacyBrandSeries.findMany({
+      where: search ? { OR: [{ name: { contains: search, mode: "insensitive" } }, { slug: { contains: search, mode: "insensitive" } }] } : undefined,
+      orderBy: [{ sortOrder: "asc" }, { id: "desc" }], take: 100,
+    });
+    return { rows: series.map(toSeriesRow), error: null };
+  } catch (error) {
+    return { rows: [] as SeriesRow[], error: errorMessage(error) };
   }
 }
 
 export async function createSeries(data: Record<string, unknown>) {
   try {
-    // Ensure NOT NULL columns without defaults are included
-    const enriched = { ...data, updatedAt: new Date().toISOString() };
-    const cols = Object.keys(enriched).map(k => `"${k}"`).join(", ");
-    const placeholders = Object.keys(enriched).map((_, i) => `$${i + 1}`).join(", ");
-    const sql = `INSERT INTO ${TABLE} (${cols}) VALUES (${placeholders}) RETURNING *`;
-    const rows: any[] = await brandPrisma.$queryRawUnsafe(sql, ...Object.values(enriched));
-    const row = rows[0];
-
-    // Audit
-    try {
-      await createCrudAudit({ action: "CREATE", system: "BRAND", module: "series", targetId: row.id, after: row });
-    } catch {}
-
-    return { row, error: null };
-  } catch (e: any) {
-    return { row: null, error: e.message };
+    const normalized = normalizeSeriesData(data, "create");
+    const series = await brandDb.legacyBrandSeries.create({
+      data: {
+        name: normalized.name!, slug: normalized.slug!, description: normalized.description!,
+        coverImage: normalized.coverImage!, heroText: normalized.heroText!, isActive: normalized.isActive!,
+        longDesc: normalized.longDesc ?? null, shortDesc: normalized.shortDesc ?? null, sortOrder: normalized.sortOrder!,
+      },
+    });
+    try { await createCrudAudit({ action: "CREATE", system: "BRAND", module: "series", targetId: series.id, after: seriesAuditRecord(series) }); } catch {}
+    return { row: toSeriesRow(series), error: null };
+  } catch (error) {
+    return { row: null, error: errorMessage(error) };
   }
 }
 
 export async function updateSeries(id: number, data: Record<string, unknown>) {
   try {
-    // Fetch before
-    const beforeRows: any[] = await brandPrisma.$queryRawUnsafe(`SELECT * FROM ${TABLE} WHERE id = $1`, id);
-    const before = beforeRows[0] || null;
-
-    const enriched = { ...data, updatedAt: new Date().toISOString() };
-    const sets = Object.keys(enriched).map((k, i) => `"${k}" = $${i + 1}`).join(", ");
-    const vals = Object.values(enriched);
-    const sql = `UPDATE ${TABLE} SET ${sets} WHERE id = $${vals.length + 1} RETURNING *`;
-    const afterRows: any[] = await brandPrisma.$queryRawUnsafe(sql, ...vals, id);
-    const after = afterRows[0] || null;
-
-    // Audit
-    try {
-      await createCrudAudit({ action: "UPDATE", system: "BRAND", module: "series", targetId: id, before, after });
-    } catch {}
-
+    const before = await brandDb.legacyBrandSeries.findUnique({ where: { id } });
+    if (!before) return { error: "Series not found" };
+    const normalized = normalizeSeriesData(data, "update");
+    const after = await brandDb.legacyBrandSeries.update({ where: { id }, data: normalized });
+    try { await createCrudAudit({ action: "UPDATE", system: "BRAND", module: "series", targetId: id, before: seriesAuditRecord(before), after: seriesAuditRecord(after) }); } catch {}
     return { error: null };
-  } catch (e: any) {
-    return { error: e.message };
+  } catch (error) {
+    return { error: errorMessage(error) };
   }
 }
 
 export async function deleteSeries(id: number) {
   try {
-    // Fetch before
-    const beforeRows: any[] = await brandPrisma.$queryRawUnsafe(`SELECT * FROM ${TABLE} WHERE id = $1`, id);
-    const before = beforeRows[0] || null;
-
-    await brandPrisma.$queryRawUnsafe(`DELETE FROM ${TABLE} WHERE id = $1`, id);
-
-    // Audit
-    try {
-      await createCrudAudit({ action: "DELETE", system: "BRAND", module: "series", targetId: id, before });
-    } catch {}
-
+    const before = await brandDb.legacyBrandSeries.findUnique({ where: { id } });
+    if (!before) return { error: null };
+    await brandDb.legacyBrandSeries.delete({ where: { id } });
+    try { await createCrudAudit({ action: "DELETE", system: "BRAND", module: "series", targetId: id, before: seriesAuditRecord(before) }); } catch {}
     return { error: null };
-  } catch (e: any) {
-    return { error: e.message };
+  } catch (error) {
+    return { error: errorMessage(error) };
   }
 }
 
@@ -177,41 +281,21 @@ export async function toggleSeriesActive(id: number, active: boolean): Promise<{
 
 export async function moveSeries(id: number, direction: "up" | "down") {
   try {
-    const rows: any[] = await brandPrisma.$queryRawUnsafe(
-      `SELECT id, sort_order FROM ${TABLE} WHERE id = $1`, id
-    );
-    if (!rows.length) return { error: "Series not found" };
-
-    const current = rows[0].sort_order;
-    const op = direction === "up" ? "<" : ">";
-    const orderDir = direction === "up" ? "DESC" : "ASC";
-
-    const neighbors: any[] = await brandPrisma.$queryRawUnsafe(
-      `SELECT id, sort_order FROM ${TABLE} WHERE sort_order ${op} $1 ORDER BY sort_order ${orderDir} LIMIT 1`,
-      current
-    );
-    if (!neighbors.length) return { error: null };
-
-    const neighbor = neighbors[0];
-
-    const before = { [id]: current, [neighbor.id]: neighbor.sort_order };
-
-    await brandPrisma.$queryRawUnsafe(
-      `UPDATE ${TABLE} SET sort_order = $1 WHERE id = $2`, neighbor.sort_order, id
-    );
-    await brandPrisma.$queryRawUnsafe(
-      `UPDATE ${TABLE} SET sort_order = $1 WHERE id = $2`, current, neighbor.id
-    );
-
-    const after = { [id]: neighbor.sort_order, [neighbor.id]: current };
-
-    // Audit
-    try {
-      await createAuditLog({ action: "SORT_CHANGE", system: "BRAND", module: "series", targetId: id, before, after });
-    } catch {}
-
+    const current = await brandDb.legacyBrandSeries.findUnique({ where: { id }, select: { id: true, sortOrder: true } });
+    if (!current) return { error: "Series not found" };
+    const neighbor = await brandDb.legacyBrandSeries.findFirst({
+      where: direction === "up" ? { sortOrder: { lt: current.sortOrder } } : { sortOrder: { gt: current.sortOrder } },
+      orderBy: direction === "up" ? [{ sortOrder: "desc" }, { id: "asc" }] : [{ sortOrder: "asc" }, { id: "asc" }],
+      select: { id: true, sortOrder: true },
+    });
+    if (!neighbor) return { error: null };
+    const before = { [id]: current.sortOrder, [neighbor.id]: neighbor.sortOrder };
+    await brandDb.legacyBrandSeries.update({ where: { id }, data: { sortOrder: neighbor.sortOrder } });
+    await brandDb.legacyBrandSeries.update({ where: { id: neighbor.id }, data: { sortOrder: current.sortOrder } });
+    const after = { [id]: neighbor.sortOrder, [neighbor.id]: current.sortOrder };
+    try { await createAuditLog({ action: "SORT_CHANGE", system: "BRAND", module: "series", targetId: id, before, after }); } catch {}
     return { error: null };
-  } catch (e: any) {
-    return { error: e.message };
+  } catch (error) {
+    return { error: errorMessage(error) };
   }
 }

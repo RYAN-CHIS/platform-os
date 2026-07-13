@@ -2,7 +2,7 @@
 
 > **Single Source of Truth** for 允物 (Yunwu) Project
 >
-> Last updated: 2026-07-13 (Phase D1 Platform Brand adapter and low-risk reads)
+> Last updated: 2026-07-13 (Phase D2b-1a Products and Series typed Prisma migration)
 >
 > Everything below this line is authoritative.
 
@@ -90,6 +90,17 @@
 - Home PageContent uses only its physical fields. `status` and `published_at` are not persisted PageContent fields; normal CRUD is typed and `updatePageContent` uses an explicit validated whitelist.
 - Banner create, update, delete, and reorder now use typed Canonical Brand Prisma. Banner publish/unpublish and all Publisher behavior remain Phase E.
 - Products, Series, Journal, and Materials remain D2b. Platform-wide TypeScript retains unrelated existing errors, while D2a files have zero diagnostics. No database connection, DDL, migration, or deployment occurred.
+
+---
+
+## Prisma Phase D2b-1a — Products and Series Typed Prisma Migration (2026-07-13)
+
+- Product status ownership is aligned with ADR-001: `LegacyBrandProduct.status` and `publishStatus` are Publisher-only transition fields. Ordinary Product updates reject them; ordinary creation relies on canonical DRAFT defaults (and accepts no non-DRAFT initialization).
+- The Product editor no longer submits workflow state, and ERP refresh keeps its established non-workflow synchronization while no longer writing Brand workflow state.
+- Products ordinary Brand CRUD and sorting use `brandDb.legacyBrandProduct`; Series ordinary CRUD and sorting use `brandDb.legacyBrandSeries`. Products names the ERP client `erpDb` and retains ERP-only media and selector SQL without cross-database transactions.
+- `node scripts/check-product-status-ownership.mjs` and `node --test scripts/check-product-status-ownership.test.mjs` guard the ordinary Product update whitelist, ERP refresh, and editor payload while intentionally excluding Publisher wrappers. Existing `pnpm check:prisma-contract` remains required.
+- Publisher wrappers are unchanged. Journal remains deferred pending taxonomy/workflow contract; Materials remains deferred pending ADR-005 and Phase G. Banner reorder was already typed in D2a.
+- No canonical or ERP schema change, database connection, DDL, migration, db push/pull, or deployment occurred. Platform-wide TypeScript retains unrelated existing errors; D2b-1a files have zero diagnostics.
 
 ---
 
