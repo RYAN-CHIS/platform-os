@@ -2,7 +2,7 @@
 
 > **Single Source of Truth** for 允物 (Yunwu) Project
 >
-> Last updated: 2026-07-13 (Phase C3 non-production Brand consumer migration)
+> Last updated: 2026-07-13 (Phase C4 legacy Brand Prisma client decommission)
 >
 > Everything below this line is authoritative.
 
@@ -59,6 +59,16 @@
 - `apps/brand-os/seed.ts` is the sole Brand OS non-production Prisma consumer identified by the C3 static inventory. It now uses `@yunwu/brand-db` with script-scoped `createBrandDb()` and explicit `finally` disconnect; it uses `BRAND_DATABASE_URL` only.
 - No seed was run and no database connection, read, or write was performed. Seeded status values remain canonical `PUBLISHED`; Publisher state mapping remains Phase E.
 - The Phase C4 readiness inventory is recorded in `docs/PHASE_C4_BRAND_OS_LEGACY_CLIENT_CLEANUP_READINESS_2026-07-13.md`. The legacy local client entries, frozen schema, generated output, postinstall, and dependencies remain in place for C4/H; no cleanup occurred in C3.
+
+---
+
+## Prisma Phase C4 — Brand OS Legacy Client Decommission (2026-07-13)
+
+- Brand OS no longer generates or imports its local legacy Prisma Client. `src/lib/prisma.ts`, `src/lib/db.ts`, the ignored local generated output, and the local Prisma `postinstall` path are retired.
+- Brand OS Runtime continues to use the server-only `brand-db-adapter`; the independent seed continues to use `@yunwu/brand-db` with `createBrandDb()`. Canonical client generation is owned only by `packages/brand-db`.
+- The Brand OS package no longer directly depends on `@prisma/client`, `prisma`, or ERP `@yunwu/db`; it retains `@yunwu/brand-db` and `server-only`.
+- `apps/brand-os/prisma/schema.prisma` remains physically unchanged but is inactive for Brand OS install, build, typecheck, runtime, and seed. It remains a read-only root Contract Guard input until Phase H has separately transitioned that guard.
+- Phase H deletion readiness is recorded in `docs/PHASE_H_FROZEN_BRAND_SCHEMA_DELETION_READINESS_2026-07-13.md`. Physical Frozen Schema deletion remains Phase H only; Platform migration, Publisher status work, and any target-table migration remain Phases D, E, and G.
 
 ---
 
