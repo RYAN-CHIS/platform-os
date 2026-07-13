@@ -241,8 +241,8 @@ export async function getSeriesVersions(id: number) {
   return getVersions("series", id);
 }
 
-export async function rollbackSeries(id: number, version: number) {
-  return rollbackToVersion("series", id, version);
+export async function rollbackSeries(id: number, version: number, reason: string) {
+  return rollbackToVersion("series", id, version, reason);
 }
 
 export async function getSeriesPreviewToken(id: number) {

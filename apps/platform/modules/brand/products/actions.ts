@@ -560,8 +560,8 @@ export async function getProductVersions(id: number | string) {
   return getVersions("products", toPositiveIntegerId(id));
 }
 
-export async function rollbackProduct(id: number | string, version: number) {
-  return rollbackToVersion("products", toPositiveIntegerId(id), version);
+export async function rollbackProduct(id: number | string, version: number, reason: string) {
+  return rollbackToVersion("products", toPositiveIntegerId(id), version, reason);
 }
 
 export async function getProductPreviewToken(id: number | string) {

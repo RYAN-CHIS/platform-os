@@ -150,9 +150,10 @@ const wfBtnDisabled: React.CSSProperties = { opacity: 0.5, cursor: "not-allowed"
 
 // ── Version History Modal ──
 
-function VersionHistoryModal({ id, name, onClose, onRollback }: {
+function VersionHistoryModal({ id, name, currentStatus, onClose, onRollback }: {
   id: number;
   name: string;
+  currentStatus: string;
   onClose: () => void;
   onRollback: () => void;
 }) {
@@ -160,6 +161,8 @@ function VersionHistoryModal({ id, name, onClose, onRollback }: {
   const [loading, setLoading] = useState(true);
   const [rollingBack, setRollingBack] = useState<number | null>(null);
   const [error, setError] = useState("");
+  const [rollbackTarget, setRollbackTarget] = useState<any>(null);
+  const [rollbackReason, setRollbackReason] = useState("");
 
   useEffect(() => {
     getSeriesVersions(id).then((v) => {
@@ -171,11 +174,11 @@ function VersionHistoryModal({ id, name, onClose, onRollback }: {
     });
   }, [id]);
 
-  async function handleRollback(version: number) {
+  async function handleRollback(version: number, reason: string) {
     setRollingBack(version);
     setError("");
     try {
-      const r = await rollbackSeries(id, version);
+      const r = await rollbackSeries(id, version, reason);
       if (!r.success) {
         setError(r.error || "回滚失败");
         setRollingBack(null);
@@ -216,7 +219,7 @@ function VersionHistoryModal({ id, name, onClose, onRollback }: {
                       <span style={{ fontSize: 11, color: "#a8a29e", whiteSpace: "nowrap" }}>{v.created_at ? new Date(v.created_at).toLocaleString("zh-CN") : "—"}</span>
                     </div>
                     <button
-                      onClick={() => handleRollback(v.version)}
+                      onClick={() => setRollbackTarget(v)}
                       disabled={rollingBack !== null}
                       style={{
                         padding: "3px 10px", borderRadius: 4, fontSize: 11, cursor: rollingBack !== null ? "not-allowed" : "pointer",
@@ -230,6 +233,14 @@ function VersionHistoryModal({ id, name, onClose, onRollback }: {
               })}
             </div>
           )}
+          {rollbackTarget && <div style={{ marginTop: 14, padding: 12, border: "1px solid #f59e0b", borderRadius: 6, background: "#fffbeb" }}>
+            <strong style={{ color: "#92400e", fontSize: 13 }}>紧急立即恢复确认</strong>
+            <p style={{ color: "#92400e", fontSize: 13 }}>此操作会立即使用所选历史版本替换当前线上内容。无需重新审核，操作不可静默撤销。</p>
+            {currentStatus === "PUBLISHED" && <p style={{ color: "#b45309", fontSize: 13, fontWeight: 600 }}>线上内容将立即改变</p>}
+            <p style={{ fontSize: 12, color: "#57534e" }}>系列: {name} · ID: {id} · v{rollbackTarget.version} · {rollbackTarget.created_at ? new Date(rollbackTarget.created_at).toLocaleString("zh-CN") : "—"} · 当前状态: {currentStatus}</p>
+            <textarea value={rollbackReason} onChange={(event) => setRollbackReason(event.target.value)} placeholder="请输入不少于 5 个字符的紧急恢复原因" style={{ ...inputStyle, width: "100%", minHeight: 68, boxSizing: "border-box" }} />
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 8 }}><button onClick={() => { setRollbackTarget(null); setRollbackReason(""); }} disabled={rollingBack !== null} style={wfBtnStyle("")}>取消</button><button onClick={() => handleRollback(rollbackTarget.version, rollbackReason)} disabled={rollingBack !== null || rollbackReason.trim().length < 5} style={wfBtnStyle("ROLLBACK")}>{rollingBack !== null ? "恢复中…" : "确认紧急恢复"}</button></div>
+          </div>}
           {error && <div style={{ padding: "8px 12px", background: "#fef2f2", borderRadius: 6, marginTop: 12, fontSize: 13, color: "#dc2626" }}>{error}</div>}
         </div>
       </div>
@@ -603,6 +614,7 @@ export function BrandSeriesClient({ rows, error: serverError, searchQ }: { rows:
         <VersionHistoryModal
           id={versionRow.id}
           name={versionRow.name}
+          currentStatus={versionRow.status || "UNKNOWN"}
           onClose={() => setVersionRow(null)}
           onRollback={() => router.refresh()}
         />

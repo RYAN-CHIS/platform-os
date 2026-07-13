@@ -299,8 +299,8 @@ export async function getPostVersions(cuid: string) {
   return getVersions("journal", cuid);
 }
 
-export async function rollbackPost(cuid: string, version: number) {
-  return rollbackToVersion("journal", cuid, version);
+export async function rollbackPost(cuid: string, version: number, reason: string) {
+  return rollbackToVersion("journal", cuid, version, reason);
 }
 
 export async function getPostPreviewToken(cuid: string) {

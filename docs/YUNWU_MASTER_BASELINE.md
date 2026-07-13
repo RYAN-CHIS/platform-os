@@ -2,7 +2,7 @@
 
 > **Single Source of Truth** for 允物 (Yunwu) Project
 >
-> Last updated: 2026-07-13 (Phase E1 Publisher state mapping)
+> Last updated: 2026-07-13 (Phase E2B emergency rollback)
 >
 > Everything below this line is authoritative.
 
@@ -122,6 +122,14 @@
 - Publish maps to `PUBLISHED`, preserves the existing non-blocking `content_versions` snapshot side effect, unpublish maps to `UNPUBLISHED`, and archive maps to `ARCHIVED`; no workflow-only value is cast to `PublishStatus`. Existing rollback/live-table snapshot restoration and schema-unmodeled Home physical status columns remain constrained raw-SQL work for Phase E2.
 - `pnpm check:publisher-contract` guards the registry, mappings, typed transaction boundary, wrapper boundary, enum safety, and Runtime DDL prohibition. Ordinary CRUD guards continue to own Product and Journal safeguards. Materials remains deferred and historical secrets debt remains independently governed.
 - No schema change, database operation, migration, db push/pull, deployment, Vercel change, or Materials work occurred.
+
+---
+
+## Prisma Phase E2B — Emergency Immediate Restore (2026-07-13)
+
+- ADR-006 is accepted. `Product`, `Series`, `Journal`, and `Banner` rollback is a Publisher-owned Emergency Immediate Restore: a PUBLISHED record immediately changes publicly-read current content without a new review/approve transition; other legal lifecycle states remain unchanged; ARCHIVED fails closed.
+- Restore uses per-content-type inclusion whitelists only. Lifecycle fields, `publishedAt`, IDs/timestamps, relation ownership, and Product ERP/inventory/price fields never come from a snapshot. Each command requires a high Publisher role, a 5–500 character reason, an explicit UI confirmation, a Brand-transaction audit entry, pending-job cancellation, and a new immutable `RESTORED` version.
+- Production Storefront reads current Brand records directly; no live table or published projection exists, and ADR-006 formally authorizes the immediate public effect. Storefront, schemas, migrations, Materials, and the legacy Publisher Home path remain unchanged/deferred. Historical secrets debt remains separately governed.
 
 ---
 

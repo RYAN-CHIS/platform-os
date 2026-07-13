@@ -170,6 +170,8 @@ function VersionHistoryModal({ row, onClose }: { row: any; onClose: () => void }
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [rollbacking, setRollbacking] = useState<number | null>(null);
+  const [rollbackTarget, setRollbackTarget] = useState<any>(null);
+  const [rollbackReason, setRollbackReason] = useState("");
   const router = useRouter();
 
   useEffect(() => {
@@ -187,9 +189,9 @@ function VersionHistoryModal({ row, onClose }: { row: any; onClose: () => void }
     return () => { cancelled = true; };
   }, [row.id]);
 
-  async function handleRollback(version: number) {
+  async function handleRollback(version: number, reason: string) {
     setRollbacking(version);
-    const r = await rollbackPost(row.id, version);
+    const r = await rollbackPost(row.id, version, reason);
     setRollbacking(null);
     if (!r.success) { setError(r.error || "回滚失败"); return; }
     // Refresh versions
@@ -224,7 +226,7 @@ function VersionHistoryModal({ row, onClose }: { row: any; onClose: () => void }
                     <td style={{ padding: "8px 12px" }}><StatusBadge status={v.status} /></td>
                     <td style={{ padding: "8px 12px", fontSize: 11, color: "#a8a29e" }}>{v.created_at ? new Date(v.created_at).toLocaleString("zh-CN") : "—"}</td>
                     <td style={{ padding: "8px 12px", textAlign: "center" }}>
-                      <button onClick={() => handleRollback(v.version)} disabled={rollbacking === v.version}
+                      <button onClick={() => setRollbackTarget(v)} disabled={rollbacking !== null}
                         style={{ ...wfBtnBase, color: "#d97706", borderColor: "#fcd34d", background: "#fffbeb" }}>
                         {rollbacking === v.version ? "回滚中…" : "回滚"}
                       </button>
@@ -235,6 +237,14 @@ function VersionHistoryModal({ row, onClose }: { row: any; onClose: () => void }
             </table>
           </div>
         )}
+        {rollbackTarget && <div style={{ marginTop: 14, padding: 12, border: "1px solid #f59e0b", borderRadius: 6, background: "#fffbeb" }}>
+          <strong style={{ color: "#92400e", fontSize: 13 }}>紧急立即恢复确认</strong>
+          <p style={{ color: "#92400e", fontSize: 13 }}>此操作会立即使用所选历史版本替换当前线上内容。无需重新审核，操作不可静默撤销。</p>
+          {row.status === "PUBLISHED" && <p style={{ color: "#b45309", fontSize: 13, fontWeight: 600 }}>线上内容将立即改变</p>}
+          <p style={{ fontSize: 12, color: "#57534e" }}>文章: {row.title} · ID: {row.id} · v{rollbackTarget.version} · {rollbackTarget.created_at ? new Date(rollbackTarget.created_at).toLocaleString("zh-CN") : "—"} · 当前状态: {row.status || "UNKNOWN"}</p>
+          <textarea value={rollbackReason} onChange={(event) => setRollbackReason(event.target.value)} placeholder="请输入不少于 5 个字符的紧急恢复原因" style={{ ...inputStyle, width: "100%", minHeight: 68, boxSizing: "border-box" }} />
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 8 }}><button onClick={() => { setRollbackTarget(null); setRollbackReason(""); }} disabled={rollbacking !== null} style={{ ...wfBtnBase, color: "#57534e" }}>取消</button><button onClick={() => handleRollback(rollbackTarget.version, rollbackReason)} disabled={rollbacking !== null || rollbackReason.trim().length < 5} style={{ ...wfBtnBase, color: "#d97706", borderColor: "#fcd34d", background: "#fffbeb" }}>{rollbacking !== null ? "恢复中…" : "确认紧急恢复"}</button></div>
+        </div>}
       </div>
     </div>
   );

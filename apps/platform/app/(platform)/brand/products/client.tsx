@@ -479,6 +479,8 @@ export function BrandProductsClient({ rows, error: serverError, searchQ }: {
   const [versionModalId, setVersionModalId] = useState<number | null>(null);
   const [versionList, setVersionList] = useState<any[]>([]);
   const [versionLoading, setVersionLoading] = useState(false);
+  const [rollbackTarget, setRollbackTarget] = useState<any>(null);
+  const [rollbackReason, setRollbackReason] = useState("");
   const [scheduleModalId, setScheduleModalId] = useState<number | null>(null);
   const [scheduleDate, setScheduleDate] = useState("");
   const [scheduleLoading, setScheduleLoading] = useState(false);
@@ -507,16 +509,17 @@ export function BrandProductsClient({ rows, error: serverError, searchQ }: {
     setVersionLoading(true);
     const versions = await getProductVersions(id);
     setVersionList(Array.isArray(versions) ? versions : []);
+    setRollbackTarget(null);
+    setRollbackReason("");
     setVersionLoading(false);
   }
 
-  async function handleRollback(id: number, version: number) {
-    if (!confirm(`确定要回滚到版本 ${version} 吗？`)) return;
+  async function handleRollback(id: number, version: number, reason: string) {
     setVersionLoading(true);
-    const r = await rollbackProduct(id, version);
+    const r = await rollbackProduct(id, version, reason);
     setVersionLoading(false);
     if ('error' in r && r.error) toast({ message: r.error, type: "error" });
-    else { toast({ message: `已回滚到版本 ${version}`, type: "success" }); setVersionModalId(null); refresh(); }
+    else { toast({ message: `已回滚到版本 ${version}`, type: "success" }); setVersionModalId(null); setRollbackTarget(null); setRollbackReason(""); refresh(); }
   }
 
   async function handleSchedulePublish() {
@@ -640,7 +643,7 @@ export function BrandProductsClient({ rows, error: serverError, searchQ }: {
           <div style={modalContentStyle}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
               <h3 style={{ fontSize: 15, fontWeight: 500, color: "#1c1917" }}>版本历史 — ID: {versionModalId}</h3>
-              <button onClick={() => setVersionModalId(null)} style={{ background: "none", border: "none", fontSize: 18, cursor: "pointer", color: "#78716c" }}>×</button>
+              <button onClick={() => { setVersionModalId(null); setRollbackTarget(null); setRollbackReason(""); }} style={{ background: "none", border: "none", fontSize: 18, cursor: "pointer", color: "#78716c" }}>×</button>
             </div>
             {versionLoading ? (
               <div style={{ padding: 20, textAlign: "center", color: "#a8a29e" }}>加载中…</div>
@@ -663,7 +666,7 @@ export function BrandProductsClient({ rows, error: serverError, searchQ }: {
                       <td style={tdStyle}><StatusBadge status={v.status} /></td>
                       <td style={{ ...tdStyle, fontSize: 12, color: "#a8a29e" }}>{v.created_at ? new Date(v.created_at).toLocaleString("zh-CN") : "—"}</td>
                       <td style={{ ...tdStyle, textAlign: "right" }}>
-                        <button onClick={() => handleRollback(versionModalId, v.version)}
+                        <button onClick={() => setRollbackTarget(v)}
                           disabled={versionLoading} style={wfBtnStyle("#d97706")}>回滚</button>
                       </td>
                     </tr>
@@ -671,6 +674,23 @@ export function BrandProductsClient({ rows, error: serverError, searchQ }: {
                 </tbody>
               </table>
             )}
+            {rollbackTarget && (() => {
+              const current = rows.find((item: any) => item.id === versionModalId);
+              const currentStatus = current?.publish_status || current?.publishStatus || current?.status || "UNKNOWN";
+              const isPublished = currentStatus === "PUBLISHED";
+              const reasonValid = rollbackReason.trim().length >= 5;
+              return <div style={{ marginTop: 16, padding: 12, border: "1px solid #f59e0b", borderRadius: 6, background: "#fffbeb" }}>
+                <div style={{ fontWeight: 600, color: "#92400e", marginBottom: 8 }}>紧急立即恢复确认</div>
+                <p style={{ fontSize: 13, color: "#92400e", margin: "0 0 8px" }}>此操作会立即使用所选历史版本替换当前线上内容。无需重新审核，操作不可静默撤销。</p>
+                {isPublished && <p style={{ fontSize: 13, color: "#b45309", fontWeight: 600, margin: "0 0 8px" }}>线上内容将立即改变</p>}
+                <p style={{ fontSize: 12, color: "#57534e", margin: "0 0 8px" }}>内容 ID: {versionModalId} · v{rollbackTarget.version} · {rollbackTarget.created_at ? new Date(rollbackTarget.created_at).toLocaleString("zh-CN") : "—"} · 当前状态: {currentStatus}</p>
+                <textarea value={rollbackReason} onChange={(event) => setRollbackReason(event.target.value)} placeholder="请输入不少于 5 个字符的紧急恢复原因" style={{ ...inputStyle, minHeight: 72, width: "100%", boxSizing: "border-box" }} />
+                <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 8 }}>
+                  <button onClick={() => { setRollbackTarget(null); setRollbackReason(""); }} disabled={versionLoading} style={wfBtnStyle("#78716c")}>取消</button>
+                  <button onClick={() => handleRollback(versionModalId, rollbackTarget.version, rollbackReason)} disabled={versionLoading || !reasonValid} style={wfBtnStyle("#b45309")}>{versionLoading ? "恢复中…" : "确认紧急恢复"}</button>
+                </div>
+              </div>;
+            })()}
           </div>
         </div>
       )}

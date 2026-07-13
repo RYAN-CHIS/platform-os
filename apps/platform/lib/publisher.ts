@@ -7,8 +7,10 @@
 "use server";
 
 import crypto from "crypto";
-import { brandDb, PublishStatus } from "@/lib/brand-db";
+import { brandDb, JournalCategory, ObjectCategory, ProductType, PublishStatus } from "@/lib/brand-db";
 import { createAuditLog } from "@/lib/audit";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 
 export type ContentType = "products" | "series" | "journal" | "banners" | "home";
 export type PublisherCommand =
@@ -291,7 +293,13 @@ export async function transitionStatus(
       try {
         const snapshot = await getPreviewContent(contentType, String(normalizedId));
         if (snapshot) await createVersion(contentType, normalizedId, snapshot, PublishStatus.PUBLISHED);
-      } catch { /* version history must not roll back a completed publish */ }
+      } catch (error) {
+        console.error("[publisher] failed to create publish snapshot", {
+          contentType,
+          contentId: normalizedId,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
     }
     try {
       await createAuditLog({
@@ -340,24 +348,222 @@ export async function getVersions(contentType: ContentType, contentId: string | 
   return rows.map((row) => ({ id: row.id, version: row.version, snapshot: isRecord(row.snapshot) ? row.snapshot : {}, status: row.status ?? "", created_at: row.createdAt?.toISOString() ?? "" }));
 }
 
-/** Rollback remains Phase E2: snapshots may contain schema-unmodeled live columns. */
-export async function rollbackToVersion(contentType: ContentType, contentId: string | number, targetVersion: number): Promise<{ success: boolean; restoredVersion: number; error?: string }> {
+const ROLLBACK_CONTENT_TYPES = new Set<ContentType>(["products", "series", "journal", "banners"]);
+const ROLLBACK_REASON_MIN_LENGTH = 5;
+const ROLLBACK_REASON_MAX_LENGTH = 500;
+const SENSITIVE_REASON_PATTERN = /(?:https?|postgres(?:ql)?|mysql|mongodb):\/\/|(?:password|passwd|token|secret|api[_-]?key)\s*[:=]/i;
+
+type RollbackActor = { userId: string; role: string };
+type ProductRestoreData = {
+  name?: string; slug?: string; objectCategory?: ObjectCategory; theme?: string; story?: string;
+  materials?: string; coverImage?: string; gallery?: string; inspiration?: string | null;
+  keywords?: string | null; lifeStage?: string | null; suitableFor?: string | null; sortOrder?: number;
+  materialOrigin?: string | null; craftMethod?: string | null; completionDate?: Date | null;
+  serialNumber?: string | null; creationStory?: string | null; emotionalState?: string | null;
+  companionsCount?: number; productType?: ProductType;
+};
+type SeriesRestoreData = {
+  slug?: string; name?: string; description?: string; coverImage?: string; heroText?: string;
+  longDesc?: string | null; shortDesc?: string | null; sortOrder?: number;
+};
+type JournalRestoreData = {
+  title?: string; slug?: string; excerpt?: string | null; content?: string; coverImage?: string | null;
+  category?: JournalCategory; seoTitle?: string | null; seoDescription?: string | null;
+  coverAlt?: string | null; readingTime?: number | null; sortOrder?: number;
+};
+type BannerRestoreData = {
+  title?: string; imageUrl?: string | null; linkUrl?: string | null; position?: string | null;
+  sortOrder?: number | null; startAt?: Date | null; endAt?: Date | null; subtitle?: string | null;
+  btnText?: string | null; mobileImageUrl?: string | null;
+};
+
+/** Inclusion-only fields. Lifecycle, identities, ERP/inventory and relations are never restored. */
+const PRODUCT_RESTORE_FIELDS = ["name", "slug", "objectCategory", "theme", "story", "materials", "coverImage", "gallery", "inspiration", "keywords", "lifeStage", "suitableFor", "sortOrder", "materialOrigin", "craftMethod", "completionDate", "serialNumber", "creationStory", "emotionalState", "companionsCount", "productType"] as const;
+const SERIES_RESTORE_FIELDS = ["slug", "name", "description", "coverImage", "heroText", "longDesc", "shortDesc", "sortOrder"] as const;
+const JOURNAL_RESTORE_FIELDS = ["title", "slug", "excerpt", "content", "coverImage", "category", "seoTitle", "seoDescription", "coverAlt", "readingTime", "sortOrder"] as const;
+const BANNER_RESTORE_FIELDS = ["title", "imageUrl", "linkUrl", "position", "sortOrder", "startAt", "endAt", "subtitle", "btnText", "mobileImageUrl"] as const;
+
+function own(snapshot: Record<string, unknown>, key: string): boolean { return Object.prototype.hasOwnProperty.call(snapshot, key); }
+function optionalString(snapshot: Record<string, unknown>, key: string, nullable = false): string | null | undefined {
+  if (!own(snapshot, key)) return undefined;
+  const value = snapshot[key];
+  if (nullable && value === null) return null;
+  if (typeof value !== "string") throw new Error(`Invalid ${key} in rollback snapshot`);
+  return value;
+}
+function optionalInteger(snapshot: Record<string, unknown>, key: string, nullable = false): number | null | undefined {
+  if (!own(snapshot, key)) return undefined;
+  const value = snapshot[key];
+  if (nullable && value === null) return null;
+  if (typeof value !== "number" || !Number.isInteger(value)) throw new Error(`Invalid ${key} in rollback snapshot`);
+  return value;
+}
+function optionalDate(snapshot: Record<string, unknown>, key: string): Date | null | undefined {
+  if (!own(snapshot, key)) return undefined;
+  const value = snapshot[key];
+  if (value === null) return null;
+  if (typeof value !== "string") throw new Error(`Invalid ${key} in rollback snapshot`);
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) throw new Error(`Invalid ${key} in rollback snapshot`);
+  return date;
+}
+function optionalObjectCategory(snapshot: Record<string, unknown>): ObjectCategory | undefined {
+  if (!own(snapshot, "objectCategory")) return undefined;
+  const value = snapshot.objectCategory;
+  if (value === ObjectCategory.BRACELET || value === ObjectCategory.INCENSE || value === ObjectCategory.SEAL || value === ObjectCategory.CERAMIC || value === ObjectCategory.ENAMEL || value === ObjectCategory.SCHOLAR) return value;
+  throw new Error("Invalid objectCategory in rollback snapshot");
+}
+function optionalProductType(snapshot: Record<string, unknown>): ProductType | undefined {
+  if (!own(snapshot, "productType")) return undefined;
+  const value = snapshot.productType;
+  if (value === ProductType.STANDARD || value === ProductType.BATCHED) return value;
+  throw new Error("Invalid productType in rollback snapshot");
+}
+function optionalJournalCategory(snapshot: Record<string, unknown>): JournalCategory | undefined {
+  if (!own(snapshot, "category")) return undefined;
+  const value = snapshot.category;
+  if (value === JournalCategory.OBJECT || value === JournalCategory.MATERIAL || value === JournalCategory.CRAFT || value === JournalCategory.DONGHAI || value === JournalCategory.CREATION || value === JournalCategory.PHILOSOPHY) return value;
+  throw new Error("Invalid category in rollback snapshot");
+}
+function addString(data: Record<string, unknown>, key: string, value: string | null | undefined) { if (value !== undefined) data[key] = value; }
+function addInteger(data: Record<string, unknown>, key: string, value: number | null | undefined) { if (value !== undefined) data[key] = value; }
+function addDate(data: Record<string, unknown>, key: string, value: Date | null | undefined) { if (value !== undefined) data[key] = value; }
+
+function productRestoreData(snapshot: Record<string, unknown>): ProductRestoreData {
+  const data: Record<string, unknown> = {};
+  for (const key of ["name", "slug", "theme", "story", "materials", "coverImage", "gallery"] as const) addString(data, key, optionalString(snapshot, key));
+  for (const key of ["inspiration", "keywords", "lifeStage", "suitableFor", "materialOrigin", "craftMethod", "serialNumber", "creationStory", "emotionalState"] as const) addString(data, key, optionalString(snapshot, key, true));
+  addInteger(data, "sortOrder", optionalInteger(snapshot, "sortOrder"));
+  addInteger(data, "companionsCount", optionalInteger(snapshot, "companionsCount"));
+  addDate(data, "completionDate", optionalDate(snapshot, "completionDate"));
+  addString(data, "objectCategory", optionalObjectCategory(snapshot));
+  addString(data, "productType", optionalProductType(snapshot));
+  if (Object.keys(data).length === 0) throw new Error("Rollback snapshot has no Product restore fields");
+  return data;
+}
+function seriesRestoreData(snapshot: Record<string, unknown>): SeriesRestoreData {
+  const data: Record<string, unknown> = {};
+  for (const key of ["slug", "name", "description", "coverImage", "heroText"] as const) addString(data, key, optionalString(snapshot, key));
+  for (const key of ["longDesc", "shortDesc"] as const) addString(data, key, optionalString(snapshot, key, true));
+  addInteger(data, "sortOrder", optionalInteger(snapshot, "sortOrder"));
+  if (Object.keys(data).length === 0) throw new Error("Rollback snapshot has no Series restore fields");
+  return data;
+}
+function journalRestoreData(snapshot: Record<string, unknown>): JournalRestoreData {
+  const data: Record<string, unknown> = {};
+  for (const key of ["title", "slug", "content"] as const) addString(data, key, optionalString(snapshot, key));
+  for (const key of ["excerpt", "coverImage", "seoTitle", "seoDescription", "coverAlt"] as const) addString(data, key, optionalString(snapshot, key, true));
+  addInteger(data, "readingTime", optionalInteger(snapshot, "readingTime", true));
+  addInteger(data, "sortOrder", optionalInteger(snapshot, "sortOrder"));
+  addString(data, "category", optionalJournalCategory(snapshot));
+  if (Object.keys(data).length === 0) throw new Error("Rollback snapshot has no Journal restore fields");
+  return data;
+}
+function bannerRestoreData(snapshot: Record<string, unknown>): BannerRestoreData {
+  const data: Record<string, unknown> = {};
+  addString(data, "title", optionalString(snapshot, "title"));
+  for (const key of ["imageUrl", "linkUrl", "position", "subtitle", "btnText", "mobileImageUrl"] as const) addString(data, key, optionalString(snapshot, key, true));
+  addInteger(data, "sortOrder", optionalInteger(snapshot, "sortOrder", true));
+  addDate(data, "startAt", optionalDate(snapshot, "startAt"));
+  addDate(data, "endAt", optionalDate(snapshot, "endAt"));
+  if (Object.keys(data).length === 0) throw new Error("Rollback snapshot has no Banner restore fields");
+  return data;
+}
+
+function sessionValue(user: object, key: string): unknown { return Reflect.get(user, key); }
+async function requireEmergencyRollbackPermission(): Promise<RollbackActor> {
+  const session = await getServerSession(authOptions);
+  if (!session?.user) throw new Error("Emergency rollback requires an authenticated publisher");
+  const roleValue = sessionValue(session.user, "role");
+  const role = typeof roleValue === "string" ? roleValue : "";
+  if (role !== "SUPER_ADMIN" && role !== "BRAND_ADMIN") throw new Error("Emergency rollback requires Publisher administrator permission");
+  const userIdValue = sessionValue(session.user, "id");
+  const userId = typeof userIdValue === "string" && userIdValue ? userIdValue : session.user.email;
+  if (!userId) throw new Error("Emergency rollback requires an auditable actor");
+  return { userId, role };
+}
+function validateRollbackReason(reason: string): string {
+  const normalized = reason.trim();
+  if (normalized.length < ROLLBACK_REASON_MIN_LENGTH || normalized.length > ROLLBACK_REASON_MAX_LENGTH) throw new Error(`Rollback reason must be ${ROLLBACK_REASON_MIN_LENGTH}-${ROLLBACK_REASON_MAX_LENGTH} characters`);
+  if (SENSITIVE_REASON_PATTERN.test(normalized)) throw new Error("Rollback reason must not include URLs or credentials");
+  return normalized;
+}
+function lifecycleForRollback(contentType: ContentType, current: { status?: string | null; publishStatus?: PublishStatus | null }): PublishStatus {
+  const rawStatus = contentType === "products" ? current.publishStatus : current.status;
+  const lifecycle = canonicalStatus(rawStatus);
+  if (!lifecycle) throw new Error("Unsupported current lifecycle state");
+  if (lifecycle === PublishStatus.ARCHIVED) throw new Error("Archived content cannot be rolled back");
+  return lifecycle;
+}
+function rollbackSnapshot(record: object, metadata: Record<string, unknown>) {
+  return JSON.parse(JSON.stringify({ ...record, rollback: metadata }));
+}
+
+/** Emergency Immediate Restore: typed, inclusion-only, and lifecycle-preserving. */
+export async function rollbackToVersion(contentType: ContentType, contentId: string | number, targetVersion: number, reason?: string): Promise<{ success: boolean; restoredVersion: number; error?: string }> {
   try {
+    if (!ROLLBACK_CONTENT_TYPES.has(contentType)) throw new Error("Rollback is not supported for this content type");
+    if (!Number.isInteger(targetVersion) || targetVersion <= 0) throw new Error("Invalid rollback version");
     const normalizedId = normalizeContentId(contentType, contentId);
-    const row = await brandDb.contentVersion.findFirst({ where: { contentType, contentId: String(normalizedId), version: targetVersion } });
-    if (!row || !isRecord(row.snapshot)) return { success: false, restoredVersion: 0, error: "Version not found" };
-    const snapshot = row.snapshot;
-    const fields = Object.entries(snapshot).filter(([key]) => !["id", "created_at", "updated_at", "createdAt", "updatedAt"].includes(key));
-    if (fields.length) {
-      const table = PUBLISHER_CONTENT_REGISTRY[contentType].physicalTable;
-      const clauses = fields.map(([key], index) => `${toSnakeCase(key)} = $${index + 1}`);
-      const idIndex = fields.length + 1;
-      const idCast = PUBLISHER_CONTENT_REGISTRY[contentType].idKind === "integer" ? "::integer" : "";
-      await brandDb.$executeRawUnsafe(`UPDATE ${table} SET ${clauses.join(", ")}, updated_at = NOW() WHERE id = $${idIndex}${idCast}`, ...fields.map(([, value]) => value), normalizedId);
-    }
-    await createAuditLog({ action: "ROLLBACK", system: "BRAND", module: contentType, targetId: normalizedId, after: { version: targetVersion }, description: `回滚到版本 ${targetVersion}` });
-    return { success: true, restoredVersion: targetVersion };
+    const actor = await requireEmergencyRollbackPermission();
+    const normalizedReason = validateRollbackReason(reason ?? "");
+    const completed = await brandDb.$transaction(async (tx) => {
+      const source = await tx.contentVersion.findFirst({ where: { contentType, contentId: String(normalizedId), version: targetVersion } });
+      if (!source || !isRecord(source.snapshot)) throw new Error("Rollback version not found or malformed");
+      const numericId = typeof normalizedId === "number" ? normalizedId : Number(normalizedId);
+      const stringId = String(normalizedId);
+
+      if (contentType === "products") {
+        const current = await tx.legacyBrandProduct.findUnique({ where: { id: numericId } });
+        if (!current) throw new Error("Content not found");
+        const lifecycle = lifecycleForRollback(contentType, current);
+        const restored = await tx.legacyBrandProduct.update({ where: { id: numericId }, data: productRestoreData(source.snapshot) });
+        return finishRollback(tx, contentType, numericId, targetVersion, source.id, actor, normalizedReason, lifecycle, restored);
+      }
+      if (contentType === "series") {
+        const current = await tx.legacyBrandSeries.findUnique({ where: { id: numericId } });
+        if (!current) throw new Error("Content not found");
+        const lifecycle = lifecycleForRollback(contentType, current);
+        const restored = await tx.legacyBrandSeries.update({ where: { id: numericId }, data: seriesRestoreData(source.snapshot) });
+        return finishRollback(tx, contentType, numericId, targetVersion, source.id, actor, normalizedReason, lifecycle, restored);
+      }
+      if (contentType === "journal") {
+        const current = await tx.journalPost.findUnique({ where: { id: stringId } });
+        if (!current) throw new Error("Content not found");
+        const lifecycle = lifecycleForRollback(contentType, current);
+        const restored = await tx.journalPost.update({ where: { id: stringId }, data: journalRestoreData(source.snapshot) });
+        return finishRollback(tx, contentType, stringId, targetVersion, source.id, actor, normalizedReason, lifecycle, restored);
+      }
+      const current = await tx.banner.findUnique({ where: { id: numericId } });
+      if (!current) throw new Error("Content not found");
+      const lifecycle = lifecycleForRollback(contentType, current);
+      const restored = await tx.banner.update({ where: { id: numericId }, data: bannerRestoreData(source.snapshot) });
+      return finishRollback(tx, contentType, numericId, targetVersion, source.id, actor, normalizedReason, lifecycle, restored);
+    }, { isolationLevel: "Serializable" });
+    return { success: true, restoredVersion: completed.restoredVersion };
   } catch (error) { return { success: false, restoredVersion: 0, error: error instanceof Error ? error.message : String(error) }; }
+}
+
+async function finishRollback(
+  tx: Parameters<typeof brandDb.$transaction>[0] extends (transaction: infer Transaction) => unknown ? Transaction : never,
+  contentType: ContentType,
+  contentId: string | number,
+  sourceVersion: number,
+  sourceVersionId: string,
+  actor: RollbackActor,
+  reason: string,
+  lifecycle: PublishStatus,
+  restored: object,
+) {
+  const contentIdString = String(contentId);
+  await tx.publishJob.updateMany({ where: { contentType, contentId: contentIdString, status: "pending" }, data: { status: "cancelled" } });
+  const latest = await tx.contentVersion.aggregate({ where: { contentType, contentId: contentIdString }, _max: { version: true } });
+  const restoredVersion = (latest._max.version ?? 0) + 1;
+  const immediatePublicEffect = lifecycle === PublishStatus.PUBLISHED;
+  const metadata = { restoredFromVersion: sourceVersion, restoredFromVersionId: sourceVersionId, reason, actor: actor.userId, actorRole: actor.role, lifecycle, immediatePublicEffect };
+  await tx.auditLog.create({ data: { userId: actor.userId, action: "ROLLBACK", entityType: contentType, entityId: contentIdString, details: JSON.stringify({ sourceVersion, resultingVersion: restoredVersion, reason, actor: actor.userId, actorRole: actor.role, previousLifecycle: lifecycle, resultingLifecycle: lifecycle, immediatePublicEffect }) } });
+  await tx.contentVersion.create({ data: { contentType, contentId: contentIdString, version: restoredVersion, snapshot: rollbackSnapshot(restored, metadata), status: "RESTORED" } });
+  return { restoredVersion };
 }
 
 const PREVIEW_SECRET = process.env.PREVIEW_SECRET || "yunwu-preview-secret-2024";
