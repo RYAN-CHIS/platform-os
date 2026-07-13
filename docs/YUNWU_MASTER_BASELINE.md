@@ -2,7 +2,7 @@
 
 > **Single Source of Truth** for 允物 (Yunwu) Project
 >
-> Last updated: 2026-07-12 (Phase C2 canonical Brand write contract and consumer migration)
+> Last updated: 2026-07-13 (Phase C3 non-production Brand consumer migration)
 >
 > Everything below this line is authoritative.
 
@@ -51,6 +51,14 @@
 - `AdminUser.email` remains intentionally non-unique. Authentication reads at most two matching rows and rejects/audits duplicates; admin creation performs an authorization-first application pre-check. This is not a database uniqueness guarantee and concurrent duplicate creation remains a Phase G hardening concern.
 - `ContactLead.wechat` remains an unmapped optional field; `we_chat` is not a canonical field. `pnpm check:prisma-contract` now guards the approved defaults, timestamp behavior, email uniqueness prohibition, and contact-field contract.
 - Phase C3 is limited to non-production code migration; Phase H alone may remove the frozen schema or legacy Brand Prisma client.
+
+---
+
+## Prisma Phase C3 — Brand OS Non-Production Consumer Migration (2026-07-13)
+
+- `apps/brand-os/seed.ts` is the sole Brand OS non-production Prisma consumer identified by the C3 static inventory. It now uses `@yunwu/brand-db` with script-scoped `createBrandDb()` and explicit `finally` disconnect; it uses `BRAND_DATABASE_URL` only.
+- No seed was run and no database connection, read, or write was performed. Seeded status values remain canonical `PUBLISHED`; Publisher state mapping remains Phase E.
+- The Phase C4 readiness inventory is recorded in `docs/PHASE_C4_BRAND_OS_LEGACY_CLIENT_CLEANUP_READINESS_2026-07-13.md`. The legacy local client entries, frozen schema, generated output, postinstall, and dependencies remain in place for C4/H; no cleanup occurred in C3.
 
 ---
 

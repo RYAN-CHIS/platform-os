@@ -1,15 +1,15 @@
 import { execSync } from 'child_process';
 import { existsSync } from 'fs';
 import { resolve } from 'path';
-import { PrismaClient, JournalCategory } from '@prisma/client';
+import { createBrandDb, JournalCategory } from '@yunwu/brand-db';
 
 const ERP_DB_PATH = '/Users/ryan/WorkBuddy/2026-06-17-22-01-58/backend/prisma/dev.db';
 const SYNC_SCRIPT = resolve(__dirname, '..', 'scripts/sync-from-erp.mjs');
 
-const prisma = new PrismaClient();
+const db = createBrandDb();
 
 async function seedJournalPosts() {
-  const count = await prisma.journalPost.count();
+  const count = await db.journalPost.count();
   if (count > 0) {
     console.log('📝 Journal 文章已存在，跳过预置');
     return;
@@ -87,7 +87,7 @@ async function seedJournalPosts() {
   ];
 
   for (const post of posts) {
-    await prisma.journalPost.create({ data: post });
+    await db.journalPost.create({ data: post });
     console.log(`  ✓ ${post.title}`);
   }
 
@@ -118,6 +118,6 @@ async function main() {
 main()
   .catch(console.error)
   .finally(async () => {
-    await prisma.$disconnect();
+    await db.$disconnect();
     process.exit(0);
   });
