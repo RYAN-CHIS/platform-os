@@ -1,7 +1,7 @@
 import "server-only";
 
 // Platform's only Brand Runtime database import boundary.
-export { brandDb, ObjectCategory, PublishStatus } from "@yunwu/brand-db";
+export { brandDb, JournalCategory, ObjectCategory, PublishStatus } from "@yunwu/brand-db";
 export type {
   Banner,
   JournalPost,

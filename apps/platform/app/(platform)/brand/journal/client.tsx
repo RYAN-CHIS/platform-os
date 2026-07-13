@@ -85,11 +85,12 @@ const WORKFLOW_ACTIONS: Record<string, { label: string; action: string; style?: 
 };
 
 const CATEGORY_OPTIONS = [
-  { label: "器物志", value: "ARTIFACT" },
-  { label: "品牌志", value: "BRAND" },
-  { label: "同行者说", value: "TRAVELER" },
+  { label: "器物", value: "OBJECT" },
+  { label: "材料", value: "MATERIAL" },
   { label: "工艺", value: "CRAFT" },
-  { label: "其他", value: "OTHER" },
+  { label: "东海", value: "DONGHAI" },
+  { label: "创作", value: "CREATION" },
+  { label: "哲思", value: "PHILOSOPHY" },
 ];
 
 const CSV_COLUMNS = [
@@ -253,7 +254,7 @@ function PostFormContent({ form, setField, errors }: {
           <BrandInput value={String(form.slug ?? "")} onChange={(e) => setField("slug", e.target.value)} placeholder="article-slug" />
         </BrandField>
         <BrandField label="分类" required>
-          <BrandSelect value={String(form.category ?? "ARTIFACT")} onChange={(e) => setField("category", e.target.value)} options={CATEGORY_OPTIONS} />
+          <BrandSelect value={String(form.category ?? "OBJECT")} onChange={(e) => setField("category", e.target.value)} options={CATEGORY_OPTIONS} />
         </BrandField>
       </BrandFormSection>
 
@@ -296,9 +297,9 @@ function PostFormModal({ mode, initialData, onClose }: {
 }) {
   const [form, setForm] = useState<Record<string, unknown>>(() => ({
     title: initialData?.title ?? "", slug: initialData?.slug ?? "",
-    category: initialData?.category ?? "ARTIFACT", excerpt: initialData?.excerpt ?? "",
+    category: initialData?.category ?? "OBJECT", excerpt: initialData?.excerpt ?? "",
     content: initialData?.content ?? "", cover_image: initialData?.cover_image ?? "",
-    status: initialData?.status ?? "DRAFT", seo_title: initialData?.seo_title ?? "",
+    seo_title: initialData?.seo_title ?? "",
     seo_description: initialData?.seo_description ?? "",
   }));
   const [saving, setSaving] = useState(false);
@@ -667,3 +668,6 @@ const thStyle: React.CSSProperties = { padding: "8px 12px", fontSize: 11, fontWe
 const tdStyle: React.CSSProperties = { padding: "8px 12px", color: "#44403c", verticalAlign: "middle" };
 const sortBtnStyle: React.CSSProperties = { background: "none", border: "1px solid #e7e5e4", borderRadius: 3, cursor: "pointer", fontSize: 12, color: "#78716c", padding: "0 5px" };
 const actionStyle: React.CSSProperties = { background: "none", border: "none", cursor: "pointer", fontSize: 12, color: "#d97706", marginLeft: 8, textDecoration: "underline" };
+const modalOverlay: React.CSSProperties = { position: "fixed", inset: 0, background: "rgba(28, 25, 23, 0.35)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50, padding: 16 };
+const modalBox: React.CSSProperties = { width: "100%", maxWidth: 480, background: "#fff", borderRadius: 10, padding: 20, boxShadow: "0 20px 50px rgba(28, 25, 23, 0.2)" };
+const inputStyle: React.CSSProperties = { width: "100%", boxSizing: "border-box", padding: "8px 10px", border: "1px solid #e7e5e4", borderRadius: 6, fontSize: 13, fontFamily: "inherit", outline: "none" };

@@ -2,7 +2,7 @@
 
 > **Single Source of Truth** for 允物 (Yunwu) Project
 >
-> Last updated: 2026-07-13 (Phase D2b-1a Products and Series typed Prisma migration)
+> Last updated: 2026-07-13 (Phase D2b-1b Journal typed Prisma migration)
 >
 > Everything below this line is authoritative.
 
@@ -101,6 +101,16 @@
 - `node scripts/check-product-status-ownership.mjs` and `node --test scripts/check-product-status-ownership.test.mjs` guard the ordinary Product update whitelist, ERP refresh, and editor payload while intentionally excluding Publisher wrappers. Existing `pnpm check:prisma-contract` remains required.
 - Publisher wrappers are unchanged. Journal remains deferred pending taxonomy/workflow contract; Materials remains deferred pending ADR-005 and Phase G. Banner reorder was already typed in D2a.
 - No canonical or ERP schema change, database connection, DDL, migration, db push/pull, or deployment occurred. Platform-wide TypeScript retains unrelated existing errors; D2b-1a files have zero diagnostics.
+
+---
+
+## Prisma Phase D2b-1b — Journal Typed Prisma Migration (2026-07-13)
+
+- Journal ordinary CRUD, typed SEO field updates/snapshots, and sorting use `brandDb.journalPost` and Canonical Brand models; no Runtime DDL or ordinary Journal Raw SQL remains.
+- Journal taxonomy is Canonical in the UI: `OBJECT`, `MATERIAL`, `CRAFT`, `DONGHAI`, `CREATION`, and `PHILOSOPHY`. Save compatibility remains limited to `ARTIFACT → OBJECT`, `BRAND → PHILOSOPHY`, and `CRAFT → CRAFT`; `TRAVELER` and `OTHER` fail closed with a user-facing validation error.
+- Ordinary Journal creation always persists `DRAFT`; ordinary updates reject lifecycle fields. Publisher exclusively owns Journal transitions and enum-mapping work remains deferred to Phase E.
+- `node scripts/check-journal-contract.mjs` and `node --test scripts/check-journal-contract.test.mjs` guard the ordinary CRUD whitelist, category contract, UI payload, Publisher boundary, and Runtime DDL prohibition. Materials remains deferred; historical secrets debt remains independently governed.
+- No canonical/ERP schema change, database action, migration, db push/pull, or deployment occurred. Platform-wide TypeScript retains unrelated errors while D2b-1b files have zero diagnostics.
 
 ---
 
