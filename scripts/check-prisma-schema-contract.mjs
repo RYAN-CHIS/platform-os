@@ -147,6 +147,15 @@ function validateCanonicalWriteContract(schemaPath, models, errors) {
   }
 }
 
+function validateBannerIdContract(schemaPath, models, errors) {
+  const field = models.has("Banner") ? parseFields(models.get("Banner")).get("id") : undefined;
+  const expected = 'Int @id @default(autoincrement())';
+  const hasExpectedDefault = /@default\(\s*autoincrement\(\)\s*\)/.test(field?.rest ?? "");
+  if (field?.type !== "Int" || !/@id\b/.test(field?.rest ?? "") || !hasExpectedDefault) {
+    errors.push(`${schemaPath}: G-BANNER-01 Banner.id contract failed — expected ${expected}; actual ${field?.line ?? "missing"}; see docs/PHASE_D2A_BANNER_ID_CONTRACT_DELTA_REVIEW_2026-07-13.md`);
+  }
+}
+
 function validateBrandTagRelations(schemaPath, models, errors) {
   const relationContracts = [
     { model: "Tag", field: "productTags", type: "ProductTag[]" },
@@ -285,6 +294,7 @@ function validateBrandSchemaContract(rootDir, errors) {
 
   validateBrandTagRelations(schemaPath, models, errors);
   validateCanonicalWriteContract(schemaPath, models, errors);
+  validateBannerIdContract(schemaPath, models, errors);
 }
 
 export function validatePrismaSchemaContract(rootDir) {

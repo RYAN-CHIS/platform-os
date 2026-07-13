@@ -1,7 +1,7 @@
 "use client";
 /**
  * BrandHomeClient — WO-P13C
- * Interactive publishing workflow for Brand Home page_contents + site_settings.
+ * Brand Home page_contents + site_settings editor.
  */
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
@@ -10,16 +10,8 @@ import {
   updatePageContent,
   deletePageContent,
   updateSiteSetting,
-  submitHomeForReview,
-  approveHome,
-  rejectHome,
-  publishHomeNow,
-  scheduleHomePublish,
-  unpublishHome,
-  archiveHome,
   getHomeVersions,
   rollbackHome,
-  getHomeStatus,
 } from "@/modules/brand/home/actions";
 
 // ── Types ──
@@ -30,10 +22,18 @@ interface PageContentRow {
   section_key: string;
   title: string;
   content: string;
+  image: string | null;
   sort_order: number;
-  status: string;
   published: boolean;
-  published_at: string | null;
+}
+
+type CreatePageContentResult = Awaited<ReturnType<typeof createPageContent>>;
+
+interface HomeVersion {
+  id: string;
+  version: number;
+  status: string;
+  created_at: string;
 }
 
 interface Stats {
@@ -73,66 +73,6 @@ function statusColor(s: string): { bg: string; fg: string; border: string } {
     REJECTED: { bg: "#fef2f2", fg: "#dc2626", border: "#fecaca" },
   };
   return map[s] || { bg: "#f5f5f4", fg: "#78716c", border: "#e7e5e4" };
-}
-
-// ── Workflow button labels & actions ──
-
-interface WFButton {
-  label: string;
-  status: string;
-  action: (id: string) => Promise<any>;
-  color: string;
-}
-
-function getWorkflowButtons(
-  row: PageContentRow,
-  actions: ReturnType<typeof useWorkflowActions>
-): WFButton[] {
-  const s = row.status;
-  const btns: WFButton[] = [];
-
-  // DRAFT
-  if (s === "DRAFT") {
-    btns.push({ label: "提交审核", status: "IN_REVIEW", action: actions.submitReview, color: "#ca8a04" });
-    btns.push({ label: "立即发布", status: "PUBLISHED", action: actions.publishNow, color: "#059669" });
-    btns.push({ label: "归档", status: "ARCHIVED", action: actions.archive, color: "#a8a29e" });
-  }
-  // IN_REVIEW
-  if (s === "IN_REVIEW") {
-    btns.push({ label: "通过", status: "APPROVED", action: actions.approve, color: "#2563eb" });
-    btns.push({ label: "驳回", status: "REJECTED", action: actions.reject, color: "#dc2626" });
-    btns.push({ label: "退回草稿", status: "DRAFT", action: actions.unpublish, color: "#78716c" });
-  }
-  // APPROVED
-  if (s === "APPROVED") {
-    btns.push({ label: "定时发布", status: "SCHEDULED", action: actions.schedule, color: "#4338ca" });
-    btns.push({ label: "立即发布", status: "PUBLISHED", action: actions.publishNow, color: "#059669" });
-    btns.push({ label: "驳回", status: "REJECTED", action: actions.reject, color: "#dc2626" });
-    btns.push({ label: "退回草稿", status: "DRAFT", action: actions.unpublish, color: "#78716c" });
-  }
-  // SCHEDULED
-  if (s === "SCHEDULED") {
-    btns.push({ label: "立即发布", status: "PUBLISHED", action: actions.publishNow, color: "#059669" });
-    btns.push({ label: "取消定时", status: "APPROVED", action: actions.approve, color: "#2563eb" });
-    btns.push({ label: "退回草稿", status: "DRAFT", action: actions.unpublish, color: "#78716c" });
-  }
-  // PUBLISHED
-  if (s === "PUBLISHED") {
-    btns.push({ label: "归档", status: "ARCHIVED", action: actions.archive, color: "#a8a29e" });
-    btns.push({ label: "下线", status: "DRAFT", action: actions.unpublish, color: "#78716c" });
-  }
-  // ARCHIVED
-  if (s === "ARCHIVED") {
-    btns.push({ label: "恢复草稿", status: "DRAFT", action: actions.unpublish, color: "#78716c" });
-    btns.push({ label: "提交审核", status: "IN_REVIEW", action: actions.submitReview, color: "#ca8a04" });
-  }
-  // REJECTED
-  if (s === "REJECTED") {
-    btns.push({ label: "修改后重提", status: "DRAFT", action: actions.unpublish, color: "#78716c" });
-    btns.push({ label: "重新审核", status: "IN_REVIEW", action: actions.submitReview, color: "#ca8a04" });
-  }
-
-  return btns;
 }
 
 // ── Edit Modal ──
@@ -235,7 +175,7 @@ function AddContentModal({
   onSave,
   onClose,
 }: {
-  onSave: (data: { pageKey: string; sectionKey: string; title: string; content: string; sortOrder?: number }) => Promise<any>;
+  onSave: (data: { pageKey: string; sectionKey: string; title: string; content: string; sortOrder?: number }) => Promise<CreatePageContentResult>;
   onClose: () => void;
 }) {
   const [form, setForm] = useState({ pageKey: "", sectionKey: "", title: "", content: "", sortOrder: "0" });
@@ -325,7 +265,7 @@ function VersionHistoryModal({
   contentId: string;
   onClose: () => void;
 }) {
-  const [versions, setVersions] = useState<any[]>([]);
+  const [versions, setVersions] = useState<HomeVersion[]>([]);
   const [loading, setLoading] = useState(true);
   const [rolling, setRolling] = useState<number | null>(null);
 
@@ -486,55 +426,6 @@ function SiteSettingsEditor({
   );
 }
 
-// ── Hooks ──
-
-function useWorkflowActions(refresh: () => void) {
-  const router = useRouter();
-
-  const wrap = useCallback(
-    (fn: (id: string, ...args: any[]) => Promise<any>, ...args: any[]) =>
-      async (id: string) => {
-        const r = await fn(id, ...args);
-        if (r.success === false && r.error) {
-          alert(r.error);
-          return;
-        }
-        refresh();
-        router.refresh();
-      },
-    [refresh, router]
-  );
-
-  return {
-    submitReview: wrap(submitHomeForReview),
-    approve: wrap(approveHome),
-    reject: useCallback(
-      async (id: string) => {
-        const reason = prompt("驳回理由（可选）：");
-        const r = await rejectHome(id, reason || undefined);
-        if (r.success === false && r.error) { alert(r.error); return; }
-        refresh();
-        router.refresh();
-      },
-      [refresh, router]
-    ),
-    publishNow: wrap(publishHomeNow),
-    schedule: useCallback(
-      async (id: string) => {
-        const d = prompt("发布时间（如 2026-06-25T10:00:00）：");
-        if (!d) return;
-        const r = await scheduleHomePublish(id, d);
-        if (r.success === false && r.error) { alert(r.error); return; }
-        refresh();
-        router.refresh();
-      },
-      [refresh, router]
-    ),
-    unpublish: wrap(unpublishHome),
-    archive: wrap(archiveHome),
-  };
-}
-
 // ── Main Component ──
 
 import React from "react";
@@ -573,8 +464,6 @@ export function BrandHomeClient({
     refreshSettings();
     router.refresh();
   }, [refreshPages, refreshSettings, router]);
-
-  const wf = useWorkflowActions(refreshAll);
 
   const statCards = [
     { label: "系列", value: initialStats.seriesCount, href: "/brand/series" },
@@ -628,16 +517,12 @@ export function BrandHomeClient({
                   <th style={thStyle}>sectionKey</th>
                   <th style={thStyle}>标题</th>
                   <th style={thStyle}>排序</th>
-                  <th style={thStyle}>状态</th>
-                  <th style={thStyle}>工作流</th>
+                  <th style={thStyle}>可见性</th>
                   <th style={{ ...thStyle, textAlign: "right" }}>操作</th>
                 </tr>
               </thead>
               <tbody>
-                {pages.map((row) => {
-                  const wfBtns = getWorkflowButtons(row, wf);
-                  const sc = statusColor(row.status);
-                  return (
+                {pages.map((row) => (
                     <tr key={row.id} style={{ borderBottom: "1px solid #f5f5f4" }}>
                       <td style={{ ...tdStyle, fontFamily: "monospace", fontSize: 11 }}>{row.page_key}</td>
                       <td style={{ ...tdStyle, fontFamily: "monospace", fontSize: 11 }}>{row.section_key}</td>
@@ -646,28 +531,13 @@ export function BrandHomeClient({
                       <td style={tdStyle}>
                         <span style={{
                           padding: "2px 8px", borderRadius: 4, fontSize: 11,
-                          background: sc.bg, color: sc.fg, border: `1px solid ${sc.border}`,
+                          background: row.published ? "#ecfdf5" : "#f5f5f4",
+                          color: row.published ? "#059669" : "#78716c",
+                          border: `1px solid ${row.published ? "#a7f3d0" : "#e7e5e4"}`,
                           whiteSpace: "nowrap",
                         }}>
-                          {statusLabel(row.status)}
+                          {row.published ? "已发布" : "未发布"}
                         </span>
-                      </td>
-                      <td style={tdStyle}>
-                        <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-                          {wfBtns.map((b) => (
-                            <button
-                              key={b.label}
-                              onClick={() => b.action(row.id)}
-                              style={{
-                                padding: "2px 8px", borderRadius: 4, fontSize: 11,
-                                background: "#fff", color: b.color, border: `1px solid ${b.color}`,
-                                cursor: "pointer", whiteSpace: "nowrap",
-                              }}
-                            >
-                              {b.label}
-                            </button>
-                          ))}
-                        </div>
                       </td>
                       <td style={{ ...tdStyle, textAlign: "right", whiteSpace: "nowrap" }}>
                         <button onClick={() => setEditRow(row)} style={actionLinkStyle}>编辑</button>
@@ -675,8 +545,7 @@ export function BrandHomeClient({
                         <button onClick={() => setDeleteRow(row)} style={{ ...actionLinkStyle, color: "#dc2626" }}>删除</button>
                       </td>
                     </tr>
-                  );
-                })}
+                ))}
               </tbody>
             </table>
           </div>

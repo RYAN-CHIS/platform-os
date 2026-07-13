@@ -4,8 +4,6 @@
 
 "use server";
 
-import { brandPrisma } from "@yunwu/db/brand";
-import { prisma } from "@yunwu/db";
 import { brandDb } from "@/lib/brand-db";
 import {
   transitionStatus,
@@ -48,12 +46,51 @@ export async function getBrandStats() {
 
 // ── Page Contents (Brand DB: page_contents) ──
 
+function errorMessage(error: unknown) {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function toPageContentRow(content: { id: string; pageKey: string; sectionKey: string; title: string; content: string; image: string | null; sortOrder: number; published: boolean; createdAt: Date; updatedAt: Date }) {
+  return { id: content.id, page_key: content.pageKey, section_key: content.sectionKey, title: content.title, content: content.content, image: content.image, sort_order: content.sortOrder, published: content.published, created_at: content.createdAt, updated_at: content.updatedAt };
+}
+
+const PAGE_CONTENT_UPDATE_KEYS = new Set(["pageKey", "page_key", "sectionKey", "section_key", "title", "content", "image", "sortOrder", "sort_order", "published"]);
+
+function inputValue(data: Record<string, unknown>, camelKey: string, snakeKey: string) {
+  if (Object.prototype.hasOwnProperty.call(data, camelKey)) return data[camelKey];
+  if (Object.prototype.hasOwnProperty.call(data, snakeKey)) return data[snakeKey];
+  return undefined;
+}
+
+function stringInput(value: unknown, field: string) {
+  if (value === undefined) return undefined;
+  if (typeof value !== "string") throw new Error(`${field} must be a string`);
+  return value;
+}
+
+function nullableStringInput(value: unknown, field: string) {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  if (typeof value !== "string") throw new Error(`${field} must be a string or null`);
+  return value;
+}
+
+function integerInput(value: unknown, field: string) {
+  if (value === undefined) return undefined;
+  if (typeof value !== "number" || !Number.isInteger(value)) throw new Error(`${field} must be an integer`);
+  return value;
+}
+
+function booleanInput(value: unknown, field: string) {
+  if (value === undefined) return undefined;
+  if (typeof value !== "boolean") throw new Error(`${field} must be a boolean`);
+  return value;
+}
+
 export async function getPageContents() {
   try {
-    const rows = await brandPrisma.$queryRawUnsafe<any[]>(
-      `SELECT * FROM page_contents ORDER BY page_key ASC, sort_order ASC`
-    );
-    return rows;
+    const contents = await brandDb.pageContent.findMany({ orderBy: [{ pageKey: "asc" }, { sortOrder: "asc" }] });
+    return contents.map(toPageContentRow);
   } catch {
     return [];
   }
@@ -67,74 +104,52 @@ export async function createPageContent(data: {
   sortOrder?: number;
 }) {
   try {
-    const id = crypto.randomUUID();
-    await brandPrisma.$executeRawUnsafe(
-      `INSERT INTO page_contents (id, page_key, section_key, title, content, sort_order, published, status)
-       VALUES ($1, $2, $3, $4, $5, $6, false, 'DRAFT')`,
-      id,
-      data.pageKey,
-      data.sectionKey,
-      data.title,
-      data.content,
-      data.sortOrder || 0
-    );
-    const rows = await brandPrisma.$queryRawUnsafe<any[]>(
-      `SELECT * FROM page_contents WHERE id = $1`,
-      id
-    );
-    return { row: rows[0], error: null };
-  } catch (e: any) {
-    return { row: null, error: e.message };
+    const content = await brandDb.pageContent.create({ data: { pageKey: data.pageKey, sectionKey: data.sectionKey, title: data.title, content: data.content, sortOrder: data.sortOrder ?? 0, published: false } });
+    return { row: toPageContentRow(content), error: null };
+  } catch (error) {
+    return { row: null, error: errorMessage(error) };
   }
 }
 
 export async function updatePageContent(id: string, data: Record<string, unknown>) {
   try {
-    const before = await brandPrisma.$queryRawUnsafe<any[]>(
-      `SELECT * FROM page_contents WHERE id = $1`,
-      id
-    );
-    if (!before.length) return { row: null, error: "Content not found" };
+    const invalidKey = Object.keys(data).find((key) => !PAGE_CONTENT_UPDATE_KEYS.has(key));
+    if (invalidKey) return { row: null, error: `Invalid PageContent update field: ${invalidKey}` };
+    const before = await brandDb.pageContent.findUnique({ where: { id } });
+    if (!before) return { row: null, error: "Content not found" };
 
-    const sets: string[] = [];
-    const vals: any[] = [id];
-    for (const [k, v] of Object.entries(data)) {
-      if (k === "id") continue;
-      sets.push(`${toSnakeCase(k)} = $${vals.length + 1}`);
-      vals.push(v);
-    }
-    if (sets.length > 0) {
-      vals.push(new Date().toISOString());
-      await brandPrisma.$executeRawUnsafe(
-        `UPDATE page_contents SET ${sets.join(", ")}, updated_at = $${vals.length} WHERE id = $1`,
-        ...vals
-      );
-    }
-    const after = await brandPrisma.$queryRawUnsafe<any[]>(
-      `SELECT * FROM page_contents WHERE id = $1`,
-      id
-    );
-    return { row: after[0], error: null };
-  } catch (e: any) {
-    return { row: null, error: e.message };
+    const pageKey = stringInput(inputValue(data, "pageKey", "page_key"), "pageKey");
+    const sectionKey = stringInput(inputValue(data, "sectionKey", "section_key"), "sectionKey");
+    const title = stringInput(data.title, "title");
+    const content = stringInput(data.content, "content");
+    const image = nullableStringInput(data.image, "image");
+    const sortOrder = integerInput(inputValue(data, "sortOrder", "sort_order"), "sortOrder");
+    const published = booleanInput(data.published, "published");
+    const updateData = {
+      ...(pageKey === undefined ? {} : { pageKey }),
+      ...(sectionKey === undefined ? {} : { sectionKey }),
+      ...(title === undefined ? {} : { title }),
+      ...(content === undefined ? {} : { content }),
+      ...(image === undefined ? {} : { image }),
+      ...(sortOrder === undefined ? {} : { sortOrder }),
+      ...(published === undefined ? {} : { published }),
+    };
+    if (Object.keys(updateData).length === 0) return { row: toPageContentRow(before), error: null };
+    const after = await brandDb.pageContent.update({ where: { id }, data: updateData });
+    return { row: toPageContentRow(after), error: null };
+  } catch (error) {
+    return { row: null, error: errorMessage(error) };
   }
 }
 
 export async function deletePageContent(id: string) {
   try {
-    const before = await brandPrisma.$queryRawUnsafe<any[]>(
-      `SELECT * FROM page_contents WHERE id = $1`,
-      id
-    );
-    if (!before.length) return { error: "Content not found" };
-
-    await brandPrisma.$executeRawUnsafe(
-      `DELETE FROM page_contents WHERE id = $1`,
-      id
-    );
+    const before = await brandDb.pageContent.findUnique({ where: { id }, select: { id: true } });
+    if (!before) return { error: "Content not found" };
+    await brandDb.pageContent.delete({ where: { id } });
     return { error: null };
-  } catch (e: any) {
-    return { error: e.message };
+  } catch (error) {
+    return { error: errorMessage(error) };
   }
 }
 
@@ -142,7 +157,7 @@ export async function deletePageContent(id: string) {
 
 export async function getSiteSettings() {
   try {
-    const settings = await prisma.siteSetting.findMany();
+    const settings = await brandDb.siteSetting.findMany({ select: { key: true, value: true } });
     return Object.fromEntries(settings.map((s) => [s.key, s.value]));
   } catch {
     return {};
@@ -151,14 +166,14 @@ export async function getSiteSettings() {
 
 export async function updateSiteSetting(key: string, value: string) {
   try {
-    await prisma.siteSetting.upsert({
+    await brandDb.siteSetting.upsert({
       where: { key },
       update: { value },
       create: { key, value },
     });
     return { error: null };
-  } catch (e: any) {
-    return { error: e.message };
+  } catch (error) {
+    return { error: errorMessage(error) };
   }
 }
 
@@ -202,10 +217,4 @@ export async function rollbackHome(id: string, version: number) {
 
 export async function getHomeStatus(id: string) {
   return getContentStatus("home", id);
-}
-
-// ── Utility ──
-
-function toSnakeCase(str: string): string {
-  return str.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
 }

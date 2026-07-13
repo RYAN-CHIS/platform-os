@@ -1,9 +1,8 @@
 "use server";
 
-import { prisma } from "@yunwu/db";
+import { brandDb } from "@/lib/brand-db";
 import { createCrudAudit } from "@/lib/audit";
 
-// Predefined pages that should have SEO config
 const DEFAULT_PAGES = [
   { pageKey: "home", label: "首页" },
   { pageKey: "products", label: "产品页" },
@@ -13,50 +12,29 @@ const DEFAULT_PAGES = [
   { pageKey: "contact", label: "联系页" },
 ];
 
+function errorMessage(error: unknown) {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function toSeoRow(config: { id: string; pageKey: string; title: string; description: string; ogImage: string | null; canonical: string | null; updatedAt: Date }) {
+  return { id: config.id, page_key: config.pageKey, title: config.title, description: config.description, keywords: null, og_title: null, og_description: null, og_image: config.ogImage, canonical: config.canonical, robots: null, updated_at: config.updatedAt };
+}
+
+function defaultSeoRow(page: (typeof DEFAULT_PAGES)[number]) {
+  return { id: null, page_key: page.pageKey, title: page.label, description: "", keywords: null, og_title: null, og_description: null, og_image: null, canonical: null, robots: null, updated_at: null };
+}
+
 export async function listSeoConfigs() {
   try {
-    // Try to query seoConfig from ERP DB
-    const rows = await prisma.$queryRawUnsafe<any[]>(`
-      SELECT id, page_key, title, description, keywords, og_title, og_description, og_image, canonical, robots, updated_at
-      FROM seo_configs ORDER BY page_key ASC
-    `);
-    // Merge with default pages - ensure all pages exist
-    const existing = new Map(rows.map((r: any) => [r.page_key, r]));
-    const merged = DEFAULT_PAGES.map((dp) =>
-      existing.get(dp.pageKey) || {
-        id: null,
-        page_key: dp.pageKey,
-        title: dp.label,
-        description: null,
-        keywords: null,
-        og_title: null,
-        og_description: null,
-        og_image: null,
-        canonical: null,
-        robots: null,
-        updated_at: null,
-      }
-    );
+    const configs = await brandDb.seoConfig.findMany({ orderBy: { pageKey: "asc" } });
+    const byPageKey = new Map(configs.map((config) => [config.pageKey, config]));
+    const merged = DEFAULT_PAGES.map((page) => {
+      const config = byPageKey.get(page.pageKey);
+      return config ? toSeoRow(config) : defaultSeoRow(page);
+    });
     return { configs: merged, total: merged.length, error: null };
-  } catch (e: any) {
-    // Fallback: return default pages only
-    return {
-      configs: DEFAULT_PAGES.map((d) => ({
-        id: null,
-        page_key: d.pageKey,
-        title: d.label,
-        description: null,
-        keywords: null,
-        og_title: null,
-        og_description: null,
-        og_image: null,
-        canonical: null,
-        robots: null,
-        updated_at: null,
-      })),
-      total: DEFAULT_PAGES.length,
-      error: null,
-    };
+  } catch (error) {
+    return { configs: DEFAULT_PAGES.map(defaultSeoRow), total: DEFAULT_PAGES.length, error: errorMessage(error) };
   }
 }
 
@@ -72,66 +50,14 @@ export async function saveSeoConfig(data: {
   robots?: string;
 }) {
   try {
-    // Try UPSERT
-    await prisma.$executeRawUnsafe(
-      `
-      INSERT INTO seo_configs (id, page_key, title, description, keywords, og_title, og_description, og_image, canonical, robots, updated_at)
-      VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
-      ON CONFLICT (page_key) DO UPDATE SET
-        title = EXCLUDED.title, description = EXCLUDED.description, keywords = EXCLUDED.keywords,
-        og_title = EXCLUDED.og_title, og_description = EXCLUDED.og_description, og_image = EXCLUDED.og_image,
-        canonical = EXCLUDED.canonical, robots = EXCLUDED.robots, updated_at = NOW()
-    `,
-      data.page_key,
-      data.title,
-      data.description || null,
-      data.keywords || null,
-      data.og_title || null,
-      data.og_description || null,
-      data.og_image || null,
-      data.canonical || null,
-      data.robots || null,
-    );
-
-    try {
-      await createCrudAudit({
-        action: "UPDATE",
-        system: "BRAND",
-        module: "seo",
-        targetId: data.page_key,
-        after: data,
-      });
-    } catch {}
-
+    const config = await brandDb.seoConfig.upsert({
+      where: { pageKey: data.page_key },
+      update: { title: data.title, description: data.description ?? "", ogImage: data.og_image || null, canonical: data.canonical || null },
+      create: { pageKey: data.page_key, title: data.title, description: data.description ?? "", ogImage: data.og_image || null, canonical: data.canonical || null },
+    });
+    try { await createCrudAudit({ action: "UPDATE", system: "BRAND", module: "seo", targetId: data.page_key, after: toSeoRow(config) }); } catch {}
     return { error: null };
-  } catch (e: any) {
-    // If table doesn't exist, create it first
-    if (
-      e.message.includes("does not exist") ||
-      e.message.includes("undefined")
-    ) {
-      try {
-        await prisma.$executeRawUnsafe(`
-          CREATE TABLE IF NOT EXISTS seo_configs (
-            id TEXT PRIMARY KEY,
-            page_key VARCHAR(100) UNIQUE NOT NULL,
-            title VARCHAR(255),
-            description TEXT,
-            keywords TEXT,
-            og_title VARCHAR(255),
-            og_description TEXT,
-            og_image TEXT,
-            canonical TEXT,
-            robots VARCHAR(50),
-            updated_at TIMESTAMPTZ DEFAULT NOW()
-          )
-        `);
-        // Retry
-        return saveSeoConfig(data);
-      } catch (e2: any) {
-        return { error: e2.message };
-      }
-    }
-    return { error: e.message };
+  } catch (error) {
+    return { error: errorMessage(error) };
   }
 }

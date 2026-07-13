@@ -2,13 +2,49 @@
 
 import { brandPrisma } from "@yunwu/db/brand";
 import { brandDb } from "@/lib/brand-db";
-import { createCrudAudit, createStatusAudit } from "@/lib/audit";
+import { createCrudAudit } from "@/lib/audit";
 import { transitionStatus } from "@/lib/publisher";
 import { revalidatePath } from "next/cache";
 
 const BANNERS_PATH = "/brand/banners";
 
-function toSnake(s: string) { return s.replace(/[A-Z]/g, m => '_'+m.toLowerCase()); }
+function errorMessage(error: unknown) {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function toBannerRow(banner: { id: number; title: string; imageUrl: string | null; linkUrl: string | null; position: string | null; sortOrder: number | null; status: string | null; startAt: Date | null; endAt: Date | null; createdAt: Date | null; updatedAt: Date | null; publishedAt: Date | null; subtitle: string | null; btnText: string | null; mobileImageUrl: string | null }) {
+  return { id: banner.id, title: banner.title, image_url: banner.imageUrl, link_url: banner.linkUrl, position: banner.position, sort_order: banner.sortOrder, status: banner.status, start_at: banner.startAt, end_at: banner.endAt, created_at: banner.createdAt, updated_at: banner.updatedAt, published_at: banner.publishedAt, subtitle: banner.subtitle, btn_text: banner.btnText, mobile_image_url: banner.mobileImageUrl };
+}
+
+function nullableStringInput(value: unknown, field: string) {
+  if (value === undefined) return undefined;
+  if (value === null || value === "") return null;
+  if (typeof value !== "string") throw new Error(`${field} must be a string or null`);
+  return value;
+}
+
+function integerInput(value: unknown, field: string) {
+  if (value === undefined) return undefined;
+  if (typeof value !== "number" || !Number.isInteger(value)) throw new Error(`${field} must be an integer`);
+  return value;
+}
+
+function dateInput(value: unknown, field: string) {
+  if (value === undefined) return undefined;
+  if (value === null || value === "") return null;
+  if (typeof value !== "string") throw new Error(`${field} must be an ISO date string or null`);
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) throw new Error(`${field} must be a valid date`);
+  return date;
+}
+
+function inputValue(data: Record<string, unknown>, camelKey: string, snakeKey: string) {
+  if (Object.prototype.hasOwnProperty.call(data, camelKey)) return data[camelKey];
+  if (Object.prototype.hasOwnProperty.call(data, snakeKey)) return data[snakeKey];
+  return undefined;
+}
+
+const BANNER_UPDATE_KEYS = new Set(["title", "subtitle", "btnText", "btn_text", "imageUrl", "image_url", "mobileImageUrl", "mobile_image_url", "linkUrl", "link_url", "position", "sortOrder", "sort_order", "status", "startAt", "start_at", "endAt", "end_at"]);
 
 export async function listBanners(params?: { status?: string; position?: string; sort?: string; order?: string }) {
   try {
@@ -30,90 +66,79 @@ export async function listBanners(params?: { status?: string; position?: string;
       if (rightCreatedAt == null) return 1;
       return rightCreatedAt - leftCreatedAt;
     });
-    const rows = banners.map((banner) => ({
-      id: banner.id,
-      title: banner.title,
-      image_url: banner.imageUrl,
-      link_url: banner.linkUrl,
-      position: banner.position,
-      sort_order: banner.sortOrder,
-      status: banner.status,
-      start_at: banner.startAt,
-      end_at: banner.endAt,
-      created_at: banner.createdAt,
-      updated_at: banner.updatedAt,
-      published_at: banner.publishedAt,
-      subtitle: banner.subtitle,
-      btn_text: banner.btnText,
-      mobile_image_url: banner.mobileImageUrl,
-    }));
+    const rows = banners.map(toBannerRow);
     return { rows, total: rows.length, error: null };
-  } catch (e: any) { return { rows: [], total: 0, error: e.message }; }
+  } catch (error) { return { rows: [], total: 0, error: errorMessage(error) }; }
 }
 
 export async function createBanner(data: { title: string; subtitle?: string; btn_text?: string; image_url?: string; mobile_image_url?: string; link_url?: string; position?: string; sort_order?: number; status?: string; start_at?: string; end_at?: string }) {
   try {
-    const sql = `INSERT INTO banners (title, subtitle, btn_text, image_url, mobile_image_url, link_url, position, sort_order, status, start_at, end_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`;
-    const rows = await brandPrisma.$queryRawUnsafe<any[]>(sql,
-      data.title, data.subtitle || null, data.btn_text || null, data.image_url || null, data.mobile_image_url || null,
-      data.link_url || null, data.position || 'home', data.sort_order || 0, data.status || 'DRAFT', data.start_at || null, data.end_at || null
-    );
-    try { await createCrudAudit({ action: "CREATE", system: "BRAND", module: "banners", targetId: rows[0].id, after: rows[0] }); } catch {}
+    const banner = await brandDb.banner.create({ data: { title: data.title, subtitle: data.subtitle || null, btnText: data.btn_text || null, imageUrl: data.image_url || null, mobileImageUrl: data.mobile_image_url || null, linkUrl: data.link_url || null, position: data.position || "home", sortOrder: data.sort_order || 0, status: data.status || "DRAFT", startAt: dateInput(data.start_at, "start_at") ?? null, endAt: dateInput(data.end_at, "end_at") ?? null } });
+    const row = toBannerRow(banner);
+    try { await createCrudAudit({ action: "CREATE", system: "BRAND", module: "banners", targetId: banner.id, after: row }); } catch {}
     revalidatePath(BANNERS_PATH);
-    return { row: rows[0], error: null };
-  } catch (e: any) { return { row: null, error: e.message }; }
+    return { row, error: null };
+  } catch (error) { return { row: null, error: errorMessage(error) }; }
 }
-
-// 仅允许更新 banners 表真实存在的列，防止表单传入多余字段导致 UPDATE 报错
-const BANNER_COLUMNS = new Set([
-  "title", "subtitle", "btn_text", "image_url", "mobile_image_url", "link_url",
-  "position", "sort_order", "status", "start_at", "end_at",
-]);
 
 export async function updateBanner(id: number, data: Record<string, unknown>) {
   try {
-    const beforeRows = await brandPrisma.$queryRawUnsafe<any[]>(`SELECT * FROM banners WHERE id = $1`, id);
-    const before = beforeRows[0] || null;
-    const sets: string[] = []; const vals: any[] = [id];
-    for (const [k, v] of Object.entries(data)) {
-      if (k === 'id') continue;
-      const col = toSnake(k);
-      if (!BANNER_COLUMNS.has(col)) continue;
-      sets.push(`${col} = $${vals.length + 1}`);
-      vals.push(v === '' ? null : v);
-    }
-    if (sets.length === 0) return { row: before, error: null };
-    await brandPrisma.$executeRawUnsafe(`UPDATE banners SET ${sets.join(', ')}, updated_at = NOW() WHERE id = $1`, ...vals);
-    const after = await brandPrisma.$queryRawUnsafe<any[]>(`SELECT * FROM banners WHERE id = $1`, id);
-    try { await createCrudAudit({ action: "UPDATE", system: "BRAND", module: "banners", targetId: id, before, after: after[0] }); } catch {}
+    const invalidKey = Object.keys(data).find((key) => !BANNER_UPDATE_KEYS.has(key));
+    if (invalidKey) return { row: null, error: `Invalid Banner update field: ${invalidKey}` };
+    const before = await brandDb.banner.findUnique({ where: { id } });
+    if (!before) return { row: null, error: "Banner not found" };
+    const title = nullableStringInput(data.title, "title");
+    if (title === null) return { row: null, error: "title must not be empty" };
+    const subtitle = nullableStringInput(data.subtitle, "subtitle");
+    const btnText = nullableStringInput(inputValue(data, "btnText", "btn_text"), "btnText");
+    const imageUrl = nullableStringInput(inputValue(data, "imageUrl", "image_url"), "imageUrl");
+    const mobileImageUrl = nullableStringInput(inputValue(data, "mobileImageUrl", "mobile_image_url"), "mobileImageUrl");
+    const linkUrl = nullableStringInput(inputValue(data, "linkUrl", "link_url"), "linkUrl");
+    const position = nullableStringInput(data.position, "position");
+    const sortOrder = integerInput(inputValue(data, "sortOrder", "sort_order"), "sortOrder");
+    const status = nullableStringInput(data.status, "status");
+    const startAt = dateInput(inputValue(data, "startAt", "start_at"), "startAt");
+    const endAt = dateInput(inputValue(data, "endAt", "end_at"), "endAt");
+    const updateData = { ...(title === undefined ? {} : { title }), ...(subtitle === undefined ? {} : { subtitle }), ...(btnText === undefined ? {} : { btnText }), ...(imageUrl === undefined ? {} : { imageUrl }), ...(mobileImageUrl === undefined ? {} : { mobileImageUrl }), ...(linkUrl === undefined ? {} : { linkUrl }), ...(position === undefined ? {} : { position }), ...(sortOrder === undefined ? {} : { sortOrder }), ...(status === undefined ? {} : { status }), ...(startAt === undefined ? {} : { startAt }), ...(endAt === undefined ? {} : { endAt }) };
+    if (Object.keys(updateData).length === 0) return { row: toBannerRow(before), error: null };
+    const after = await brandDb.banner.update({ where: { id }, data: { ...updateData, updatedAt: new Date() } });
+    const beforeRow = toBannerRow(before);
+    const afterRow = toBannerRow(after);
+    try { await createCrudAudit({ action: "UPDATE", system: "BRAND", module: "banners", targetId: id, before: beforeRow, after: afterRow }); } catch {}
     revalidatePath(BANNERS_PATH);
-    return { row: after[0], error: null };
-  } catch (e: any) { return { row: null, error: e.message }; }
+    return { row: afterRow, error: null };
+  } catch (error) { return { row: null, error: errorMessage(error) }; }
 }
 
 export async function deleteBanner(id: number) {
   try {
-    const beforeRows = await brandPrisma.$queryRawUnsafe<any[]>(`SELECT * FROM banners WHERE id = $1`, id);
-    await brandPrisma.$executeRawUnsafe(`DELETE FROM banners WHERE id = $1`, id);
-    try { await createCrudAudit({ action: "DELETE", system: "BRAND", module: "banners", targetId: id, before: beforeRows[0] }); } catch {}
+    const before = await brandDb.banner.findUnique({ where: { id } });
+    if (!before) return { error: null };
+    await brandDb.banner.delete({ where: { id } });
+    try { await createCrudAudit({ action: "DELETE", system: "BRAND", module: "banners", targetId: id, before: toBannerRow(before) }); } catch {}
     revalidatePath(BANNERS_PATH);
     return { error: null };
-  } catch (e: any) { return { error: e.message }; }
+  } catch (error) { return { error: errorMessage(error) }; }
 }
 
 export async function moveBanner(id: number, direction: "up" | "down") {
   try {
-    const rows = await brandPrisma.$queryRawUnsafe<any[]>(`SELECT id, sort_order FROM banners ORDER BY sort_order ASC, id ASC`);
-    const idx = rows.findIndex(r => r.id === id);
+    const rows = await brandDb.banner.findMany({ select: { id: true, sortOrder: true } });
+    rows.sort((left, right) => {
+      if (left.sortOrder === null) return right.sortOrder === null ? left.id - right.id : 1;
+      if (right.sortOrder === null) return -1;
+      return left.sortOrder - right.sortOrder || left.id - right.id;
+    });
+    const idx = rows.findIndex((row) => row.id === id);
     if (idx < 0) return { error: "未找到" };
     if (direction === "up" && idx === 0) return { error: "已是第一个" };
     if (direction === "down" && idx === rows.length - 1) return { error: "已是最后一个" };
     const swapIdx = direction === "up" ? idx - 1 : idx + 1;
-    await brandPrisma.$executeRawUnsafe(`UPDATE banners SET sort_order = $1 WHERE id = $2`, rows[swapIdx].sort_order, id);
-    await brandPrisma.$executeRawUnsafe(`UPDATE banners SET sort_order = $1 WHERE id = $2`, rows[idx].sort_order, rows[swapIdx].id);
+    await brandDb.banner.update({ where: { id }, data: { sortOrder: rows[swapIdx].sortOrder, updatedAt: new Date() } });
+    await brandDb.banner.update({ where: { id: rows[swapIdx].id }, data: { sortOrder: rows[idx].sortOrder, updatedAt: new Date() } });
     revalidatePath(BANNERS_PATH);
     return { error: null };
-  } catch (e: any) { return { error: e.message }; }
+  } catch (error) { return { error: errorMessage(error) }; }
 }
 
 // Publishing workflow

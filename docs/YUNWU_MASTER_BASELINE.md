@@ -82,6 +82,17 @@
 
 ---
 
+## Prisma Phase D2a — Brand Context Ownership and Typed CRUD (2026-07-13)
+
+- `Banner.id` now maps the existing Brand database `banners_id_seq` default through `@default(autoincrement())`. This is a canonical mapping correction only: no DDL, migration, or database action was performed.
+- `G-BANNER-01` in `pnpm check:prisma-contract` guards that exact `Banner.id Int @id @default(autoincrement())` contract.
+- Platform SEO, Settings, and Home SiteSetting access now use the Platform Brand adapter; the corresponding runtime `CREATE TABLE` fallback paths are removed.
+- Home PageContent uses only its physical fields. `status` and `published_at` are not persisted PageContent fields; normal CRUD is typed and `updatePageContent` uses an explicit validated whitelist.
+- Banner create, update, delete, and reorder now use typed Canonical Brand Prisma. Banner publish/unpublish and all Publisher behavior remain Phase E.
+- Products, Series, Journal, and Materials remain D2b. Platform-wide TypeScript retains unrelated existing errors, while D2a files have zero diagnostics. No database connection, DDL, migration, or deployment occurred.
+
+---
+
 ## 1. Project Identity
 
 | Attribute | Value |

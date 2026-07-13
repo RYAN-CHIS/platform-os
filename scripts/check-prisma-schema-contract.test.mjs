@@ -53,6 +53,28 @@ describe("Prisma schema contract", () => {
     assert.deepEqual(validatePrismaSchemaContract(createFixture()), []);
   });
 
+  it("accepts Banner.id with the existing database autoincrement contract", () => {
+    assert.deepEqual(validatePrismaSchemaContract(createFixture()), []);
+  });
+
+  it("rejects Banner.id without the required autoincrement default", () => {
+    assertFailure(
+      (schema) => mutateModel(schema, "Banner", (body) => body.replace("id             Int       @id @default(autoincrement())", "id             Int       @id")),
+      "G-BANNER-01 Banner.id contract failed",
+    );
+  });
+
+  it("rejects Banner.id with cuid or a non-Int type", () => {
+    assertFailure(
+      (schema) => mutateModel(schema, "Banner", (body) => body.replace("@default(autoincrement())", "@default(cuid())")),
+      "G-BANNER-01 Banner.id contract failed",
+    );
+    assertFailure(
+      (schema) => mutateModel(schema, "Banner", (body) => body.replace("id             Int", "id             String")),
+      "G-BANNER-01 Banner.id contract failed",
+    );
+  });
+
   it("accepts all six ADR-002 relations with explicit NoAction", () => {
     assert.deepEqual(validatePrismaSchemaContract(createFixture()), []);
   });
