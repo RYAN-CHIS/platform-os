@@ -211,6 +211,9 @@ importers:
       '@yunwu/auth':
         specifier: workspace:*
         version: link:../../packages/auth
+      '@yunwu/brand-db':
+        specifier: workspace:*
+        version: link:../../packages/brand-db
       '@yunwu/db':
         specifier: workspace:*
         version: link:../../packages/db
@@ -244,6 +247,9 @@ importers:
       react-dom:
         specifier: 19.2.4
         version: 19.2.4(react@19.2.4)
+      server-only:
+        specifier: ^0.0.1
+        version: 0.0.1
       tailwind-merge:
         specifier: ^3.6.0
         version: 3.6.0

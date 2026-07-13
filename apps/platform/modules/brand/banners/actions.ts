@@ -1,6 +1,7 @@
 "use server";
 
 import { brandPrisma } from "@yunwu/db/brand";
+import { brandDb } from "@/lib/brand-db";
 import { createCrudAudit, createStatusAudit } from "@/lib/audit";
 import { transitionStatus } from "@/lib/publisher";
 import { revalidatePath } from "next/cache";
@@ -13,13 +14,39 @@ export async function listBanners(params?: { status?: string; position?: string;
   try {
     // 直接读取真实数据库，不做任何状态过滤 —— 确保 DRAFT / IN_REVIEW / APPROVED /
     // SCHEDULED / PUBLISHED / ARCHIVED / REJECTED 等所有状态的 Banner 都进入管理列表。
-    let sql = `SELECT * FROM banners WHERE 1=1`;
-    const vals: any[] = [];
-    if (params?.status) { vals.push(params.status); sql += ` AND status = $${vals.length}`; }
-    if (params?.position) { vals.push(params.position); sql += ` AND position = $${vals.length}`; }
-    // 排序优先级：sort_order 升序（null 视为 0）；无排序值时按 created_at 倒序
-    sql += ` ORDER BY COALESCE(sort_order, 0) ASC, created_at DESC`;
-    const rows = await brandPrisma.$queryRawUnsafe<any[]>(sql, ...vals);
+    const banners = await brandDb.banner.findMany({
+      where: {
+        ...(params?.status ? { status: params.status } : {}),
+        ...(params?.position ? { position: params.position } : {}),
+      },
+    });
+    // Preserve SQL ORDER BY COALESCE(sort_order, 0) ASC, created_at DESC.
+    banners.sort((left, right) => {
+      const sortOrder = (left.sortOrder ?? 0) - (right.sortOrder ?? 0);
+      if (sortOrder !== 0) return sortOrder;
+      const leftCreatedAt = left.createdAt?.getTime();
+      const rightCreatedAt = right.createdAt?.getTime();
+      if (leftCreatedAt == null) return rightCreatedAt == null ? 0 : -1;
+      if (rightCreatedAt == null) return 1;
+      return rightCreatedAt - leftCreatedAt;
+    });
+    const rows = banners.map((banner) => ({
+      id: banner.id,
+      title: banner.title,
+      image_url: banner.imageUrl,
+      link_url: banner.linkUrl,
+      position: banner.position,
+      sort_order: banner.sortOrder,
+      status: banner.status,
+      start_at: banner.startAt,
+      end_at: banner.endAt,
+      created_at: banner.createdAt,
+      updated_at: banner.updatedAt,
+      published_at: banner.publishedAt,
+      subtitle: banner.subtitle,
+      btn_text: banner.btnText,
+      mobile_image_url: banner.mobileImageUrl,
+    }));
     return { rows, total: rows.length, error: null };
   } catch (e: any) { return { rows: [], total: 0, error: e.message }; }
 }

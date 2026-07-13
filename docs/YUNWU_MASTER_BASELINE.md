@@ -2,7 +2,7 @@
 
 > **Single Source of Truth** for 允物 (Yunwu) Project
 >
-> Last updated: 2026-07-13 (Phase C4 legacy Brand Prisma client decommission)
+> Last updated: 2026-07-13 (Phase D1 Platform Brand adapter and low-risk reads)
 >
 > Everything below this line is authoritative.
 
@@ -69,6 +69,16 @@
 - The Brand OS package no longer directly depends on `@prisma/client`, `prisma`, or ERP `@yunwu/db`; it retains `@yunwu/brand-db` and `server-only`.
 - `apps/brand-os/prisma/schema.prisma` remains physically unchanged but is inactive for Brand OS install, build, typecheck, runtime, and seed. It remains a read-only root Contract Guard input until Phase H has separately transitioned that guard.
 - Phase H deletion readiness is recorded in `docs/PHASE_H_FROZEN_BRAND_SCHEMA_DELETION_READINESS_2026-07-13.md`. Physical Frozen Schema deletion remains Phase H only; Platform migration, Publisher status work, and any target-table migration remain Phases D, E, and G.
+
+---
+
+## Prisma Phase D1 — Platform Brand Adapter and Low-Risk Reads (2026-07-13)
+
+- `apps/platform/lib/brand-db.ts` is the sole server-only Platform import boundary for Canonical Brand Runtime reads. It reuses `@yunwu/brand-db`'s `brandDb`; ERP access remains on `@yunwu/db`.
+- The Platform Brand Home statistics counts and Brand Banners list read now use typed Canonical Prisma delegates. Their existing business response shapes are preserved; Banners retains the SQL-equivalent `COALESCE(sort_order, 0)` and created-at ordering in the action layer.
+- `page_contents` remains raw SQL because its production response includes `status` and `published_at`, which are not modeled by the Canonical `PageContent`; it is deferred without a Schema change. All writes, Publisher calls, dynamic SQL, Settings/SEO, mixed-context paths, and `products/actions.ts` remain for later phases.
+- Platform now declares `@yunwu/brand-db` and `server-only`; it retains ERP `@yunwu/db`, `@prisma/client`, and its existing Prisma tooling. No second Brand Client lifecycle was introduced.
+- Phase D2 owns write migration and remaining context-ownership violations; Publisher remains Phase E.
 
 ---
 
