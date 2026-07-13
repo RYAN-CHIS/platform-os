@@ -4,6 +4,8 @@ import { fileURLToPath } from "node:url";
 
 const PUBLISHER = "apps/platform/lib/publisher.ts";
 const SCHEMA = "packages/brand-db/schema.prisma";
+const PRODUCT_GUARD = "scripts/check-product-status-ownership.mjs";
+const JOURNAL_GUARD = "scripts/check-journal-contract.mjs";
 const WRAPPERS = [
   "apps/platform/modules/brand/products/actions.ts",
   "apps/platform/modules/brand/series/actions.ts",
@@ -52,8 +54,11 @@ export function validatePublisherContract(root, overrides = {}) {
   requireToken(errors, publisher, 'persistenceKind: "product-dual"', "G-PUB-08", "Product dual-status registry contract is missing");
   requireToken(errors, publisher, 'persistenceKind: "publish-status"', "G-PUB-09", "Journal enum-status registry contract is missing");
   requireToken(errors, publisher, "PUBLISHER_CONTENT_REGISTRY", "G-PUB-10", "closed content registry is missing");
+  requireToken(errors, publisher, 'if (!(job.contentType in PUBLISHER_CONTENT_REGISTRY))', "G-PUB-10", "scheduled jobs must reject unknown contentType values");
   requireToken(errors, publisher, "idKind", "G-PUB-11", "registry-controlled ID kind is missing");
   requireToken(errors, publisher, "brandDb.$transaction(async (tx)", "G-PUB-06", "content update and publish job must share a Brand transaction");
+  requireToken(errors, publisher, 'completed.transition.command === "PUBLISH"', "G-PUB-06", "publish must retain the version snapshot side effect");
+  requireToken(errors, publisher, "await createVersion(contentType, normalizedId, snapshot, PublishStatus.PUBLISHED)", "G-PUB-06", "publish snapshot must use Canonical PUBLISHED");
   if (/\b(?:CREATE|ALTER|DROP)\s+TABLE\b/i.test(publisher)) errors.push(`G-PUB-14 ${PUBLISHER}: Runtime DDL is prohibited`);
   if (/\bas\s+PublishStatus\b|\bas\s+any\b|\bas\s+unknown\s+as\b/.test(publisher)) errors.push(`G-PUB-15 ${PUBLISHER}: unsafe Publisher type assertion is prohibited`);
 
@@ -61,6 +66,21 @@ export function validatePublisherContract(root, overrides = {}) {
     const source = overrides[wrapperPath] ?? read(root, wrapperPath, errors);
     if (/transitionStatus\([^\n]+\bas\s+any\b/.test(source)) errors.push(`G-PUB-12 ${wrapperPath}: wrapper must not cast a status command`);
   }
+  const wrapperBlocks = [
+    ["apps/platform/modules/brand/products/actions.ts", "toggleProductStatus"],
+    ["apps/platform/modules/brand/series/actions.ts", "toggleSeriesActive"],
+    ["apps/platform/modules/brand/journal/actions.ts", "togglePostStatus"],
+    ["apps/platform/modules/brand/banners/actions.ts", "publishBanner"],
+    ["apps/platform/modules/brand/banners/actions.ts", "unpublishBanner"],
+  ];
+  for (const [wrapperPath, name] of wrapperBlocks) {
+    const source = overrides[wrapperPath] ?? read(root, wrapperPath, errors);
+    const block = functionBlock(source, name);
+    if (!block || /\b(?:brandDb|brandPrisma)\.[\w$]+\.(?:update|updateMany|upsert|create|delete)\(/.test(block) || /\$(?:execute|query)RawUnsafe/.test(block)) errors.push(`G-PUB-12 ${wrapperPath}: ${name} must not directly write Publisher state`);
+  }
+  const productGuard = overrides.productGuard ?? read(root, PRODUCT_GUARD, errors);
+  const journalGuard = overrides.journalGuard ?? read(root, JOURNAL_GUARD, errors);
+  if (!productGuard.includes("validateProductStatusOwnership") || !journalGuard.includes("validateJournalContract")) errors.push("G-PUB-13 scripts: ordinary CRUD guard entrypoints must remain present");
   return errors;
 }
 

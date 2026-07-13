@@ -286,6 +286,13 @@ export async function transitionStatus(
       return { current, transition };
     });
     if (!completed) return { success: false, error: "Content not found" };
+    // Preserve the previous Publisher's non-blocking version snapshot side effect.
+    if (completed.transition.command === "PUBLISH") {
+      try {
+        const snapshot = await getPreviewContent(contentType, String(normalizedId));
+        if (snapshot) await createVersion(contentType, normalizedId, snapshot, PublishStatus.PUBLISHED);
+      } catch { /* version history must not roll back a completed publish */ }
+    }
     try {
       await createAuditLog({
         action: command, system: "BRAND", module: contentType, targetId: normalizedId,

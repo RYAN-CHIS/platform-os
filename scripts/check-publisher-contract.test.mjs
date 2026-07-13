@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { validatePublisherContract } from "./check-publisher-contract.mjs";
@@ -26,7 +25,8 @@ test("unpublish fixture targets UNPUBLISHED", () => assert.match(publisher, /UNP
 test("archive fixture targets ARCHIVED", () => assert.match(publisher, /ARCHIVE[\s\S]*PublishStatus\.ARCHIVED/));
 test("invalid transition fixture is rejected", () => assert.match(publisher, /Illegal publisher transition/));
 test("integer and string content IDs are registry controlled", () => assert.match(publisher, /idKind: "integer"[\s\S]*idKind: "string"/));
-test("unknown content type fixture is rejected", () => assert.match(publisher, /Unknown content type|PUBLISHER_CONTENT_REGISTRY/));
+test("unknown content type fixture is rejected", () => fails((source) => source.replace('if (!(job.contentType in PUBLISHER_CONTENT_REGISTRY))', 'if (false)'), "G-PUB-10"));
+test("publish fixture retains the version snapshot", () => fails((source) => source.replace('await createVersion(contentType, normalizedId, snapshot, PublishStatus.PUBLISHED);', '/* snapshot removed */'), "G-PUB-06"));
 test("IN_REVIEW enum persistence fixture fails", () => fails((source) => source.replace('case "SUBMIT_FOR_REVIEW": targetStatus = PublishStatus.PENDING_REVIEW', 'case "SUBMIT_FOR_REVIEW": targetStatus = PublishStatus.IN_REVIEW'), "G-PUB-02"));
 test("SCHEDULED enum persistence fixture fails", () => fails((source) => source.replace('case "SCHEDULE":', 'case "SCHEDULED":').replace('PublishStatus.APPROVED', 'PublishStatus.SCHEDULED'), "G-PUB-03"));
 test("REJECTED enum persistence fixture fails", () => fails((source) => source.replace('case "REJECT":', 'case "REJECTED":').replace('PublishStatus.DRAFT', 'PublishStatus.REJECTED'), "G-PUB-04"));
