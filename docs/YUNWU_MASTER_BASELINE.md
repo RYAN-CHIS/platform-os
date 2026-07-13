@@ -2,7 +2,7 @@
 
 > **Single Source of Truth** for 允物 (Yunwu) Project
 >
-> Last updated: 2026-07-13 (Phase D2b-1b Journal typed Prisma migration)
+> Last updated: 2026-07-13 (Phase E1 Publisher state mapping)
 >
 > Everything below this line is authoritative.
 
@@ -111,6 +111,17 @@
 - Ordinary Journal creation always persists `DRAFT`; ordinary updates reject lifecycle fields. Publisher exclusively owns Journal transitions and enum-mapping work remains deferred to Phase E.
 - `node scripts/check-journal-contract.mjs` and `node --test scripts/check-journal-contract.test.mjs` guard the ordinary CRUD whitelist, category contract, UI payload, Publisher boundary, and Runtime DDL prohibition. Materials remains deferred; historical secrets debt remains independently governed.
 - No canonical/ERP schema change, database action, migration, db push/pull, or deployment occurred. Platform-wide TypeScript retains unrelated errors while D2b-1b files have zero diagnostics.
+
+---
+
+## Prisma Phase E1 — Publisher State Mapping (2026-07-13)
+
+- Publisher is the sole transition owner. Workflow commands are distinct from persisted `PublishStatus`: submit maps to `PENDING_REVIEW`, reject maps to `DRAFT` with structured audit metadata, and schedule maps to `APPROVED` plus a `publish_jobs` record.
+- Products retain their dual contract (`status` workflow string and `publishStatus` enum); Journal retains its single `PublishStatus` `status` field. Series and Banners keep their existing string status columns with Canonical values.
+- Scheduling updates pending Brand `publish_jobs` in the same Brand database transaction as the content status update. It rejects invalid/past timestamps, reschedules existing pending jobs, and cancels pending jobs on reject, unpublish, or archive.
+- Publish maps to `PUBLISHED`, unpublish maps to `UNPUBLISHED`, and archive maps to `ARCHIVED`; no workflow-only value is cast to `PublishStatus`. Existing rollback/live-table snapshot restoration and schema-unmodeled Home physical status columns remain constrained raw-SQL work for Phase E2.
+- `pnpm check:publisher-contract` guards the registry, mappings, typed transaction boundary, wrapper boundary, enum safety, and Runtime DDL prohibition. Ordinary CRUD guards continue to own Product and Journal safeguards. Materials remains deferred and historical secrets debt remains independently governed.
+- No schema change, database operation, migration, db push/pull, deployment, Vercel change, or Materials work occurred.
 
 ---
 

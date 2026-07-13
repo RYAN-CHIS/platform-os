@@ -3,7 +3,6 @@
  * Brand Journal — ordinary CRUD uses the canonical Brand Runtime client.
  * Publisher transitions remain exclusively owned by the publisher engine.
  */
-import { brandPrisma } from "@yunwu/db/brand";
 import {
   brandDb,
   JournalCategory,
@@ -13,6 +12,7 @@ import {
 import { createCrudAudit, createAuditLog } from "@/lib/audit";
 import {
   transitionStatus,
+  publisherCommandFromLegacyStatus,
   submitForReview,
   approveContent,
   rejectContent,
@@ -349,10 +349,12 @@ export async function updatePostSeo(
 // ── Status toggle (uses publisher engine) ──
 
 export async function togglePostStatus(cuid: string, newStatus: string): Promise<{ row: any; error: string | null }> {
-  const result = await transitionStatus("journal", cuid, newStatus as any);
+  const command = await publisherCommandFromLegacyStatus(newStatus);
+  if (!command) return { row: null, error: "不支持的发布状态" };
+  const result = await transitionStatus("journal", cuid, command);
   if (!result.success) return { row: null, error: result.error || "状态变更失败" };
-  const rows = await brandPrisma.$queryRawUnsafe<any[]>(`SELECT * FROM ${TABLE} WHERE id = $1`, cuid);
-  return { row: rows[0] || null, error: null };
+  const row = await brandDb.journalPost.findUnique({ where: { id: cuid } });
+  return { row, error: null };
 }
 
 export async function movePost(cuid: string, direction: "up" | "down") {

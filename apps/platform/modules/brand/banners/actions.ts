@@ -1,6 +1,5 @@
 "use server";
 
-import { brandPrisma } from "@yunwu/db/brand";
 import { brandDb } from "@/lib/brand-db";
 import { createCrudAudit } from "@/lib/audit";
 import { transitionStatus } from "@/lib/publisher";
@@ -144,20 +143,20 @@ export async function moveBanner(id: number, direction: "up" | "down") {
 // Publishing workflow
 export async function publishBanner(id: number) {
   try {
-    const result = await transitionStatus("banners", String(id), "PUBLISHED");
+    const result = await transitionStatus("banners", id, "PUBLISH");
     if (!result.success) return { error: result.error };
-    const rows = await brandPrisma.$queryRawUnsafe<any[]>(`SELECT * FROM banners WHERE id = $1`, id);
+    const banner = await brandDb.banner.findUnique({ where: { id } });
     revalidatePath(BANNERS_PATH);
-    return { row: rows[0], error: null };
+    return { row: banner ? toBannerRow(banner) : null, error: null };
   } catch (e: any) { return { row: null, error: e.message }; }
 }
 
 export async function unpublishBanner(id: number) {
   try {
-    const result = await transitionStatus("banners", String(id), "DRAFT");
+    const result = await transitionStatus("banners", id, "UNPUBLISH");
     if (!result.success) return { error: result.error };
-    const rows = await brandPrisma.$queryRawUnsafe<any[]>(`SELECT * FROM banners WHERE id = $1`, id);
+    const banner = await brandDb.banner.findUnique({ where: { id } });
     revalidatePath(BANNERS_PATH);
-    return { row: rows[0], error: null };
+    return { row: banner ? toBannerRow(banner) : null, error: null };
   } catch (e: any) { return { row: null, error: e.message }; }
 }

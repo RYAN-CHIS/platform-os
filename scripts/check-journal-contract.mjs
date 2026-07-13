@@ -81,7 +81,7 @@ export function validateJournalContract(rootDir) {
   for (const [rule, pattern, message] of categoryRules) if (!pattern.test(actions)) errors.push(`${rule} ${ACTIONS_PATH}: ${message}`);
   if (!resolver) errors.push(`G-JOURNAL-10 ${ACTIONS_PATH}: resolveJournalCategory is missing`);
 
-  if (!/export async function togglePostStatus[\s\S]*?transitionStatus\("journal", cuid, newStatus as any\)/.test(actions)) errors.push(`G-JOURNAL-11 ${ACTIONS_PATH}: Publisher wrapper is missing or changed`);
+  if (!/export async function togglePostStatus[\s\S]*?publisherCommandFromLegacyStatus\(newStatus\)[\s\S]*?transitionStatus\("journal", cuid, command\)/.test(actions)) errors.push(`G-JOURNAL-11 ${ACTIONS_PATH}: Publisher wrapper must validate legacy input at the Publisher boundary`);
 
   const ordinarySource = actions.slice(0, actions.indexOf("// ── Publishing Workflow"));
   if (/\b(?:CREATE|ALTER|DROP)\s+TABLE\b/i.test(ordinarySource)) errors.push(`G-JOURNAL-12 ${ACTIONS_PATH}: ordinary Journal CRUD must not contain Runtime DDL`);

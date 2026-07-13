@@ -3,11 +3,11 @@
  * Brand Series — ordinary CRUD uses the canonical Brand Runtime client.
  * Publishing workflow remains owned by the publisher engine.
  */
-import { brandPrisma } from "@yunwu/db/brand";
 import { brandDb, type LegacyBrandSeries } from "@/lib/brand-db";
 import { createCrudAudit, createAuditLog } from "@/lib/audit";
 import {
   transitionStatus,
+  publisherCommandFromLegacyStatus,
   submitForReview,
   approveContent,
   rejectContent,
@@ -270,13 +270,10 @@ export async function createSeriesSeoSnapshot(
 // ── Legacy toggle (now routed through publisher engine) ──
 
 export async function toggleSeriesActive(id: number, active: boolean): Promise<{ row: any; error: string | null }> {
-  const newStatus = active ? "PUBLISHED" : "DRAFT";
-  const result = await transitionStatus("series", id, newStatus as any);
+  const result = await transitionStatus("series", id, active ? "PUBLISH" : "UNPUBLISH");
   if (!result.success) return { row: null, error: result.error || "状态变更失败" };
-  const rows = await brandPrisma.$queryRawUnsafe<any[]>(`SELECT * FROM series WHERE id = $1`, id);
-  // Also sync is_active
-  await brandPrisma.$executeRawUnsafe(`UPDATE series SET is_active = $1 WHERE id = $2`, active, id);
-  return { row: rows[0] || null, error: null };
+  const row = await brandDb.legacyBrandSeries.findUnique({ where: { id } });
+  return { row, error: null };
 }
 
 export async function moveSeries(id: number, direction: "up" | "down") {
