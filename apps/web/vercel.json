@@ -1,7 +1,0 @@
-{
-  "buildCommand": "cd ../.. && pnpm install --no-frozen-lockfile && npx prisma generate && cd apps/web && next build",
-  "outputDirectory": "apps/web/.next",
-  "installCommand": "cd ../.. && pnpm install --no-frozen-lockfile",
-  "framework": "nextjs",
-  "regions": ["hkg1"]
-}
