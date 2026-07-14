@@ -19,6 +19,7 @@
     "check:prisma-contract": "node --test scripts/check-prisma-schema-contract.test.mjs",
     "check:publisher-contract": "node --test scripts/check-publisher-contract.test.mjs",
     "check:rollback-contract": "node --test scripts/check-rollback-contract.test.mjs",
+    "check:home-publisher-contract": "node --test scripts/check-home-publisher-contract.test.mjs",
     "db:push": "pnpm --filter @yunwu/db db:push",
     "db:generate": "pnpm --filter @yunwu/db generate",
     "check:secrets": "node scripts/check-no-hardcoded-secrets.mjs"

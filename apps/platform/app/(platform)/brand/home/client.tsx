@@ -3,15 +3,14 @@
  * BrandHomeClient — WO-P13C
  * Brand Home page_contents + site_settings editor.
  */
-import { useState, useEffect, useCallback } from "react";
+import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
   createPageContent,
   updatePageContent,
   deletePageContent,
   updateSiteSetting,
-  getHomeVersions,
-  rollbackHome,
+  togglePageContentPublished,
 } from "@/modules/brand/home/actions";
 
 // ── Types ──
@@ -29,13 +28,6 @@ interface PageContentRow {
 
 type CreatePageContentResult = Awaited<ReturnType<typeof createPageContent>>;
 
-interface HomeVersion {
-  id: string;
-  version: number;
-  status: string;
-  created_at: string;
-}
-
 interface Stats {
   seriesCount: number;
   productCount: number;
@@ -45,34 +37,6 @@ interface Stats {
   bannerCount: number;
   orderCount: number;
   contactCount: number;
-}
-
-// ── Status badge ──
-
-function statusLabel(s: string): string {
-  const map: Record<string, string> = {
-    DRAFT: "草稿",
-    IN_REVIEW: "审核中",
-    APPROVED: "已通过",
-    SCHEDULED: "已定时",
-    PUBLISHED: "已发布",
-    ARCHIVED: "已归档",
-    REJECTED: "已驳回",
-  };
-  return map[s] || s;
-}
-
-function statusColor(s: string): { bg: string; fg: string; border: string } {
-  const map: Record<string, { bg: string; fg: string; border: string }> = {
-    DRAFT: { bg: "#f5f5f4", fg: "#78716c", border: "#e7e5e4" },
-    IN_REVIEW: { bg: "#fef9c3", fg: "#a16207", border: "#fde047" },
-    APPROVED: { bg: "#dbeafe", fg: "#1d4ed8", border: "#93c5fd" },
-    SCHEDULED: { bg: "#e0e7ff", fg: "#4338ca", border: "#a5b4fc" },
-    PUBLISHED: { bg: "#ecfdf5", fg: "#059669", border: "#a7f3d0" },
-    ARCHIVED: { bg: "#f5f5f4", fg: "#a8a29e", border: "#d6d3d1" },
-    REJECTED: { bg: "#fef2f2", fg: "#dc2626", border: "#fecaca" },
-  };
-  return map[s] || { bg: "#f5f5f4", fg: "#78716c", border: "#e7e5e4" };
 }
 
 // ── Edit Modal ──
@@ -256,88 +220,6 @@ function AddContentModal({
   );
 }
 
-// ── Version History Modal ──
-
-function VersionHistoryModal({
-  contentId,
-  onClose,
-}: {
-  contentId: string;
-  onClose: () => void;
-}) {
-  const [versions, setVersions] = useState<HomeVersion[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [rolling, setRolling] = useState<number | null>(null);
-
-  useEffect(() => {
-    getHomeVersions(contentId).then(setVersions).finally(() => setLoading(false));
-  }, [contentId]);
-
-  async function handleRollback(v: number) {
-    if (!confirm(`确定回滚到版本 ${v}？`)) return;
-    setRolling(v);
-    await rollbackHome(contentId, v);
-    setRolling(null);
-    onClose();
-  }
-
-  return (
-    <div style={overlayStyle}>
-      <div style={{ ...modalStyle, maxWidth: 700 }}>
-        <h3 style={{ fontSize: 16, fontWeight: 500, marginBottom: 16 }}>版本历史</h3>
-        {loading ? (
-          <p style={{ color: "#a8a29e" }}>加载中…</p>
-        ) : versions.length === 0 ? (
-          <p style={{ color: "#a8a29e" }}>暂无版本记录</p>
-        ) : (
-          <div style={{ maxHeight: 400, overflowY: "auto" }}>
-            <table style={{ width: "100%", fontSize: 13, borderCollapse: "collapse" }}>
-              <thead>
-                <tr style={{ borderBottom: "1px solid #e7e5e4", textAlign: "left" }}>
-                  <th style={thStyle}>版本</th>
-                  <th style={thStyle}>状态</th>
-                  <th style={thStyle}>时间</th>
-                  <th style={{ ...thStyle, textAlign: "right" }}>操作</th>
-                </tr>
-              </thead>
-              <tbody>
-                {versions.map((v) => (
-                  <tr key={v.id} style={{ borderBottom: "1px solid #f5f5f4" }}>
-                    <td style={tdStyle}>v{v.version}</td>
-                    <td style={tdStyle}>
-                      <span style={{
-                        padding: "1px 6px", borderRadius: 4, fontSize: 11,
-                        ...statusBadgeStyle(v.status),
-                      }}>
-                        {statusLabel(v.status)}
-                      </span>
-                    </td>
-                    <td style={{ ...tdStyle, fontSize: 11, color: "#a8a29e" }}>
-                      {v.created_at ? new Date(v.created_at).toLocaleString("zh-CN") : "—"}
-                    </td>
-                    <td style={{ ...tdStyle, textAlign: "right" }}>
-                      <button
-                        onClick={() => handleRollback(v.version)}
-                        disabled={rolling === v.version}
-                        style={actionLinkStyle}
-                      >
-                        {rolling === v.version ? "回滚中…" : "回滚"}
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-        <div style={{ marginTop: 16, textAlign: "right" }}>
-          <button onClick={onClose} style={cancelBtnStyle}>关闭</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // ── Confirm Delete Modal ──
 
 function ConfirmDeleteModal({
@@ -445,7 +327,6 @@ export function BrandHomeClient({
   const [showAdd, setShowAdd] = useState(false);
   const [editRow, setEditRow] = useState<PageContentRow | null>(null);
   const [deleteRow, setDeleteRow] = useState<PageContentRow | null>(null);
-  const [versionRow, setVersionRow] = useState<PageContentRow | null>(null);
 
   const refreshPages = useCallback(async () => {
     const { getPageContents: refresh } = await import("@/modules/brand/home/actions");
@@ -540,8 +421,8 @@ export function BrandHomeClient({
                         </span>
                       </td>
                       <td style={{ ...tdStyle, textAlign: "right", whiteSpace: "nowrap" }}>
+                        <button onClick={async () => { await togglePageContentPublished(row.id); refreshAll(); }} style={actionLinkStyle}>{row.published ? "取消发布" : "发布"}</button>
                         <button onClick={() => setEditRow(row)} style={actionLinkStyle}>编辑</button>
-                        <button onClick={() => setVersionRow(row)} style={actionLinkStyle}>版本</button>
                         <button onClick={() => setDeleteRow(row)} style={{ ...actionLinkStyle, color: "#dc2626" }}>删除</button>
                       </td>
                     </tr>
@@ -606,12 +487,6 @@ export function BrandHomeClient({
         />
       )}
 
-      {versionRow && (
-        <VersionHistoryModal
-          contentId={versionRow.id}
-          onClose={() => { setVersionRow(null); refreshAll(); }}
-        />
-      )}
     </div>
   );
 }
@@ -716,11 +591,6 @@ const actionLinkStyle: React.CSSProperties = {
   marginLeft: 8,
   textDecoration: "underline",
 };
-
-function statusBadgeStyle(s: string): React.CSSProperties {
-  const c = statusColor(s);
-  return { background: c.bg, color: c.fg, borderColor: c.border };
-}
 
 const thStyle: React.CSSProperties = {
   padding: "8px 12px",

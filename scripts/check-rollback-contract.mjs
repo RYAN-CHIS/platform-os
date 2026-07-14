@@ -3,7 +3,6 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const PUBLISHER = "apps/platform/lib/publisher.ts";
-const HOME_ACTIONS = "apps/platform/modules/brand/home/actions.ts";
 const UI_FILES = [
   "apps/platform/app/(platform)/brand/products/client.tsx",
   "apps/platform/app/(platform)/brand/series/client.tsx",
@@ -42,7 +41,6 @@ function requireToken(errors, source, token, rule, file = PUBLISHER) {
 export function validateRollbackContract(root, overrides = {}) {
   const errors = [];
   const publisher = overrides.publisher ?? read(root, PUBLISHER, errors);
-  const home = overrides.home ?? read(root, HOME_ACTIONS, errors);
   const ui = UI_FILES.map((file) => [file, overrides[file] ?? read(root, file, errors)]);
   const rollback = block(publisher, "export async function rollbackToVersion");
   const finish = block(publisher, "async function finishRollback");
@@ -71,7 +69,7 @@ export function validateRollbackContract(root, overrides = {}) {
   requireToken(errors, finish, "immediatePublicEffect", "G-ROLLBACK-10");
   if (/\b(?:CREATE|ALTER|DROP)\s+TABLE\b/i.test(publisher)) errors.push(`G-ROLLBACK-24 ${PUBLISHER}: Runtime DDL is prohibited`);
   if (/\bas\s+any\b|\bas\s+unknown\s+as\b/.test(rollback)) errors.push(`G-ROLLBACK-20 ${PUBLISHER}: unsafe rollback assertion is prohibited`);
-  requireToken(errors, home, 'rollbackToVersion("home", id, version)', "G-ROLLBACK-23", HOME_ACTIONS);
+  if (publisher.includes('"home"') || publisher.includes('case "home"')) errors.push(`G-ROLLBACK-23 ${PUBLISHER}: Home must remain removed from Publisher and rollback`);
   for (const [file, source] of ui) {
     requireToken(errors, source, "此操作会立即使用所选历史版本替换当前线上内容。无需重新审核，操作不可静默撤销。", "G-ROLLBACK-21", file);
     requireToken(errors, source, "rollbackReason", "G-ROLLBACK-22", file);

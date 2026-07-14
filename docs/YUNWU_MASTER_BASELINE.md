@@ -2,7 +2,7 @@
 
 > **Single Source of Truth** for 允物 (Yunwu) Project
 >
-> Last updated: 2026-07-13 (Phase E2B emergency rollback)
+> Last updated: 2026-07-14 (Phase E3 Home Publisher removal)
 >
 > Everything below this line is authoritative.
 
@@ -130,6 +130,14 @@
 - ADR-006 is accepted. `Product`, `Series`, `Journal`, and `Banner` rollback is a Publisher-owned Emergency Immediate Restore: a PUBLISHED record immediately changes publicly-read current content without a new review/approve transition; other legal lifecycle states remain unchanged; ARCHIVED fails closed.
 - Restore uses per-content-type inclusion whitelists only. Lifecycle fields, `publishedAt`, IDs/timestamps, relation ownership, and Product ERP/inventory/price fields never come from a snapshot. Each command requires a high Publisher role, a 5–500 character reason, an explicit UI confirmation, a Brand-transaction audit entry, pending-job cancellation, and a new immutable `RESTORED` version.
 - Production Storefront reads current Brand records directly; no live table or published projection exists, and ADR-006 formally authorizes the immediate public effect. Storefront, schemas, migrations, Materials, and the legacy Publisher Home path remain unchanged/deferred. Historical secrets debt remains separately governed.
+
+---
+
+## Prisma Phase E3 — Home Publisher Removal (2026-07-14)
+
+- Home has been removed from the generic Publisher. The former `page_contents` status/published-at raw-SQL path was dead runtime-failing legacy code because Canonical `PageContent` has no workflow columns.
+- PageContent retains typed Brand Prisma CRUD and its sole lifecycle expression is `published: Boolean`, including the ordinary published/unpublished toggle. Home has no review, approval, rejection, scheduling, archive, rollback, version, or Publisher preview-token path.
+- Product, Series, Journal, Banner Publisher behavior and Emergency Immediate Restore are unchanged. Production Storefront does not consume PageContent. No Schema, migration, Storefront, Vercel, or database action occurred; Materials remains deferred, Phase F/G have not started, and historical secrets debt remains independently governed.
 
 ---
 

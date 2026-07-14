@@ -54,6 +54,7 @@ export function validatePublisherContract(root, overrides = {}) {
   requireToken(errors, publisher, 'persistenceKind: "product-dual"', "G-PUB-08", "Product dual-status registry contract is missing");
   requireToken(errors, publisher, 'persistenceKind: "publish-status"', "G-PUB-09", "Journal enum-status registry contract is missing");
   requireToken(errors, publisher, "PUBLISHER_CONTENT_REGISTRY", "G-PUB-10", "closed content registry is missing");
+  if (/\bhome\s*:|"home"|'home'|page_contents/.test(publisher)) errors.push(`G-PUB-10 ${PUBLISHER}: Home must not be part of the generic Publisher`);
   requireToken(errors, publisher, 'if (!(job.contentType in PUBLISHER_CONTENT_REGISTRY))', "G-PUB-10", "scheduled jobs must reject unknown contentType values");
   requireToken(errors, publisher, "idKind", "G-PUB-11", "registry-controlled ID kind is missing");
   requireToken(errors, publisher, "brandDb.$transaction(async (tx)", "G-PUB-06", "content update and publish job must share a Brand transaction");

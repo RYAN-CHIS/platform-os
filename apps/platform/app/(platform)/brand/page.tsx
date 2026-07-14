@@ -4,6 +4,7 @@
  */
 import { prisma } from "@yunwu/db";
 import { brandPrisma } from "@yunwu/db/brand";
+import { brandDb } from "@/lib/brand-db";
 
 async function getBrandOverview() {
   const results: any = {};
@@ -67,10 +68,8 @@ async function getBrandOverview() {
 
   // Page content
   try {
-    const r = await brandPrisma.$queryRawUnsafe<any[]>(`SELECT COUNT(*)::int as c FROM page_contents`);
-    results.pageContentCount = r[0]?.c || 0;
-    const pub = await brandPrisma.$queryRawUnsafe<any[]>(`SELECT COUNT(*)::int as c FROM page_contents WHERE status = 'PUBLISHED'`);
-    results.publishedPageCount = pub[0]?.c || 0;
+    results.pageContentCount = await brandDb.pageContent.count();
+    results.publishedPageCount = await brandDb.pageContent.count({ where: { published: true } });
   } catch { results.pageContentCount = 0; results.publishedPageCount = 0; }
 
   return results;

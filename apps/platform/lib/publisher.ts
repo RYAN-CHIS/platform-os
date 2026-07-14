@@ -12,7 +12,7 @@ import { createAuditLog } from "@/lib/audit";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 
-export type ContentType = "products" | "series" | "journal" | "banners" | "home";
+export type ContentType = "products" | "series" | "journal" | "banners";
 export type PublisherCommand =
   | "SUBMIT_FOR_REVIEW"
   | "APPROVE"
@@ -23,7 +23,7 @@ export type PublisherCommand =
   | "ARCHIVE";
 
 type IdKind = "integer" | "string";
-type PersistenceKind = "product-dual" | "string-status" | "publish-status" | "legacy-raw";
+type PersistenceKind = "product-dual" | "string-status" | "publish-status";
 type PublishJobOperation = "none" | "upsert" | "cancel" | "complete";
 
 interface ContentContract {
@@ -58,13 +58,6 @@ const PUBLISHER_CONTENT_REGISTRY: Record<ContentType, ContentContract> = {
   banners: {
     physicalTable: "banners", idKind: "integer", persistenceKind: "string-status",
     workflowStatusField: "status", persistenceStatusField: "status", publishedAtField: "publishedAt",
-    supportsScheduling: true, supportsPreview: true, supportsRejectionMetadata: true,
-  },
-  // PageContent does not model Publisher's physical status columns. Home actions
-  // are excluded from E1; this narrow raw fallback preserves their existing path.
-  home: {
-    physicalTable: "page_contents", idKind: "string", persistenceKind: "legacy-raw",
-    workflowStatusField: "status", persistenceStatusField: null, publishedAtField: "publishedAt",
     supportsScheduling: true, supportsPreview: true, supportsRejectionMetadata: true,
   },
 };
@@ -185,14 +178,16 @@ export async function publisherCommandFromLegacyStatus(value: string): Promise<P
 }
 
 function normalizeContentId(contentType: ContentType, contentId: string | number): string | number {
-  if (PUBLISHER_CONTENT_REGISTRY[contentType].idKind === "string") return String(contentId);
+  const contract = PUBLISHER_CONTENT_REGISTRY[contentType];
+  if (!contract) throw new Error(`Unsupported publisher content type: ${String(contentType).toUpperCase()}`);
+  if (contract.idKind === "string") return String(contentId);
   const id = typeof contentId === "number" ? contentId : Number(contentId);
   if (!Number.isInteger(id) || id <= 0) throw new Error(`${contentType} id must be a positive integer`);
   return id;
 }
 
 type BrandTransaction = Pick<typeof brandDb,
-  "legacyBrandProduct" | "legacyBrandSeries" | "journalPost" | "banner" | "publishJob" | "$queryRawUnsafe" | "$executeRawUnsafe"
+  "legacyBrandProduct" | "legacyBrandSeries" | "journalPost" | "banner" | "publishJob"
 >;
 
 async function readCurrentState(db: BrandTransaction, contentType: ContentType, contentId: string | number) {
@@ -212,10 +207,6 @@ async function readCurrentState(db: BrandTransaction, contentType: ContentType, 
     case "banners": {
       const item = await db.banner.findUnique({ where: { id: contentId as number }, select: { status: true, publishedAt: true } });
       return item ? { status: item.status, rawStatus: item.status, publishedAt: item.publishedAt } : null;
-    }
-    case "home": {
-      const rows = await db.$queryRawUnsafe<{ status: string | null; published_at: Date | null }[]>("SELECT status, published_at FROM page_contents WHERE id = $1", contentId as string);
-      return rows[0] ? { status: rows[0].status, rawStatus: rows[0].status, publishedAt: rows[0].published_at } : null;
     }
   }
 }
@@ -240,11 +231,6 @@ async function persistTransition(db: BrandTransaction, contentType: ContentType,
       return db.journalPost.update({ where: { id: contentId as string }, data: { status: transition.targetStatus, ...(publishedAt ? { publishedAt } : {}) } });
     case "banners":
       return db.banner.update({ where: { id: contentId as number }, data: { status: transition.workflowStatus, ...(publishedAt ? { publishedAt } : {}) } });
-    case "home":
-      return db.$executeRawUnsafe(
-        "UPDATE page_contents SET status = $1, published_at = CASE WHEN $2 THEN COALESCE(published_at, NOW()) ELSE published_at END, updated_at = NOW() WHERE id = $3",
-        transition.workflowStatus, transition.writesPublishedAt, contentId as string,
-      );
   }
 }
 

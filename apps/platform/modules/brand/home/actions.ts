@@ -5,19 +5,6 @@
 "use server";
 
 import { brandDb } from "@/lib/brand-db";
-import {
-  transitionStatus,
-  submitForReview,
-  approveContent,
-  rejectContent,
-  publishNow,
-  schedulePublish,
-  unpublishContent,
-  archiveContent,
-  getVersions,
-  rollbackToVersion,
-  getContentStatus,
-} from "@/lib/publisher";
 
 // ── Stats ──
 
@@ -153,6 +140,18 @@ export async function deletePageContent(id: string) {
   }
 }
 
+/** PageContent has one lifecycle contract: the typed published Boolean. */
+export async function togglePageContentPublished(id: string) {
+  try {
+    const current = await brandDb.pageContent.findUnique({ where: { id }, select: { published: true } });
+    if (!current) return { row: null, error: "Content not found" };
+    const content = await brandDb.pageContent.update({ where: { id }, data: { published: !current.published } });
+    return { row: toPageContentRow(content), error: null };
+  } catch (error) {
+    return { row: null, error: errorMessage(error) };
+  }
+}
+
 // ── Site Settings ──
 
 export async function getSiteSettings() {
@@ -175,46 +174,4 @@ export async function updateSiteSetting(key: string, value: string) {
   } catch (error) {
     return { error: errorMessage(error) };
   }
-}
-
-// ── Publishing Workflow Wrappers ──
-
-export async function submitHomeForReview(id: string) {
-  return submitForReview("home", id);
-}
-
-export async function approveHome(id: string) {
-  return approveContent("home", id);
-}
-
-export async function rejectHome(id: string, reason?: string) {
-  return rejectContent("home", id, reason);
-}
-
-export async function publishHomeNow(id: string) {
-  return publishNow("home", id);
-}
-
-export async function scheduleHomePublish(id: string, publishAt: string) {
-  return schedulePublish("home", id, publishAt);
-}
-
-export async function unpublishHome(id: string) {
-  return unpublishContent("home", id);
-}
-
-export async function archiveHome(id: string) {
-  return archiveContent("home", id);
-}
-
-export async function getHomeVersions(id: string) {
-  return getVersions("home", id);
-}
-
-export async function rollbackHome(id: string, version: number) {
-  return rollbackToVersion("home", id, version);
-}
-
-export async function getHomeStatus(id: string) {
-  return getContentStatus("home", id);
 }
