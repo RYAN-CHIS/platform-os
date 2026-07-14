@@ -600,6 +600,13 @@ Post-migration build verification identified 3 pre-existing build failures:
 - `/Users/ryan/Projects/active/yunwu-origin` remains the sole production Storefront. `apps/web` has exited the source tree, workspace/install and build graphs, root Vercel build target, and deployment surface; it must not be recreated. Its schema and migrations do not return to either canonical schema.
 - Working-tree removal eliminates two legacy Web secrets-gate hits. This is not credential rotation or Git-history secret remediation; eight ERP historical findings remain independently governed. Materials remains deferred and Phase G has not started.
 
+## Phase S2 — ERP Historical Secrets Remediation (2026-07-14)
+
+- The Phase S1 remediation report was sanitized to retain its governance conclusions without credential material. Its eight ERP working-tree findings corresponded to one historical credential that had already been revoked during the 2026-07-11 P0 incident; no additional rotation or Git history rewrite was required.
+- Six obsolete or diagnostic ERP scripts were removed. `apps/erp/scripts/import-all-v3.js` and `apps/erp/scripts/reset-and-import-sql.js` now use only `DIRECT_DATABASE_URL`, fail closed before client initialization when it is absent, and do not log connection details or use a source fallback.
+- `pnpm check:secrets` now passes with zero findings. The ERP Secret Contract Guard protects the retained-script environment contract, sanitized Phase S1 report, deleted scripts, zero-finding gate, and continued `apps/web` decommission.
+- Git history can still retain historical values; this residual history risk is not remediated by this working-tree change. Materials and Phase G remain unstarted, and the unrelated `packages/ui` TypeScript environment debt remains separately deferred.
+
 
 
 ---

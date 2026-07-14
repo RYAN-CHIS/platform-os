@@ -19,6 +19,7 @@
     "check:rollback-contract": "node --test scripts/check-rollback-contract.test.mjs",
     "check:home-publisher-contract": "node --test scripts/check-home-publisher-contract.test.mjs",
     "check:apps-web-decommission": "node --test scripts/check-apps-web-decommission.test.mjs",
+    "check:erp-secret-contract": "node --test scripts/check-erp-secret-contract.test.mjs",
     "db:push": "pnpm --filter @yunwu/db db:push",
     "db:generate": "pnpm --filter @yunwu/db generate",
     "check:secrets": "node scripts/check-no-hardcoded-secrets.mjs"
