@@ -2,7 +2,7 @@
 
 > **Single Source of Truth** for 允物 (Yunwu) Project
 >
-> Last updated: 2026-07-14 (Phase E3 Home Publisher removal)
+> Last updated: 2026-07-14 (Phase F2 tracked legacy Web decommission)
 >
 > Everything below this line is authoritative.
 
@@ -575,7 +575,7 @@ Post-migration build verification identified 3 pre-existing build failures:
 |-----|-----------|------------|
 | **erp** | `@yunwu/auth` imported `{ Prisma }` from `@prisma/client` without declaring the dependency | Added `@prisma/client ^6.19.3` to `packages/auth/package.json` |
 | **brand-os** | Used shared `@yunwu/db` PrismaClient but local code expected local schema model names; plus `@prisma/client` import issues and type errors in `sign-identity.ts` | Brand OS now uses its own local Prisma Client (`@prisma/brand-client`, output from `apps/brand-os/prisma/schema.prisma`). Fixed `sign-identity.ts` system union, `VerifyResult` re-export, and `seriesId` type. |
-| **web** | Same pattern as brand-os | Web now uses its own local Prisma Client (`@prisma/web-client`, output from `apps/web/prisma/schema.prisma`) |
+| **web** | Decommissioned in Phase F2 | Historical recovery only through Git history and the pre-decommission tag |
 
 ### Prisma Client Generation Strategy (post-fix)
 
@@ -583,7 +583,6 @@ Post-migration build verification identified 3 pre-existing build failures:
 |---------|--------|--------|---------|
 | `@yunwu/db` | `packages/db/schema.prisma` (41 models) | pnpm store (default) | erp, platform-app |
 | `@prisma/brand-client` | `apps/brand-os/prisma/schema.prisma` (16 models) | `apps/brand-os/node_modules/@prisma/brand-client` | brand-os |
-| `@prisma/web-client` | `apps/web/prisma/schema.prisma` (16 models) | `apps/web/node_modules/@prisma/web-client` | web |
 
 ### Validation
 
@@ -592,7 +591,14 @@ Post-migration build verification identified 3 pre-existing build failures:
 | platform-app | ✅ | ✅ |
 | erp | ✅ | ✅ |
 | brand-os | ✅ | ✅ |
-| web | ✅ | ✅ (TS pass; DB schema drift blocks full build — pre-existing) |
+
+---
+
+## Phase F2 — Tracked Legacy apps/web Decommission (2026-07-14)
+
+- The prior F1 “0 tracked files” conclusion is invalidated by the F1R reconciliation: `apps/web` contained 83 tracked legacy files. It has been removed through `git rm` after creation and remote push of `pre-apps-web-decommission-2026-07-14` at `9ed344f`.
+- `/Users/ryan/Projects/active/yunwu-origin` remains the sole production Storefront. `apps/web` has exited the source tree, workspace/install and build graphs, root Vercel build target, and deployment surface; it must not be recreated. Its schema and migrations do not return to either canonical schema.
+- Working-tree removal eliminates two legacy Web secrets-gate hits. This is not credential rotation or Git-history secret remediation; eight ERP historical findings remain independently governed. Materials remains deferred and Phase G has not started.
 
 
 

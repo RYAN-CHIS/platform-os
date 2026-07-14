@@ -1,6 +1,6 @@
 {
-  "buildCommand": "pnpm --filter @yunwu/web build",
-  "outputDirectory": "apps/web/.next",
+  "buildCommand": "pnpm --filter @yunwu/platform-app build",
+  "outputDirectory": "apps/platform/.next",
   "framework": "nextjs",
   "installCommand": "pnpm install --no-frozen-lockfile",
   "regions": ["hkg1"]

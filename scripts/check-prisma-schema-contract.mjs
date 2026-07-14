@@ -4,7 +4,6 @@ import { fileURLToPath } from "node:url";
 
 const frozenSchemas = [
   { app: "brand-os", relativePath: "apps/brand-os/prisma/schema.prisma", output: "../node_modules/@prisma/brand-client" },
-  { app: "web", relativePath: "apps/web/prisma/schema.prisma", output: "../node_modules/@prisma/web-client" },
   { app: "erp", relativePath: "apps/erp/prisma/schema.prisma", output: undefined },
 ];
 

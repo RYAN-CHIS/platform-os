@@ -21,7 +21,6 @@ function createFixture(mutator = (schema) => schema) {
   writeFixture("packages/db/schema.prisma", 'datasource db { provider = "postgresql" url = env("DATABASE_URL") }', root);
   const frozenBase = (output = "") => `// FROZEN: packages/db/schema.prisma; do not migrate or db push; Phase 3 delete\ngenerator client { provider = "prisma-client-js"${output} }\ndatasource db { provider = "postgresql" url = env("DATABASE_URL") }`;
   writeFixture("apps/brand-os/prisma/schema.prisma", frozenBase(' output = "../node_modules/@prisma/brand-client"'), root);
-  writeFixture("apps/web/prisma/schema.prisma", frozenBase(' output = "../node_modules/@prisma/web-client"'), root);
   writeFixture("apps/erp/prisma/schema.prisma", frozenBase(), root);
   writeFixture("packages/brand-db/schema.prisma", mutator(brandSchema), root);
   return root;
