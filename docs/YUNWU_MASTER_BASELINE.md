@@ -607,6 +607,13 @@ Post-migration build verification identified 3 pre-existing build failures:
 - `pnpm check:secrets` now passes with zero findings. The ERP Secret Contract Guard protects the retained-script environment contract, sanitized Phase S1 report, deleted scripts, zero-finding gate, and continued `apps/web` decommission.
 - Git history can still retain historical values; this residual history risk is not remediated by this working-tree change. Materials and Phase G remain unstarted, and the unrelated `packages/ui` TypeScript environment debt remains separately deferred.
 
+## Phase G2C-1 — Materials Canonical Prisma Declaration (2026-07-14)
+
+- `LegacyBrandMaterial` now declares the approved thirteen-field Material entity contract on `materials`; `LegacyProductMaterial` declares `sortOrder` while retaining the canonical `@@unique([productId, materialId])` relation contract.
+- Material status remains a free-text `String` contract with `ACTIVE`, `DRAFT`, and `ARCHIVED` business values. `applicableProducts` remains narrative text, and nullable `erpMaterialId` remains a cross-logical-database bridge without a Prisma relation or foreign key.
+- `brand_materials` is a `MUTATED_LEGACY_ENTITY`. `LegacyBrandMaterialLink` is retained only as a deprecated migration-only physical source model and no longer declares Product–Material relation fields. The physical database has not changed: the thirteen `materials` fields and relation `sort_order` still require a later migration, and the legacy row remains pending `MIGRATE_AS_DRAFT` backfill.
+- The G2B-2 summary count was reconciled: 22 physical source columns map once as 21 `DIRECT_COPY` and 1 `DROP_AFTER_AUDIT`; target-only `erpMaterialId` is the single `DEFAULT`. Runtime DDL removal remains Phase G2E; migration SQL and backfill design are next.
+
 
 
 ---

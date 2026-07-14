@@ -44,7 +44,7 @@ The single legacy row will be migrated to `materials` directly. No junction/rela
 
 ---
 
-## 3. 19 → 13 Field Migration Mapping
+## 3. 22 Physical Columns → Canonical Field Migration Mapping
 
 ### 3.1 Complete Column Map
 
@@ -78,9 +78,10 @@ The single legacy row will be migrated to `materials` directly. No junction/rela
 
 | Decision | Count |
 |----------|-------|
-| DIRECT_COPY | 19 (all legacy content columns map directly) |
+| Source physical columns | 22 (19 content + 2 timestamps + 1 legacy id) |
+| DIRECT_COPY | 21 (all 19 content columns and 2 timestamps map directly) |
 | DROP_AFTER_AUDIT | 1 (legacy `id` — replaced by new sequence) |
-| DEFAULT | 1 (erpMaterialId — no source, stays null) |
+| DEFAULT | 1 target-only field (`erpMaterialId` — no source, stays null) |
 | RENAME_COPY | 0 |
 | TYPE_CONVERT | 0 |
 | JSON_TRANSFORM | 0 |
@@ -277,7 +278,7 @@ The core ADR-008 architecture (materials = entity, product_materials = relation)
 |----------|--------|
 | brand_materials classification | **MUTATED_LEGACY_ENTITY** |
 | LegacyBrandMaterialLink handling | Deprecated, kept for schema stability but structurally invalid |
-| 19 columns processed | Yes — all mapped (19 DIRECT_COPY, 1 DROP_AFTER_AUDIT, 1 DEFAULT) |
+| 22 source columns processed | Yes — all mapped once (21 DIRECT_COPY, 1 DROP_AFTER_AUDIT); `erpMaterialId` is one target-only DEFAULT |
 | Single row migrated? | **YES — MIGRATE_AS_DRAFT** (status = DRAFT) |
 | Legacy ID preserved? | **NO** — new autoincrement. Mapping logged externally. |
 | Mapping metadata needed? | Log-only. No table needed for 1 row. |
@@ -304,8 +305,8 @@ Commit SHA:
 origin/main:                  
 brand_materials classification: MUTATED_LEGACY_ENTITY (not LEGACY_DUPLICATE_LINK)
 LegacyBrandMaterialLink:      Deprecated — structurally invalid, kept for schema stability
-Legacy columns reviewed:      19 content + 2 timestamps + 1 id
-Direct-copy fields:           19 (all content columns)
+Legacy columns reviewed:      19 content + 2 timestamps + 1 id (22 total)
+Direct-copy fields:           21 (all content and timestamp columns)
 Transformed fields:           0
 Dropped fields:               1 (legacy id)
 Manual-review fields:         0

@@ -85,20 +85,35 @@ model LegacyBrandSeries {
 
 model LegacyBrandMaterial {
   /// Maps the existing database sequence/identity behavior; no DDL is added. See ADR-004.
-  id              Int                     @id @default(autoincrement())
-  name            String                  @unique
-  type            String                  @default("")
-  origin          String                  @default("")
-  description     String                  @default("")
-  image           String                  @default("")
-  createdAt       DateTime                @default(now())
+  id                 Int                     @id @default(autoincrement())
+  name               String                  @unique
+  slug               String                  @default("")
+  category           String                  @default("")
+  type               String                  @default("")
+  origin             String                  @default("")
+  description        String                  @default("")
+  shortDesc          String?                 @map("short_desc")
+  story              String?
+  applicableProducts String?                 @map("applicable_products")
+  /// Material lifecycle is an independent String contract: ACTIVE, DRAFT, ARCHIVED.
+  status             String                  @default("DRAFT")
+  sortOrder          Int                     @default(0) @map("sort_order")
+  image              String                  @default("")
+  coverImage         String?                 @map("cover_image")
+  detailImages       String                  @default("[]") @map("detail_images")
+  seoTitle           String?                 @map("seo_title")
+  seoDescription     String?                 @map("seo_description")
+  seoKeywords        String?                 @map("seo_keywords")
+  /// Nullable cross-logical-database ERP bridge; no Prisma relation or foreign key.
+  erpMaterialId      Int?                    @map("erp_material_id")
+  createdAt          DateTime                @default(now())
   /// Prisma Client-maintained timestamp; not a database trigger. See ADR-004.
-  updatedAt       DateTime                @updatedAt
-  alias           String?
-  features        String?
-  history         String?
-  relatedArticles String                  @default("[]") @map("related_articles")
-  productLinks    LegacyProductMaterial[]
+  updatedAt          DateTime                @updatedAt
+  alias              String?
+  features           String?
+  history            String?
+  relatedArticles    String                  @default("[]") @map("related_articles")
+  productLinks       LegacyProductMaterial[]
 
   @@map("materials")
 }
@@ -320,10 +335,31 @@ model LegacyBrandProductContent {
   @@map("brand_product_content")
 }
 
+/// DEPRECATED migration-only source. `brand_materials` is a mutated legacy entity,
+/// not a Product–Material relation; production consumers must not use this delegate.
 model LegacyBrandMaterialLink {
-  id         Int @id
-  productId  Int @map("product_id")
-  materialId Int @map("material_id")
+  id                 Int       @id
+  name               String    @unique
+  slug               String?   @default("")
+  alias              String?
+  category           String?   @default("")
+  origin             String?   @default("")
+  description        String?   @default("")
+  shortDesc          String?   @default("") @map("short_desc")
+  features           String?
+  story              String?   @default("")
+  applicableProducts String?   @default("") @map("applicable_products")
+  status             String?   @default("DRAFT")
+  sortOrder          Int?      @default(0) @map("sort_order")
+  image              String?   @default("")
+  coverImage         String?   @default("") @map("cover_image")
+  detailImages       String?   @default("[]") @map("detail_images")
+  seoTitle           String?   @default("") @map("seo_title")
+  seoDescription     String?   @default("") @map("seo_description")
+  seoKeywords        String?   @default("") @map("seo_keywords")
+  relatedArticles    String?   @default("[]") @map("related_articles")
+  createdAt          DateTime? @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime? @default(now()) @map("updated_at") @db.Timestamptz(6)
 
   @@map("brand_materials")
 }
@@ -345,6 +381,7 @@ model LegacyProductMaterial {
   id         Int                 @id
   productId  Int                 @map("product_id")
   materialId Int                 @map("material_id")
+  sortOrder  Int                 @default(0) @map("sort_order")
   product    LegacyBrandProduct  @relation(fields: [productId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   material   LegacyBrandMaterial @relation(fields: [materialId], references: [id], onDelete: Cascade, onUpdate: Cascade)
 
