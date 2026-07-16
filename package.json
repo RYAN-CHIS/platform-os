@@ -22,7 +22,7 @@
     "check:erp-secret-contract": "node --test scripts/check-erp-secret-contract.test.mjs",
     "check:materials-schema-contract": "node --test scripts/check-materials-schema-contract.test.mjs",
     "db:push": "pnpm --filter @yunwu/db db:push",
-    "db:generate": "pnpm --filter @yunwu/db generate",
+    "db:generate": "pnpm --filter @yunwu/db generate && pnpm --filter @yunwu/brand-db generate",
     "check:secrets": "node scripts/check-no-hardcoded-secrets.mjs"
   },
   "dependencies": {
