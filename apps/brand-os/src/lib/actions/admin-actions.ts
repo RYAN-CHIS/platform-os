@@ -9,12 +9,12 @@ import {
   type AdminRole,
   type JournalCategory,
   type MediaCategory,
-  type ObjectCategory,
   type PublishStatus,
 } from "@/lib/brand-db-adapter";
 import { assertAdminEmailAvailable } from "@/lib/admin-identity";
 import bcrypt from "bcryptjs";
 import { del } from "@vercel/blob";
+import { prepareProductMutationData } from "@/app/api/products/mutation";
 
 // ═══════════════════════════════════════════════════════
 // Auth helpers — 统一 RBAC 校验
@@ -202,13 +202,9 @@ export async function createProduct(data: {
   status?: string;
 }) {
   await requireAdmin();
+  const productData = prepareProductMutationData(data as Record<string, unknown>, "create");
   const p = await brandDb.legacyBrandProduct.create({
-    data: {
-      ...data,
-      objectCategory: data.objectCategory as ObjectCategory,
-      gallery: data.gallery || "[]",
-      status: data.status || "draft",
-    }
+    data: productData as any,
   });
   revalidatePath("/admin/products");
   return p;
@@ -221,22 +217,8 @@ export async function updateProduct(id: number, data: {
   status?: string;
 }) {
   await requireAdmin();
-  const updateData: Record<string, any> = {};
-  if (data.sku !== undefined) updateData.sku = data.sku;
-  if (data.name !== undefined) updateData.name = data.name;
-  if (data.slug !== undefined) updateData.slug = data.slug;
-  if (data.seriesId !== undefined) updateData.seriesId = data.seriesId;
-  if (data.objectCategory !== undefined) updateData.objectCategory = data.objectCategory as ObjectCategory;
-  if (data.theme !== undefined) updateData.theme = data.theme;
-  if (data.story !== undefined) updateData.story = data.story;
-  if (data.materials !== undefined) updateData.materials = data.materials;
-  if (data.coverImage !== undefined) updateData.coverImage = data.coverImage;
-  if (data.gallery !== undefined) updateData.gallery = data.gallery;
-  if (data.costPrice !== undefined) updateData.costPrice = data.costPrice;
-  if (data.salePrice !== undefined) updateData.salePrice = data.salePrice;
-  if (data.status !== undefined) updateData.status = data.status;
-
-  const p = await brandDb.legacyBrandProduct.update({ where: { id }, data: updateData });
+  const updateData = prepareProductMutationData(data as Record<string, unknown>, "update");
+  const p = await brandDb.legacyBrandProduct.update({ where: { id }, data: updateData as any });
   revalidatePath("/admin/products");
   return p;
 }
