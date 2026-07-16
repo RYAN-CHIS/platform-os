@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { validateSeriesId } from "@/lib/series-id";
+import { prepareProductMutationData } from "./mutation";
 
 // GET — 产品列表（Brand 内容视图）
 export async function GET(req: Request) {
@@ -46,26 +47,22 @@ export async function POST(req: Request) {
   }
 
   const data = await req.json();
-  const seriesIdResult = validateSeriesId(data.seriesId);
+  if (!data || typeof data !== "object" || Array.isArray(data)) {
+    return NextResponse.json({ error: "无效的请求体" }, { status: 400 });
+  }
+  let productData: Record<string, unknown>;
+  try {
+    productData = prepareProductMutationData(data as Record<string, unknown>, "create");
+  } catch (error: any) {
+    return NextResponse.json({ error: error?.message || "请求参数无效" }, { status: 400 });
+  }
+  const seriesIdResult = validateSeriesId(productData.seriesId);
   if (!seriesIdResult.valid) {
     return NextResponse.json({ error: seriesIdResult.error }, { status: 400 });
   }
 
   const product = await brandDb.legacyBrandProduct.create({
-    data: {
-      sku: data.sku || `P-${Date.now()}`,
-      name: data.name,
-      slug: data.slug || data.name?.toLowerCase().replace(/\s+/g, "-"),
-      seriesId: seriesIdResult.seriesId,
-      objectCategory: data.objectCategory || "BRACELET",
-      theme: data.theme || "",
-      story: data.story || "",
-      materials: data.materials || "",
-      costPrice: data.costPrice || 0,
-      salePrice: data.salePrice || 0,
-      coverImage: data.coverImage || "",
-      status: data.status || "draft",
-    },
+    data: { ...productData, seriesId: seriesIdResult.seriesId } as any,
   });
 
   return NextResponse.json(product, { status: 201 });
@@ -79,12 +76,23 @@ export async function PUT(req: Request) {
   }
 
   const data = await req.json();
-  const { id, ...fields } = data;
-  if (!id) return NextResponse.json({ error: "缺少 id" }, { status: 400 });
+  if (!data || typeof data !== "object" || Array.isArray(data)) {
+    return NextResponse.json({ error: "无效的请求体" }, { status: 400 });
+  }
+  const { id, ...fields } = data as Record<string, unknown>;
+  const productId = Number(id);
+  if (!Number.isInteger(productId) || productId <= 0) return NextResponse.json({ error: "缺少 id" }, { status: 400 });
+
+  let updateData: Record<string, unknown>;
+  try {
+    updateData = prepareProductMutationData(fields, "update");
+  } catch (error: any) {
+    return NextResponse.json({ error: error?.message || "请求参数无效" }, { status: 400 });
+  }
 
   const product = await brandDb.legacyBrandProduct.update({
-    where: { id: parseInt(id) },
-    data: fields,
+    where: { id: productId },
+    data: updateData as any,
   });
 
   return NextResponse.json(product);
