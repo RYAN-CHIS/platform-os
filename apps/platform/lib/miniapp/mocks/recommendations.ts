@@ -1,0 +1,147 @@
+import {
+  MOCK_ENGINE_VERSION,
+  type RecommendationResult,
+} from "../contracts/advisor";
+
+const DISCLAIMER =
+  "当前结果为体验版文化与审美参考，不构成现实结果承诺。材料、价格与可制作性将在正式下单前重新确认，最终选择由用户决定。";
+
+export const MOCK_RECOMMENDATIONS: Readonly<Record<string, RecommendationResult>> = {
+  "mock-rec-001": {
+    id: "mock-rec-001",
+    title: "清简日常方案",
+    summary: "以克制的色彩和温润材质形成日常佩戴起点。",
+    primaryMaterials: [
+      {
+        id: "material-mock-001",
+        name: "青色珠材",
+        image: "",
+        shortDescription: "低饱和青绿色调，适合作为视觉主体。",
+        role: "PRIMARY",
+        estimatedUnitPrice: 20,
+        availabilityStatus: "MOCK_AVAILABLE",
+      },
+    ],
+    supportingMaterials: [
+      {
+        id: "material-mock-002",
+        name: "浅灰配珠",
+        image: "",
+        shortDescription: "中性色调，用于平衡整体视觉层次。",
+        role: "SUPPORTING",
+        estimatedUnitPrice: 8,
+        availabilityStatus: "MOCK_AVAILABLE",
+      },
+      {
+        id: "material-mock-003",
+        name: "银色隔片",
+        image: "",
+        shortDescription: "小面积金属色细节，用于形成简洁节奏。",
+        role: "SUPPORTING",
+        estimatedUnitPrice: 5,
+        availabilityStatus: "MOCK_LIMITED",
+      },
+    ],
+    colorDirection: "青绿色与中性色",
+    styleDirection: "清简克制",
+    estimatedPriceRange: "¥300–499",
+    reasons: [
+      "与青绿色偏好一致",
+      "适合清简克制的视觉方向",
+      "可作为日常佩戴的基础搭配",
+    ],
+    cautions: ["当前价格仅为体验估算", "实际材料与价格以后续确认为准"],
+    disclaimer: DISCLAIMER,
+    engineVersion: MOCK_ENGINE_VERSION,
+  },
+  "mock-rec-002": {
+    id: "mock-rec-002",
+    title: "温润柔和方案",
+    summary: "以柔和色阶和圆润材质建立舒缓、耐看的日常组合。",
+    primaryMaterials: [
+      {
+        id: "material-mock-004",
+        name: "暖白珠材",
+        image: "",
+        shortDescription: "柔和暖白色调，材质视觉感受相对温润。",
+        role: "PRIMARY",
+        estimatedUnitPrice: 24,
+        availabilityStatus: "MOCK_AVAILABLE",
+      },
+      {
+        id: "material-mock-005",
+        name: "浅粉珠材",
+        image: "",
+        shortDescription: "低饱和浅粉色，用于增加柔和层次。",
+        role: "PRIMARY",
+        estimatedUnitPrice: 18,
+        availabilityStatus: "MOCK_LIMITED",
+      },
+    ],
+    supportingMaterials: [
+      {
+        id: "material-mock-006",
+        name: "米色配珠",
+        image: "",
+        shortDescription: "自然米色过渡，保持整体色阶协调。",
+        role: "SUPPORTING",
+        estimatedUnitPrice: 7,
+        availabilityStatus: "MOCK_AVAILABLE",
+      },
+    ],
+    colorDirection: "暖白、浅粉与米色",
+    styleDirection: "温润柔和",
+    estimatedPriceRange: "¥500–799",
+    reasons: [
+      "材质视觉感受相对温润",
+      "柔和色阶适合低对比搭配",
+      "可作为日常佩戴的基础搭配",
+    ],
+    cautions: ["当前价格仅为体验估算", "实际色泽以实物确认为准"],
+    disclaimer: DISCLAIMER,
+    engineVersion: MOCK_ENGINE_VERSION,
+  },
+  "mock-rec-003": {
+    id: "mock-rec-003",
+    title: "明净层次方案",
+    summary: "以清晰对比和轻量层次形成利落、易搭配的视觉组合。",
+    primaryMaterials: [
+      {
+        id: "material-mock-007",
+        name: "透明感珠材",
+        image: "",
+        shortDescription: "明净通透的视觉质感，适合作为组合主体。",
+        role: "PRIMARY",
+        estimatedUnitPrice: 22,
+        availabilityStatus: "MOCK_UNKNOWN",
+      },
+    ],
+    supportingMaterials: [
+      {
+        id: "material-mock-008",
+        name: "深灰配珠",
+        image: "",
+        shortDescription: "深灰色小比例点缀，用于强化轮廓。",
+        role: "SUPPORTING",
+        estimatedUnitPrice: 9,
+        availabilityStatus: "MOCK_AVAILABLE",
+      },
+      {
+        id: "material-mock-009",
+        name: "浅金隔片",
+        image: "",
+        shortDescription: "轻量暖色细节，用于丰富视觉层次。",
+        role: "SUPPORTING",
+        estimatedUnitPrice: 6,
+        availabilityStatus: "MOCK_LIMITED",
+      },
+    ],
+    colorDirection: "透明感、中性灰与浅金",
+    styleDirection: "明净利落",
+    estimatedPriceRange: "¥300–499",
+    reasons: ["清晰对比适合利落的视觉方向", "中性色便于日常搭配"],
+    cautions: ["当前价格仅为体验估算", "最终组合需以后续材料确认为准"],
+    disclaimer: DISCLAIMER,
+    engineVersion: MOCK_ENGINE_VERSION,
+  },
+};
