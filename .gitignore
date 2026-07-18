@@ -8,3 +8,9 @@ node_modules/
 .vercel
 apps/platform/public/uploads/
 .env*
+
+# macOS
+.DS_Store
+
+# Local IDE / tool config
+.claude/
