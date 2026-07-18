@@ -9,7 +9,9 @@
     "start": "next start -p 3100",
     "db:generate": "cd ../../packages/db && npx prisma generate",
     "lint": "echo lint-ok",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "typecheck:miniapp": "tsc --noEmit -p tsconfig.miniapp.json",
+    "test:miniapp": "tsx --test lib/miniapp/recommendation-api.test.ts"
   },
   "//": "Production: run pnpm db:generate before pnpm build to activate Service Layer",
   "dependencies": {
@@ -39,6 +41,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "tailwindcss": "^4",
+    "tsx": "^4.0.0",
     "typescript": "^5"
   }
 }

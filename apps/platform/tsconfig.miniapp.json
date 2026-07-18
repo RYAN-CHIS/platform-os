@@ -1,0 +1,13 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "incremental": false
+  },
+  "include": [
+    "next-env.d.ts",
+    "middleware.ts",
+    "app/api/miniapp/**/*.ts",
+    "lib/miniapp/**/*.ts"
+  ],
+  "exclude": ["node_modules"]
+}
